@@ -1,7 +1,7 @@
 import { prisma } from "@/server/db";
 import bcrypt from "bcryptjs";
 import { Resend } from "resend";
-import { randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -53,9 +53,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "このメールアドレスは既に登録されています" }, { status: 409 });
     }
 
-    const loginId = email.split("@")[0];
+    // Generate unique loginId from email, append number if duplicate
+    let loginId = email.split("@")[0];
+    const existingLogin = await prisma.mUser.findFirst({ where: { loginId } });
+    if (existingLogin) {
+      const count = await prisma.mUser.count({ where: { loginId: { startsWith: loginId } } });
+      loginId = `${loginId}${count + 1}`;
+    }
     // Generate invite token (user will set password on first access)
-    const inviteToken = randomBytes(32).toString("hex");
+    const inviteToken = randomUUID() + randomUUID();
     // Temporary password hash (won't be used for login until user sets real password)
     const passwordHash = await bcrypt.hash(inviteToken, 10);
 
