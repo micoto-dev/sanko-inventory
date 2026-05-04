@@ -29,8 +29,30 @@ export async function GET(request: Request) {
       prisma.tOrder.count({ where }),
     ]);
 
+    const data = orders.map((o: any) => ({
+      id: o.id,
+      orderNo: o.orderNo,
+      supplier: o.supplier?.name || '',
+      supplierId: o.supplierId,
+      orderDate: o.orderDate?.toISOString?.()?.slice(0, 10) || '',
+      desiredDate: o.desiredDate?.toISOString?.()?.slice(0, 10) || '',
+      status: o.status,
+      totalQty: o.totalQty,
+      totalAmount: o.totalAmount,
+      createdBy: o.createdBy?.name || '',
+      approvedBy: o.approvedBy?.name || '',
+      details: (o.details || []).map((d: any) => ({
+        id: d.id,
+        partId: d.partId,
+        partName: d.part?.name || '',
+        qty: d.qty,
+        receivedQty: d.receivedQty,
+        unitPrice: d.unitPrice,
+      })),
+    }));
+
     return Response.json({
-      data: orders,
+      data,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (e) {
@@ -44,8 +66,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { supplierId, desiredDate, deliveryAddr, paymentTerms, notes, createdById, details } = body;
 
-    if (!supplierId || !createdById || !details?.length) {
-      return Response.json({ error: "supplierId, createdById, and details are required" }, { status: 400 });
+    const userId = createdById || 1; // Default to admin user
+    if (!supplierId || !details?.length) {
+      return Response.json({ error: "supplierId and details are required" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -88,7 +111,7 @@ export async function POST(request: Request) {
           notes,
           totalQty,
           totalAmount,
-          createdById,
+          createdById: userId,
           details: { create: detailData },
         },
         include: { details: true },

@@ -13,7 +13,20 @@ export async function GET(request: Request) {
       orderBy: { id: "asc" },
     });
 
-    return Response.json({ data: locations });
+    const data = locations.map((l: any) => ({
+      id: l.id,
+      warehouse: l.warehouse,
+      shelf: l.shelf,
+      col: l.col,
+      row: l.row,
+      side: l.side,
+      name: l.name,
+      maxQty: l.maxQty,
+      locType: l.locType,
+      isActive: l.isActive,
+    }));
+
+    return Response.json({ data });
   } catch (e) {
     console.error(e);
     return Response.json({ error: "Failed to fetch locations" }, { status: 500 });

@@ -34,8 +34,18 @@ export async function GET(request: Request) {
       prisma.tLog.count({ where }),
     ]);
 
+    const data = logs.map((l: any) => ({
+      id: l.id,
+      ts: l.ts?.toISOString?.() || '',
+      userName: l.user?.name || l.userName || '',
+      category: l.category,
+      action: l.action,
+      targetId: l.targetId,
+      description: l.description,
+    }));
+
     return Response.json({
-      data: logs,
+      data,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (e) {

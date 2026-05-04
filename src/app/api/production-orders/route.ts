@@ -28,8 +28,21 @@ export async function GET(request: Request) {
       prisma.tProdOrder.count({ where }),
     ]);
 
+    const data = orders.map((o: any) => ({
+      id: o.id,
+      prodNo: o.prodNo,
+      productId: o.productId,
+      productCode: o.product?.code || '',
+      productName: o.product?.name || '',
+      qty: o.qty,
+      status: o.status,
+      startDate: o.startDate?.toISOString?.()?.slice(0, 10) || '',
+      dueDate: o.dueDate?.toISOString?.()?.slice(0, 10) || '',
+      customer: o.customer || '',
+    }));
+
     return Response.json({
-      data: orders,
+      data,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (e) {

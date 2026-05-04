@@ -54,11 +54,26 @@ export async function GET(request: Request) {
       }
 
       return {
-        ...part,
-        stocks: undefined,
-        totalQty,
-        totalAllocated,
-        totalOnOrder,
+        id: part.id,
+        code: part.code,
+        name: part.name,
+        spec: part.spec,
+        category: part.category,
+        maker: part.maker,
+        makerCode: part.makerCode,
+        supplier: part.supplier?.name || '',
+        supplierId: part.supplierId,
+        unit: part.unit,
+        unitPrice: part.unitPrice,
+        leadTime: part.leadTimeDays,
+        reorderPoint: part.reorderPoint,
+        safetyStock: part.safetyStock,
+        maxStock: part.maxStock,
+        location: part.defaultLocId || (part.stocks[0]?.locationId) || '',
+        shortageReason: part.shortageReason,
+        stock: totalQty,
+        allocated: totalAllocated,
+        onOrder: totalOnOrder,
         effective,
         status: computedStatus,
       };
@@ -80,21 +95,31 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      id, code, name, spec, category, maker, makerCode,
-      supplierId, unit, unitPrice, leadTimeDays, reorderPoint,
+      code, name, spec, category, maker, makerCode,
+      supplierId, unit, unitPrice, leadTimeDays, leadTime, reorderPoint,
       safetyStock, maxStock, defaultLocId, shortageReason,
     } = body;
 
-    if (!id || !code || !name) {
-      return Response.json({ error: "id, code, and name are required" }, { status: 400 });
+    if (!code || !name) {
+      return Response.json({ error: "code and name are required" }, { status: 400 });
     }
+
+    // Auto-generate part ID
+    const lastPart = await prisma.mPart.findFirst({ orderBy: { id: 'desc' } });
+    const lastNum = lastPart ? parseInt(lastPart.id.replace('PT', ''), 10) : 12344;
+    const id = 'PT' + String(lastNum + 1).padStart(8, '0');
 
     const result = await prisma.$transaction(async (tx) => {
       const part = await tx.mPart.create({
         data: {
           id, code, name, spec, category, maker, makerCode,
-          supplierId, unit, unitPrice, leadTimeDays, reorderPoint,
-          safetyStock, maxStock, defaultLocId, shortageReason,
+          supplierId, unit, unitPrice: unitPrice || 0,
+          leadTimeDays: leadTimeDays || leadTime || 14,
+          reorderPoint: reorderPoint || 0,
+          safetyStock: safetyStock || 0,
+          maxStock: maxStock || 0,
+          defaultLocId: defaultLocId || null,
+          shortageReason,
         },
       });
 

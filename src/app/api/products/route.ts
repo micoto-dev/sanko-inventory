@@ -33,8 +33,26 @@ export async function GET(request: Request) {
       prisma.mProduct.count({ where }),
     ]);
 
+    const data = products.map((p: any) => ({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      category: p.category,
+      description: p.description,
+      voltage: p.voltage,
+      dimensions: p.dimensions,
+      drawingNo: p.drawingNo,
+      isActive: p.isActive,
+      boms: (p.boms || []).map((b: any) => ({
+        id: b.id,
+        partId: b.partId,
+        qty: Number(b.qty),
+        position: b.position,
+      })),
+    }));
+
     return Response.json({
-      data: products,
+      data,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (e) {
