@@ -644,8 +644,29 @@ const LocationsScreen = ({ locations }: { locations: Location[] }) => {
 };
 
 // ========================== Other Screens ==========================
-const ReceiveScreen = ({ orders }: { orders: Order[] }) => {
-  const pendingOrders = orders.filter(o => ['awaiting', 'partial'].includes(o.status));
+const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefresh: () => void; toast: (msg: string) => void }) => {
+  const pendingOrders = orders.filter(o => ['awaiting', 'partial', 'delayed'].includes(o.status));
+  const [receiving, setReceiving] = useState<Order | null>(null);
+
+  const handleReceive = async (order: Order, receiveItems: { partId: string; qty: number }[]) => {
+    try {
+      await api.createReceive({
+        orderId: order.id,
+        items: receiveItems.map(item => ({
+          ...item,
+          orderDetailId: (order.details.find(d => d.partId === item.partId) as any)?.id,
+          locationId: 'A-03-2-L', // default location
+          result: 'ok',
+        })),
+      });
+      toast('入庫を登録しました');
+      setReceiving(null);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
   return (
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
@@ -653,22 +674,74 @@ const ReceiveScreen = ({ orders }: { orders: Order[] }) => {
         {pendingOrders.length === 0 ? (
           <div className="p-6 text-center text-sm text-slate-500">入庫待ちの発注はありません</div>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {pendingOrders.map(o => (
-              <div key={o.id} className="px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div><span className="font-mono text-xs text-slate-500">{o.orderNo}</span><span className="mx-2 text-sm font-semibold">{o.supplier}</span><StatusBadge statusKey={o.status} statusMap={ORDER_STATUS} /></div>
-                  <span className="font-mono text-sm">{yen(o.totalAmount)}</span>
-                </div>
-                {o.details?.filter(d => d.qty - d.receivedQty > 0).map((d, i) => (
-                  <div key={i} className="text-xs text-slate-600 ml-4">{d.partName || d.partId}: 残 {d.qty - d.receivedQty} / {d.qty}</div>
-                ))}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">発注番号</th>
+                  <th className="text-left px-3 py-2 font-medium">仕入先</th>
+                  <th className="text-left px-3 py-2 font-medium">部品</th>
+                  <th className="text-right px-3 py-2 font-medium">発注数</th>
+                  <th className="text-right px-3 py-2 font-medium">入庫済</th>
+                  <th className="text-right px-3 py-2 font-medium">残数</th>
+                  <th className="text-left px-3 py-2 font-medium">ステータス</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pendingOrders.map(o => o.details?.filter(d => d.qty - d.receivedQty > 0).map((d, i) => (
+                  <tr key={`${o.id}-${i}`} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 font-mono text-xs">{i === 0 ? o.orderNo : ''}</td>
+                    <td className="px-3 py-2 text-xs">{i === 0 ? o.supplier : ''}</td>
+                    <td className="px-3 py-2"><div className="font-semibold">{d.partName || d.partId}</div><div className="text-xs text-slate-500 font-mono">{d.partId}</div></td>
+                    <td className="px-3 py-2 text-right font-mono">{d.qty}</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-500">{d.receivedQty}</td>
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-amber-700">{d.qty - d.receivedQty}</td>
+                    <td className="px-3 py-2">{i === 0 && <StatusBadge statusKey={o.status} statusMap={ORDER_STATUS} />}</td>
+                    <td className="px-3 py-2">{i === 0 && <Btn variant="success" size="sm" icon={Truck} onClick={() => setReceiving(o)}>入庫</Btn>}</td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+      {receiving && (
+        <ReceiveModal order={receiving} onClose={() => setReceiving(null)} onReceive={handleReceive} />
+      )}
     </div>
+  );
+};
+
+const ReceiveModal = ({ order, onClose, onReceive }: { order: Order; onClose: () => void; onReceive: (order: Order, items: { partId: string; qty: number }[]) => void }) => {
+  const remainingDetails = order.details?.filter(d => d.qty - d.receivedQty > 0) || [];
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    const q: Record<string, number> = {};
+    remainingDetails.forEach(d => { q[d.partId] = d.qty - d.receivedQty; });
+    return q;
+  });
+
+  return (
+    <Modal open onClose={onClose} title={`入庫処理: ${order.orderNo}`} size="lg">
+      <div className="mb-3 text-sm text-slate-600">仕入先: <span className="font-semibold">{order.supplier}</span></div>
+      <table className="w-full text-sm mb-4">
+        <thead className="text-xs text-slate-500 bg-slate-50"><tr><th className="text-left px-3 py-2">部品</th><th className="text-right px-3 py-2">発注</th><th className="text-right px-3 py-2">入庫済</th><th className="text-right px-3 py-2">今回入庫数</th></tr></thead>
+        <tbody className="divide-y divide-slate-100">
+          {remainingDetails.map(d => (
+            <tr key={d.partId}>
+              <td className="px-3 py-2"><div className="font-semibold">{d.partName || d.partId}</div></td>
+              <td className="px-3 py-2 text-right font-mono">{d.qty}</td>
+              <td className="px-3 py-2 text-right font-mono text-slate-500">{d.receivedQty}</td>
+              <td className="px-3 py-2"><input type="number" value={quantities[d.partId] || 0} onChange={e => setQuantities(prev => ({ ...prev, [d.partId]: Math.min(Number(e.target.value) || 0, d.qty - d.receivedQty) }))} className={`${inputClass} text-right w-24 ml-auto`} max={d.qty - d.receivedQty} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex gap-2 pt-3 border-t border-slate-100">
+        <Btn variant="success" icon={CheckCircle2} onClick={() => onReceive(order, Object.entries(quantities).filter(([, q]) => q > 0).map(([partId, qty]) => ({ partId, qty })))}>入庫確定</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </Modal>
   );
 };
 
@@ -1322,7 +1395,7 @@ export default function AppPage() {
           {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} />}
           {view === 'locations' && <LocationsScreen locations={locations} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} />}
-          {view === 'receive' && <ReceiveScreen orders={orders} />}
+          {view === 'receive' && <ReceiveScreen orders={orders} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} />}
           {view === 'stocktake' && <StocktakeScreen />}
