@@ -5,8 +5,9 @@ import {
   LayoutDashboard, Search, Package, ShoppingCart, ClipboardCheck,
   Bell, AlertTriangle, AlertCircle, Boxes, Truck, Filter,
   CheckCircle2, MapPin, Plus, Edit, BarChart3, Package2, Anchor,
-  Factory, Warehouse, Trash2, Save,
-  History, Cpu, Loader2,
+  Factory, Warehouse, Trash2, Save, Send, MessageSquare, Users,
+  History, Cpu, Loader2, Building, Database, Shield, UserPlus,
+  ChevronRight, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -61,6 +62,10 @@ const Sidebar = ({ view, setView, alertCount, moCount }: {
     { id: 'stocktake', label: '棚卸し', icon: ClipboardCheck },
     { id: 'reports', label: 'レポート', icon: BarChart3 },
     { id: 'logs', label: '履歴・ログ', icon: History },
+    { id: 'chat', label: 'AIチャット', icon: MessageSquare },
+    { id: 'users', label: 'ユーザー管理', icon: Users },
+    { id: 'departments', label: '部署管理', icon: Building },
+    { id: 'entities', label: 'エンティティ', icon: Database },
   ];
   return (
     <aside className="w-56 bg-slate-900 text-slate-100 flex flex-col flex-shrink-0">
@@ -834,6 +839,401 @@ const LogsScreen = ({ logs }: { logs: Log[] }) => {
 };
 
 // ========================== Main App ==========================
+// ========================== AI Chat ==========================
+const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | undefined>();
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setLoading(true);
+    try {
+      const res = await api.chat(userMsg, sessionId);
+      setSessionId(res.data.sessionId);
+      setMessages(prev => [...prev, { role: 'assistant', content: res.data.message }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${e.message}` }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-5 flex flex-col h-[calc(100vh-60px)]">
+      <div className="flex-1 bg-white rounded-lg border border-slate-200 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.length === 0 && (
+            <div className="text-center text-slate-400 mt-20">
+              <MessageSquare size={48} className="mx-auto mb-3 opacity-50" />
+              <p className="text-sm">在庫・発注・製造指図について質問できます</p>
+              <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                {['在庫切れの部品は？', '発注中の部品一覧', '製造指図の進捗は？', 'メーカー欠品の状況'].map(q => (
+                  <button key={q} onClick={() => { setInput(q); }} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100">{q}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] px-4 py-2.5 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-slate-100 px-4 py-2.5 rounded-lg"><Loader2 size={16} className="animate-spin text-slate-500" /></div>
+            </div>
+          )}
+        </div>
+        <div className="border-t border-slate-200 p-3 flex gap-2">
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder="質問を入力..." className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          <Btn variant="primary" icon={Send} onClick={handleSend} disabled={loading || !input.trim()}>送信</Btn>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========================== Users Management ==========================
+const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+
+  const load = async () => {
+    try {
+      const [uRes, dRes] = await Promise.all([api.getUsers(), api.getDepartments()]);
+      setUsers(uRes.data || []);
+      setDepartments(dRes.data || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleToggleActive = async (user: any) => {
+    try {
+      await api.updateUser(user.id, { isActive: !user.isActive });
+      toast(`${user.name} を${user.isActive ? '無効化' : '有効化'}しました`);
+      load();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) {
+        await api.createUser(form);
+        toast(`ユーザー「${form.name}」を招待しました`);
+      } else {
+        await api.updateUser(form.id, form);
+        toast(`ユーザー「${form.name}」を更新しました`);
+      }
+      setShowNew(false); setEditing(null); load();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const roles = [
+    { value: 'admin', label: '管理者', color: 'bg-red-100 text-red-800' },
+    { value: 'manager', label: 'マネージャー', color: 'bg-blue-100 text-blue-800' },
+    { value: 'accountant', label: '経理', color: 'bg-purple-100 text-purple-800' },
+    { value: 'user', label: '一般', color: 'bg-slate-100 text-slate-700' },
+  ];
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="flex justify-end">
+        <Btn icon={UserPlus} onClick={() => setShowNew(true)}>ユーザー招待</Btn>
+      </div>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">名前</th>
+              <th className="text-left px-3 py-2 font-medium">社内ID</th>
+              <th className="text-left px-3 py-2 font-medium">メール</th>
+              <th className="text-left px-3 py-2 font-medium">ロール</th>
+              <th className="text-left px-3 py-2 font-medium">部署</th>
+              <th className="text-left px-3 py-2 font-medium">状態</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {users.map((u: any) => {
+              const r = roles.find(x => x.value === u.role);
+              return (
+                <tr key={u.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 font-semibold">{u.name}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{u.loginId}</td>
+                  <td className="px-3 py-2 text-xs">{u.email}</td>
+                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${r?.color || ''}`}>{r?.label || u.role}</span></td>
+                  <td className="px-3 py-2 text-xs">{u.department || '-'}</td>
+                  <td className="px-3 py-2">
+                    <button onClick={() => handleToggleActive(u)} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {u.isActive ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}{u.isActive ? '有効' : '無効'}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2"><Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(u)}>編集</Btn></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {(showNew || editing) && (
+        <Modal open onClose={() => { setShowNew(false); setEditing(null); }} title={showNew ? 'ユーザー招待' : 'ユーザー編集'} size="md">
+          <UserForm user={editing} isNew={showNew} departments={departments} roles={roles} onSave={handleSave} onClose={() => { setShowNew(false); setEditing(null); }} />
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const UserForm = ({ user, isNew, departments, roles, onSave, onClose }: any) => {
+  const [form, setForm] = useState(() => user || { loginId: '', email: '', name: '', role: 'user', departmentId: null, password: '' });
+  const upd = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+  return (
+    <div className="space-y-3 text-sm">
+      <Field label="名前*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+      {isNew && <Field label="社内ID*"><input value={form.loginId || ''} onChange={e => upd('loginId', e.target.value)} className={inputClass} /></Field>}
+      <Field label="メール*"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+      {isNew && <Field label="初期パスワード*"><input type="password" value={form.password || ''} onChange={e => upd('password', e.target.value)} className={inputClass} /></Field>}
+      <Field label="ロール">
+        <select value={form.role} onChange={e => upd('role', e.target.value)} className={inputClass}>
+          {roles.map((r: any) => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
+      </Field>
+      <Field label="部署">
+        <select value={form.departmentId || ''} onChange={e => upd('departmentId', e.target.value ? Number(e.target.value) : null)} className={inputClass}>
+          <option value="">未所属</option>
+          {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+      </Field>
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name || (isNew && (!form.loginId || !form.password))}>{isNew ? '招待' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </div>
+  );
+};
+
+// ========================== Departments ==========================
+const DepartmentsScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+
+  const load = async () => {
+    try { const res = await api.getDepartments(); setDepartments(res.data || []); } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) { await api.createDepartment(form); toast(`部署「${form.name}」を作成しました`); }
+      else { await api.updateDepartment(form.id, form); toast(`部署「${form.name}」を更新しました`); }
+      setShowNew(false); setEditing(null); load();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDelete = async (dept: any) => {
+    try { await api.deleteDepartment(dept.id); toast(`部署「${dept.name}」を無効化しました`); load(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  // Build tree structure
+  const tree = useMemo(() => {
+    const roots = departments.filter(d => !d.parentId);
+    const getChildren = (parentId: number): any[] => departments.filter(d => d.parentId === parentId).map(d => ({ ...d, children: getChildren(d.id) }));
+    return roots.map(d => ({ ...d, children: getChildren(d.id) }));
+  }, [departments]);
+
+  const renderNode = (node: any, depth: number = 0): React.ReactNode => (
+    <div key={node.id}>
+      <div className={`flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100`} style={{ paddingLeft: `${16 + depth * 24}px` }}>
+        {depth > 0 && <ChevronRight size={12} className="text-slate-400" />}
+        <Building size={14} className="text-slate-500" />
+        <span className="font-semibold flex-1">{node.name}</span>
+        {node.code && <span className="text-xs font-mono text-slate-400">{node.code}</span>}
+        <span className="text-xs text-slate-500">{node.userCount || 0}人</span>
+        <span className={`text-xs px-2 py-0.5 rounded ${node.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{node.isActive ? '有効' : '無効'}</span>
+        <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(node)}>編集</Btn>
+        <button onClick={() => handleDelete(node)} className="text-rose-500 hover:bg-rose-50 p-1 rounded"><Trash2 size={13} /></button>
+      </div>
+      {node.children?.map((c: any) => renderNode(c, depth + 1))}
+    </div>
+  );
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="flex justify-end"><Btn icon={Plus} onClick={() => setShowNew(true)}>部署追加</Btn></div>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        {tree.length === 0 ? (
+          <div className="p-6 text-center text-sm text-slate-500">部署がまだ登録されていません</div>
+        ) : tree.map(n => renderNode(n))}
+      </div>
+      {(showNew || editing) && (
+        <Modal open onClose={() => { setShowNew(false); setEditing(null); }} title={showNew ? '部署追加' : '部署編集'} size="md">
+          <DeptForm dept={editing} isNew={showNew} departments={departments} onSave={handleSave} onClose={() => { setShowNew(false); setEditing(null); }} />
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const DeptForm = ({ dept, isNew, departments, onSave, onClose }: any) => {
+  const [form, setForm] = useState(() => dept || { name: '', code: '', parentId: null, description: '', sortOrder: 0 });
+  const upd = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+  return (
+    <div className="space-y-3 text-sm">
+      <Field label="部署名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+      <Field label="コード"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
+      <Field label="親部署">
+        <select value={form.parentId || ''} onChange={e => upd('parentId', e.target.value ? Number(e.target.value) : null)} className={inputClass}>
+          <option value="">なし（最上位）</option>
+          {departments.filter((d: any) => d.id !== form.id).map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+      </Field>
+      <Field label="説明"><input value={form.description || ''} onChange={e => upd('description', e.target.value)} className={inputClass} /></Field>
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name}>{isNew ? '作成' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </div>
+  );
+};
+
+// ========================== Entities ==========================
+const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [entities, setEntities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+
+  const load = async () => {
+    try {
+      const params: Record<string, string> = {};
+      if (typeFilter !== 'all') params.type = typeFilter;
+      const res = await api.getEntities(params);
+      setEntities(res.data || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [typeFilter]);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) { await api.createEntity(form); toast(`エンティティ「${form.name}」を登録しました`); }
+      else { await api.updateEntity(form.id, form); toast(`エンティティ「${form.name}」を更新しました`); }
+      setShowNew(false); setEditing(null); load();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleVerify = async (entity: any) => {
+    try { await api.updateEntity(entity.id, { isVerified: !entity.isVerified }); toast(`${entity.isVerified ? '未検証に戻しました' : '検証済みにしました'}`); load(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const entityTypes = [
+    { value: 'company', label: '会社', color: 'bg-blue-100 text-blue-800' },
+    { value: 'person', label: '人名', color: 'bg-emerald-100 text-emerald-800' },
+    { value: 'contract', label: '契約', color: 'bg-purple-100 text-purple-800' },
+    { value: 'amount', label: '金額', color: 'bg-amber-100 text-amber-800' },
+  ];
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
+        <Filter size={12} className="text-slate-400" />
+        <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setLoading(true); }} className="text-xs px-2 py-1 border border-slate-200 rounded">
+          <option value="all">全タイプ</option>
+          {entityTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <span className="ml-auto text-xs text-slate-500">{entities.length}件</span>
+        <Btn size="sm" icon={Plus} onClick={() => setShowNew(true)}>登録</Btn>
+      </div>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">タイプ</th>
+              <th className="text-left px-3 py-2 font-medium">名前</th>
+              <th className="text-left px-3 py-2 font-medium">カテゴリ</th>
+              <th className="text-left px-3 py-2 font-medium">ソース</th>
+              <th className="text-left px-3 py-2 font-medium">検証</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {entities.map((e: any) => {
+              const t = entityTypes.find(x => x.value === e.entityType);
+              return (
+                <tr key={e.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${t?.color || ''}`}>{t?.label || e.entityType}</span></td>
+                  <td className="px-3 py-2 font-semibold">{e.name}</td>
+                  <td className="px-3 py-2 text-xs">{e.category || '-'}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{e.sourceDoc || '-'}</td>
+                  <td className="px-3 py-2">
+                    <button onClick={() => handleVerify(e)} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${e.isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {e.isVerified ? <><Shield size={10} /> 検証済</> : '未検証'}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2"><Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(e)}>編集</Btn></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {(showNew || editing) && (
+        <Modal open onClose={() => { setShowNew(false); setEditing(null); }} title={showNew ? 'エンティティ登録' : 'エンティティ編集'} size="md">
+          <EntityForm entity={editing} isNew={showNew} entityTypes={entityTypes} onSave={handleSave} onClose={() => { setShowNew(false); setEditing(null); }} />
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const EntityForm = ({ entity, isNew, entityTypes, onSave, onClose }: any) => {
+  const [form, setForm] = useState(() => entity || { entityType: 'company', name: '', code: '', category: '', description: '', sourceDoc: '' });
+  const upd = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+  return (
+    <div className="space-y-3 text-sm">
+      <Field label="タイプ*">
+        <select value={form.entityType} onChange={e => upd('entityType', e.target.value)} className={inputClass}>
+          {entityTypes.map((t: any) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+      </Field>
+      <Field label="名前*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+      <Field label="コード"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
+      <Field label="カテゴリ"><input value={form.category || ''} onChange={e => upd('category', e.target.value)} className={inputClass} /></Field>
+      <Field label="説明"><input value={form.description || ''} onChange={e => upd('description', e.target.value)} className={inputClass} /></Field>
+      <Field label="ソースドキュメント"><input value={form.sourceDoc || ''} onChange={e => upd('sourceDoc', e.target.value)} className={inputClass} /></Field>
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name}>{isNew ? '登録' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </div>
+  );
+};
+
+// ========================== View Titles ==========================
 const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: 'ダッシュボード', subtitle: '在庫状況の概要' },
   master: { title: '部品マスタ', subtitle: '部品情報の登録・編集' },
@@ -847,6 +1247,10 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   stocktake: { title: '棚卸し', subtitle: '実地棚卸しの管理' },
   reports: { title: 'レポート', subtitle: '在庫分析・統計' },
   logs: { title: '履歴・ログ', subtitle: '操作履歴の検索・閲覧' },
+  chat: { title: 'AIチャット', subtitle: '在庫・発注データをAIに質問' },
+  users: { title: 'ユーザー管理', subtitle: 'ユーザーの招待・ロール管理' },
+  departments: { title: '部署管理', subtitle: '部署の階層構造を管理' },
+  entities: { title: 'エンティティ管理', subtitle: '会社名・人名・契約情報の管理' },
 };
 
 export default function AppPage() {
@@ -924,6 +1328,10 @@ export default function AppPage() {
           {view === 'stocktake' && <StocktakeScreen />}
           {view === 'reports' && <ReportsScreen />}
           {view === 'logs' && <LogsScreen logs={logs} />}
+          {view === 'chat' && <ChatScreen toast={toast} />}
+          {view === 'users' && <UsersScreen toast={toast} />}
+          {view === 'departments' && <DepartmentsScreen toast={toast} />}
+          {view === 'entities' && <EntitiesScreen toast={toast} />}
         </div>
       </main>
       <Toast msg={toastMsg} />

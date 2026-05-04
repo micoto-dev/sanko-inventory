@@ -62,4 +62,26 @@ export const api = {
   getStocktakes: () => request<any>('/stocktakes'),
   createStocktake: (data: any) => request<any>('/stocktakes', { method: 'POST', body: JSON.stringify(data) }),
   approveStocktake: (id: number) => request<any>(`/stocktakes/${id}/approve`, { method: 'POST' }),
+
+  // Users
+  getUsers: () => request<any>('/users'),
+  createUser: (data: any) => request<any>('/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (id: number, data: any) => request<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // Departments
+  getDepartments: () => request<any>('/departments'),
+  createDepartment: (data: any) => request<any>('/departments', { method: 'POST', body: JSON.stringify(data) }),
+  updateDepartment: (id: number, data: any) => request<any>(`/departments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteDepartment: (id: number) => request<any>(`/departments/${id}`, { method: 'DELETE' }),
+
+  // Entities
+  getEntities: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<any>(`/entities${qs}`);
+  },
+  createEntity: (data: any) => request<any>('/entities', { method: 'POST', body: JSON.stringify(data) }),
+  updateEntity: (id: number, data: any) => request<any>(`/entities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // AI Chat
+  chat: (message: string, sessionId?: string) => request<any>('/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }) }),
 };
