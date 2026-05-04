@@ -47,8 +47,8 @@ interface Log {
 }
 
 // ========================== Sidebar ==========================
-const Sidebar = ({ view, setView, alertCount, moCount }: {
-  view: string; setView: (v: string) => void; alertCount: number; moCount: number;
+const Sidebar = ({ view, setView }: {
+  view: string; setView: (v: string) => void;
 }) => {
   const items = [
     { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
@@ -56,9 +56,9 @@ const Sidebar = ({ view, setView, alertCount, moCount }: {
     { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
     { id: 'inventory', label: '在庫一覧', icon: Boxes },
     { id: 'locations', label: 'ロケーション', icon: Warehouse },
-    { id: 'orders', label: '発注管理', icon: ShoppingCart, badge: alertCount },
+    { id: 'orders', label: '発注管理', icon: ShoppingCart },
     { id: 'receive', label: '入庫処理', icon: Truck },
-    { id: 'production', label: '製造指図', icon: Factory, badge: moCount },
+    { id: 'production', label: '製造指図', icon: Factory },
     { id: 'issue', label: '出庫処理', icon: Package2 },
     { id: 'stocktake', label: '棚卸し', icon: ClipboardCheck },
     { id: 'reports', label: 'レポート', icon: BarChart3 },
@@ -91,21 +91,11 @@ const Sidebar = ({ view, setView, alertCount, moCount }: {
               className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm mb-0.5 transition ${active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
               <Icon size={16} />
               <span className="flex-1 text-left">{item.label}</span>
-              {(item.badge ?? 0) > 0 && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">{item.badge}</span>}
+              {(item as any).badge > 0 && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">{(item as any).badge}</span>}
             </button>
           );
         })}
       </nav>
-      <div className="p-3 border-t border-slate-800 text-xs text-slate-400">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center"><Anchor size={12} /></div>
-          <div className="flex-1 min-w-0"><div className="text-slate-200">ユーザー</div><div>管理者</div></div>
-        </div>
-        <button onClick={() => { fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login'); }}
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition text-xs">
-          <LogOut size={14} /> ログアウト
-        </button>
-      </div>
     </aside>
   );
 };
@@ -116,7 +106,16 @@ const TopBar = ({ title, subtitle }: { title: string; subtitle?: string }) => (
       <h1 className="text-base font-bold text-slate-900">{title}</h1>
       {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
     </div>
-    <div className="text-xs text-slate-500 px-2">{new Date().toLocaleDateString('ja-JP')}</div>
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center"><Anchor size={10} /></div>
+        <span>ユーザー</span>
+      </div>
+      <button onClick={() => { fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login'); }}
+        className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition">
+        <LogOut size={13} /> ログアウト
+      </button>
+    </div>
   </div>
 );
 
@@ -2033,12 +2032,6 @@ export default function AppPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const alertCount = parts.filter(p => {
-    const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
-    return eff < p.reorderPoint;
-  }).length;
-  const moCount = prodOrders.filter(m => m.status !== 'completed').length;
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100">
@@ -2054,7 +2047,7 @@ export default function AppPage() {
 
   return (
     <div className="flex h-screen bg-slate-100">
-      <Sidebar view={view} setView={setView} alertCount={alertCount} moCount={moCount} />
+      <Sidebar view={view} setView={setView} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <TopBar title={vt.title} subtitle={vt.subtitle} />
         <div className="flex-1 overflow-y-auto">
