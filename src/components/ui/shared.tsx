@@ -9,7 +9,7 @@ export const Modal = ({ open, onClose, title, children, size = 'md' }: {
   if (!open) return null;
   const sz: Record<string, string> = { sm: 'max-w-md', md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' };
   return (
-    <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
       <div className={`bg-white rounded-lg ${sz[size] || sz.md} w-full max-h-[90vh] overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
         <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
           <h2 className="font-bold text-slate-900">{title}</h2>
