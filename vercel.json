@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/reorder-suggest", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/log-archive", "schedule": "0 17 1 * *" }
+  ]
+}

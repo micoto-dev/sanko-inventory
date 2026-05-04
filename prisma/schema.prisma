@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== マスタテーブル ====================
+
+model MUser {
+  id           Int       @id @default(autoincrement())
+  loginId      String    @unique @map("login_id") @db.VarChar(64)
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  name         String    @db.VarChar(100)
+  role         String    @db.VarChar(32) // admin | manager | operator | viewer
+  department   String?   @db.VarChar(100)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz()
+  failedCount  Int       @default(0) @map("failed_count")
+  lockedUntil  DateTime? @map("locked_until") @db.Timestamptz()
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  approvedOrders TOrder[]     @relation("ApprovedBy")
+  createdOrders  TOrder[]     @relation("CreatedBy")
+  receives       TReceive[]
+  issues         TIssue[]
+  prodOrders     TProdOrder[]
+  logs           TLog[]
+  stocktakes     TStocktake[]  @relation("StocktakeCreatedBy")
+  approvedStocktakes TStocktake[] @relation("StocktakeApprovedBy")
+  stocktakeDetails TStocktakeDetail[] @relation("StocktakeCountedBy")
+  updatedProducts MProduct[]
+  ocrHistories   TOcrHistory[]
+  attachments    TAttachment[]
+
+  @@map("m_user")
+}
+
+model MPart {
+  id            String    @id @db.VarChar(20) // PT00012345
+  code          String    @unique @db.VarChar(64)
+  name          String    @db.VarChar(255)
+  spec          String?   @db.Text
+  category      String?   @db.VarChar(255)
+  maker         String?   @db.VarChar(100)
+  makerCode     String?   @map("maker_code") @db.VarChar(100)
+  supplierId    Int?      @map("supplier_id")
+  unit          String    @default("個") @db.VarChar(20)
+  unitPrice     Int       @default(0) @map("unit_price")
+  leadTimeDays  Int       @default(14) @map("lead_time_days")
+  reorderPoint  Int       @default(0) @map("reorder_point")
+  safetyStock   Int       @default(0) @map("safety_stock")
+  maxStock      Int       @default(0) @map("max_stock")
+  defaultLocId  String?   @map("default_loc_id") @db.VarChar(32)
+  shortageReason String?  @map("shortage_reason") @db.Text
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  supplier      MSupplier?  @relation(fields: [supplierId], references: [id])
+  defaultLoc    MLocation?  @relation(fields: [defaultLocId], references: [id])
+  stocks        TStock[]
+  orderDetails  TOrderDetail[]
+  receives      TReceive[]
+  issues        TIssue[]
+  boms          MBom[]
+  prodOrderBoms TProdOrderBomSnapshot[]
+  stocktakeDetails TStocktakeDetail[]
+
+  @@map("m_part")
+}
+
+model MSupplier {
+  id            Int       @id @default(autoincrement())
+  code          String    @unique @db.VarChar(32)
+  name          String    @db.VarChar(255)
+  postalCode    String?   @map("postal_code") @db.VarChar(8)
+  address       String?   @db.Text
+  tel           String?   @db.VarChar(32)
+  fax           String?   @db.VarChar(32)
+  email         String?   @db.VarChar(255)
+  contactPerson String?   @map("contact_person") @db.VarChar(100)
+  paymentTerms  String?   @map("payment_terms") @db.VarChar(255)
+  notes         String?   @db.Text
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  parts         MPart[]
+  orders        TOrder[]
+
+  @@map("m_supplier")
+}
+
+model MLocation {
+  id        String  @id @db.VarChar(32) // A-03-2-L
+  warehouse String  @db.VarChar(64)
+  shelf     String  @db.VarChar(8)
+  col       String  @db.VarChar(8)
+  row       String  @db.VarChar(8)
+  side      String? @db.VarChar(4)
+  name      String  @db.VarChar(100)
+  maxQty    Int     @default(0) @map("max_qty")
+  locType   String  @default("通常棚") @map("loc_type") @db.VarChar(32)
+  isActive  Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  parts     MPart[]
+  stocks    TStock[]
+  receives  TReceive[]
+  issues    TIssue[]
+  stocktakeDetails TStocktakeDetail[]
+
+  @@map("m_location")
+}
+
+model MProduct {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique @db.VarChar(64)
+  name        String    @db.VarChar(255)
+  category    String    @db.VarChar(64)
+  description String?   @db.Text
+  voltage     String?   @db.VarChar(64)
+  dimensions  String?   @db.VarChar(64)
+  drawingNo   String?   @map("drawing_no") @db.VarChar(64)
+  isActive    Boolean   @default(true) @map("is_active")
+  updatedById Int?      @map("updated_by")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  updatedBy   MUser?    @relation(fields: [updatedById], references: [id])
+  boms        MBom[]
+  prodOrders  TProdOrder[]
+
+  @@map("m_product")
+}
+
+model MBom {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  partId    String   @map("part_id") @db.VarChar(20)
+  qty       Decimal  @db.Decimal(10, 3)
+  position  String?  @db.VarChar(64)
+  note      String?  @db.VarChar(255)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  product   MProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  part      MPart    @relation(fields: [partId], references: [id])
+
+  @@unique([productId, partId])
+  @@map("m_bom")
+}
+
+// ==================== トランザクションテーブル ====================
+
+model TStock {
+  id          Int       @id @default(autoincrement())
+  partId      String    @map("part_id") @db.VarChar(20)
+  locationId  String    @map("location_id") @db.VarChar(32)
+  qty         Int       @default(0)
+  allocated   Int       @default(0)
+  onOrder     Int       @default(0) @map("on_order")
+  lastInoutAt DateTime? @map("last_inout_at") @db.Timestamptz()
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  part     MPart     @relation(fields: [partId], references: [id])
+  location MLocation @relation(fields: [locationId], references: [id])
+
+  @@unique([partId, locationId])
+  @@map("t_stock")
+}
+
+model TOrder {
+  id           Int       @id @default(autoincrement())
+  orderNo      String    @unique @map("order_no") @db.VarChar(32)
+  supplierId   Int       @map("supplier_id")
+  status       String    @default("draft") @db.VarChar(32)
+  orderDate    DateTime  @default(now()) @map("order_date") @db.Date
+  desiredDate  DateTime? @map("desired_date") @db.Date
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz()
+  approvedById Int?      @map("approved_by")
+  deliveryAddr String?   @map("delivery_addr") @db.Text
+  paymentTerms String?   @map("payment_terms") @db.VarChar(255)
+  notes        String?   @db.Text
+  totalQty     Int       @default(0) @map("total_qty")
+  totalAmount  Int       @default(0) @map("total_amount")
+  createdById  Int       @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  supplier    MSupplier    @relation(fields: [supplierId], references: [id])
+  approvedBy  MUser?       @relation("ApprovedBy", fields: [approvedById], references: [id])
+  createdBy   MUser        @relation("CreatedBy", fields: [createdById], references: [id])
+  details     TOrderDetail[]
+  receives    TReceive[]
+
+  @@map("t_order")
+}
+
+model TOrderDetail {
+  id          Int    @id @default(autoincrement())
+  orderId     Int    @map("order_id")
+  lineNo      Int    @map("line_no")
+  partId      String @map("part_id") @db.VarChar(20)
+  qty         Int
+  receivedQty Int    @default(0) @map("received_qty")
+  unitPrice   Int    @map("unit_price")
+  remarks     String? @db.Text
+
+  // Relations
+  order    TOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  part     MPart  @relation(fields: [partId], references: [id])
+  receives TReceive[]
+
+  @@unique([orderId, lineNo])
+  @@map("t_order_detail")
+}
+
+model TReceive {
+  id            Int      @id @default(autoincrement())
+  receiveNo     String   @unique @map("receive_no") @db.VarChar(32)
+  orderId       Int?     @map("order_id")
+  orderDetailId Int?     @map("order_detail_id")
+  partId        String   @map("part_id") @db.VarChar(20)
+  locationId    String   @map("location_id") @db.VarChar(32)
+  qty           Int
+  result        String   @default("ok") @db.VarChar(16)
+  rejectReason  String?  @map("reject_reason") @db.Text
+  receivedAt    DateTime @default(now()) @map("received_at") @db.Timestamptz()
+  receivedById  Int      @map("received_by")
+
+  // Relations
+  order       TOrder?       @relation(fields: [orderId], references: [id])
+  orderDetail TOrderDetail? @relation(fields: [orderDetailId], references: [id])
+  part        MPart         @relation(fields: [partId], references: [id])
+  location    MLocation     @relation(fields: [locationId], references: [id])
+  receivedBy  MUser         @relation(fields: [receivedById], references: [id])
+
+  @@map("t_receive")
+}
+
+model TProdOrder {
+  id          Int       @id @default(autoincrement())
+  prodNo      String    @unique @map("prod_no") @db.VarChar(32)
+  productId   Int       @map("product_id")
+  qty         Int
+  status      String    @default("allocated") @db.VarChar(32)
+  startDate   DateTime? @map("start_date") @db.Date
+  dueDate     DateTime? @map("due_date") @db.Date
+  customer    String?   @db.VarChar(255)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz()
+  notes       String?   @db.Text
+  createdById Int       @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  product     MProduct  @relation(fields: [productId], references: [id])
+  createdBy   MUser     @relation(fields: [createdById], references: [id])
+  bomSnapshot TProdOrderBomSnapshot[]
+  issues      TIssue[]
+
+  @@map("t_prod_order")
+}
+
+model TProdOrderBomSnapshot {
+  id              Int     @id @default(autoincrement())
+  prodOrderId     Int     @map("prod_order_id")
+  partId          String  @map("part_id") @db.VarChar(20)
+  requiredQty     Decimal @map("required_qty") @db.Decimal(10, 3)
+  totalQty        Decimal @map("total_qty") @db.Decimal(10, 3)
+  pickedQty       Decimal @default(0) @map("picked_qty") @db.Decimal(10, 3)
+  position        String? @db.VarChar(64)
+  unitPriceAtIssue Int    @map("unit_price_at_issue")
+
+  // Relations
+  prodOrder TProdOrder @relation(fields: [prodOrderId], references: [id], onDelete: Cascade)
+  part      MPart      @relation(fields: [partId], references: [id])
+
+  @@unique([prodOrderId, partId])
+  @@map("t_prod_order_bom_snapshot")
+}
+
+model TIssue {
+  id            Int      @id @default(autoincrement())
+  issueNo       String   @unique @map("issue_no") @db.VarChar(32)
+  prodOrderId   Int?     @map("prod_order_id")
+  partId        String   @map("part_id") @db.VarChar(20)
+  locationId    String   @map("location_id") @db.VarChar(32)
+  qty           Int
+  issueType     String   @default("production") @map("issue_type") @db.VarChar(32)
+  issuedAt      DateTime @default(now()) @map("issued_at") @db.Timestamptz()
+  issuedById    Int      @map("issued_by")
+  notes         String?  @db.Text
+
+  // Relations
+  prodOrder  TProdOrder? @relation(fields: [prodOrderId], references: [id])
+  part       MPart       @relation(fields: [partId], references: [id])
+  location   MLocation   @relation(fields: [locationId], references: [id])
+  issuedBy   MUser       @relation(fields: [issuedById], references: [id])
+
+  @@map("t_issue")
+}
+
+model TStocktake {
+  id           Int       @id @default(autoincrement())
+  stocktakeNo  String    @unique @map("stocktake_no") @db.VarChar(32)
+  status       String    @default("open") @db.VarChar(32)
+  warehouse    String?   @db.VarChar(64)
+  startDate    DateTime  @map("start_date") @db.Date
+  endDate      DateTime? @map("end_date") @db.Date
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz()
+  approvedById Int?      @map("approved_by")
+  notes        String?   @db.Text
+  createdById  Int       @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  approvedBy MUser?  @relation("StocktakeApprovedBy", fields: [approvedById], references: [id])
+  createdBy  MUser   @relation("StocktakeCreatedBy", fields: [createdById], references: [id])
+  details    TStocktakeDetail[]
+
+  @@map("t_stocktake")
+}
+
+model TStocktakeDetail {
+  id           Int       @id @default(autoincrement())
+  stocktakeId  Int       @map("stocktake_id")
+  partId       String    @map("part_id") @db.VarChar(20)
+  locationId   String    @map("location_id") @db.VarChar(32)
+  bookQty      Int       @map("book_qty")
+  actualQty    Int?      @map("actual_qty")
+  diffQty      Int?      @map("diff_qty")
+  reason       String?   @db.Text
+  approved     Boolean   @default(false)
+  countedAt    DateTime? @map("counted_at") @db.Timestamptz()
+  countedById  Int?      @map("counted_by")
+
+  // Relations
+  stocktake TStocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
+  part      MPart      @relation(fields: [partId], references: [id])
+  location  MLocation  @relation(fields: [locationId], references: [id])
+  countedBy MUser?     @relation("StocktakeCountedBy", fields: [countedById], references: [id])
+
+  @@unique([stocktakeId, partId, locationId])
+  @@map("t_stocktake_detail")
+}
+
+model TLog {
+  id          Int       @id @default(autoincrement())
+  ts          DateTime  @default(now()) @db.Timestamptz()
+  category    String    @db.VarChar(32)
+  action      String    @db.VarChar(64)
+  targetType  String?   @map("target_type") @db.VarChar(32)
+  targetId    String?   @map("target_id") @db.VarChar(64)
+  description String?   @db.Text
+  beforeData  Json?     @map("before_data")
+  afterData   Json?     @map("after_data")
+  userId      Int?      @map("user_id")
+  userName    String?   @map("user_name") @db.VarChar(100)
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  userAgent   String?   @map("user_agent") @db.Text
+
+  // Relations
+  user MUser? @relation(fields: [userId], references: [id])
+
+  @@index([ts(sort: Desc)])
+  @@index([category])
+  @@index([targetType, targetId])
+  @@index([userId])
+  @@map("t_log")
+}
+
+model TOcrHistory {
+  id              Int       @id @default(autoincrement())
+  ocrType         String    @map("ocr_type") @db.VarChar(32)
+  blobUrl         String    @map("blob_url") @db.Text
+  rawText         String?   @map("raw_text") @db.Text
+  parsedJson      Json?     @map("parsed_json")
+  confidence      Decimal?  @db.Decimal(5, 2)
+  applied         Boolean   @default(false)
+  targetId        String?   @map("target_id") @db.VarChar(64)
+  vendorRequestId String?   @map("vendor_request_id") @db.Text
+  costJpy         Decimal?  @map("cost_jpy") @db.Decimal(10, 4)
+  createdById     Int       @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  createdBy MUser @relation(fields: [createdById], references: [id])
+
+  @@map("t_ocr_history")
+}
+
+model TAttachment {
+  id          Int       @id @default(autoincrement())
+  targetType  String    @map("target_type") @db.VarChar(32)
+  targetId    String    @map("target_id") @db.VarChar(64)
+  fileName    String    @map("file_name") @db.VarChar(255)
+  blobUrl     String    @map("blob_url") @db.Text
+  mimeType    String?   @map("mime_type") @db.VarChar(100)
+  sizeBytes   BigInt?   @map("size_bytes")
+  uploadedById Int      @map("uploaded_by")
+  uploadedAt  DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz()
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  uploadedBy MUser @relation(fields: [uploadedById], references: [id])
+
+  @@map("t_attachment")
+}
