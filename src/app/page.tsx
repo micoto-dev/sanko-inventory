@@ -9,6 +9,7 @@ import {
   History, Cpu, Loader2, Building, Database, Shield, UserPlus,
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
   X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
+  QrCode, Printer, ExternalLink, ScanLine,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -60,6 +61,7 @@ const Sidebar = ({ view, setView }: {
     { id: 'receive', label: '入庫処理', icon: Truck },
     { id: 'production', label: '製造指図', icon: Factory },
     { id: 'issue', label: '出庫処理', icon: Package2 },
+    { id: 'qr', label: 'QRコード', icon: QrCode },
     { id: 'stocktake', label: '棚卸し', icon: ClipboardCheck },
     { id: 'reports', label: 'レポート', icon: BarChart3 },
     { id: 'logs', label: '履歴・ログ', icon: History },
@@ -1812,6 +1814,214 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
 };
 
 // ========================== Settings ==========================
+// ========================== QR Code ==========================
+const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void }) => {
+  const [tab, setTab] = useState<'parts' | 'locations' | 'scan'>('parts');
+  const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
+  const [selectedLocs, setSelectedLocs] = useState<Set<string>>(new Set());
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [scanInput, setScanInput] = useState('');
+
+  const togglePart = (id: string) => setSelectedParts(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleLoc = (id: string) => setSelectedLocs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const handlePrintSelected = (type: 'part' | 'location') => {
+    const ids = type === 'part' ? Array.from(selectedParts) : Array.from(selectedLocs);
+    if (ids.length === 0) { toast('印刷する項目を選択してください'); return; }
+    // Open each in new window for printing
+    ids.forEach(id => window.open(`/api/qr?type=${type}&id=${id}&format=label`, '_blank'));
+  };
+
+  const handlePrintAll = (type: string) => {
+    window.open(`/api/qr/batch?type=${type}`, '_blank');
+  };
+
+  const handleScan = () => {
+    try {
+      const data = JSON.parse(scanInput);
+      if (data.type === 'part') {
+        const part = parts.find(p => p.id === data.id);
+        setScanResult(part ? { type: 'part', data: part } : { type: 'error', message: '部品が見つかりません' });
+      } else if (data.type === 'location') {
+        const loc = locations.find(l => l.id === data.id);
+        const locParts = parts.filter(p => p.location === data.id);
+        setScanResult(loc ? { type: 'location', data: loc, parts: locParts } : { type: 'error', message: 'ロケーションが見つかりません' });
+      }
+    } catch {
+      // Try as plain ID
+      const part = parts.find(p => p.id === scanInput || p.code === scanInput);
+      if (part) { setScanResult({ type: 'part', data: part }); return; }
+      const loc = locations.find(l => l.id === scanInput);
+      if (loc) { setScanResult({ type: 'location', data: loc, parts: parts.filter(p => p.location === loc.id) }); return; }
+      setScanResult({ type: 'error', message: '該当するデータが見つかりません' });
+    }
+  };
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="flex border-b border-slate-200 px-2">
+          {[
+            { id: 'parts' as const, label: '部品QR', icon: Package },
+            { id: 'locations' as const, label: 'ロケーションQR', icon: MapPin },
+            { id: 'scan' as const, label: 'スキャン', icon: ScanLine },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 ${tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>
+              <t.icon size={14} />{t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'parts' && (
+          <div>
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+              <Btn size="sm" icon={Printer} variant="primary" onClick={() => handlePrintSelected('part')} disabled={selectedParts.size === 0}>選択を印刷 ({selectedParts.size})</Btn>
+              <Btn size="sm" icon={Printer} variant="secondary" onClick={() => handlePrintAll('parts')}>全部品ラベル一括印刷</Btn>
+              <button onClick={() => setSelectedParts(new Set(parts.map(p => p.id)))} className="text-xs text-blue-600 hover:underline ml-auto">全選択</button>
+              <button onClick={() => setSelectedParts(new Set())} className="text-xs text-slate-500 hover:underline">全解除</button>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-white text-xs text-slate-500 border-b border-slate-100">
+                <tr>
+                  <th className="px-3 py-2 w-8"><input type="checkbox" checked={selectedParts.size === parts.length} onChange={() => setSelectedParts(selectedParts.size === parts.length ? new Set() : new Set(parts.map(p => p.id)))} /></th>
+                  <th className="text-left px-3 py-2 font-medium">品番</th>
+                  <th className="text-left px-3 py-2 font-medium">品名</th>
+                  <th className="text-left px-3 py-2 font-medium">棚位置</th>
+                  <th className="px-3 py-2 font-medium">QR</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {parts.map(p => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2"><input type="checkbox" checked={selectedParts.has(p.id)} onChange={() => togglePart(p.id)} /></td>
+                    <td className="px-3 py-2"><div className="font-mono text-xs">{p.id}</div><div className="font-mono text-[10px] text-slate-400">{p.code}</div></td>
+                    <td className="px-3 py-2 text-sm">{p.name}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{p.location}</td>
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={() => window.open(`/api/qr?type=part&id=${p.id}&format=label`, '_blank')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="QRラベル印刷">
+                        <QrCode size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === 'locations' && (
+          <div>
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+              <Btn size="sm" icon={Printer} variant="primary" onClick={() => handlePrintSelected('location')} disabled={selectedLocs.size === 0}>選択を印刷 ({selectedLocs.size})</Btn>
+              <Btn size="sm" icon={Printer} variant="secondary" onClick={() => handlePrintAll('locations')}>全ロケーション一括印刷</Btn>
+              <button onClick={() => setSelectedLocs(new Set(locations.map(l => l.id)))} className="text-xs text-blue-600 hover:underline ml-auto">全選択</button>
+              <button onClick={() => setSelectedLocs(new Set())} className="text-xs text-slate-500 hover:underline">全解除</button>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-white text-xs text-slate-500 border-b border-slate-100">
+                <tr>
+                  <th className="px-3 py-2 w-8"><input type="checkbox" checked={selectedLocs.size === locations.length} onChange={() => setSelectedLocs(selectedLocs.size === locations.length ? new Set() : new Set(locations.map(l => l.id)))} /></th>
+                  <th className="text-left px-3 py-2 font-medium">ロケーションID</th>
+                  <th className="text-left px-3 py-2 font-medium">倉庫</th>
+                  <th className="text-left px-3 py-2 font-medium">名称</th>
+                  <th className="text-left px-3 py-2 font-medium">タイプ</th>
+                  <th className="px-3 py-2 font-medium">QR</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {locations.map(l => (
+                  <tr key={l.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2"><input type="checkbox" checked={selectedLocs.has(l.id)} onChange={() => toggleLoc(l.id)} /></td>
+                    <td className="px-3 py-2 font-mono text-xs font-semibold">{l.id}</td>
+                    <td className="px-3 py-2 text-xs">{l.warehouse}</td>
+                    <td className="px-3 py-2 text-sm">{l.name}</td>
+                    <td className="px-3 py-2 text-xs"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={() => window.open(`/api/qr?type=location&id=${l.id}&format=label`, '_blank')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="QRラベル印刷">
+                        <QrCode size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === 'scan' && (
+          <div className="p-5">
+            <div className="max-w-lg mx-auto space-y-4">
+              <div className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-8 text-center">
+                <ScanLine size={48} className="mx-auto text-slate-400 mb-3" />
+                <p className="text-sm text-slate-600 mb-1">QRコードをスキャンまたは品番/ロケーションIDを入力</p>
+                <p className="text-xs text-slate-400">タブレットのカメラでQRを読み取るか、手入力で検索</p>
+              </div>
+              <div className="flex gap-2">
+                <input value={scanInput} onChange={e => setScanInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleScan()}
+                  placeholder="品番 (PT00012345) またはロケーションID (A-03-2-L)"
+                  className={`${inputClass} flex-1 font-mono`} />
+                <Btn variant="primary" icon={Search} onClick={handleScan}>検索</Btn>
+              </div>
+
+              {scanResult?.type === 'error' && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{scanResult.message}</div>
+              )}
+              {scanResult?.type === 'part' && (
+                <div className="bg-white border border-slate-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Package size={16} className="text-blue-600" />
+                    <span className="font-bold">部品情報</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-xs text-slate-500">品番</span><div className="font-mono">{scanResult.data.id}</div></div>
+                    <div><span className="text-xs text-slate-500">社内品番</span><div className="font-mono">{scanResult.data.code}</div></div>
+                    <div className="col-span-2"><span className="text-xs text-slate-500">品名</span><div className="font-semibold">{scanResult.data.name}</div></div>
+                    <div><span className="text-xs text-slate-500">在庫</span><div className="font-mono text-lg font-bold">{scanResult.data.stock} {scanResult.data.unit}</div></div>
+                    <div><span className="text-xs text-slate-500">引当</span><div className="font-mono">{scanResult.data.allocated}</div></div>
+                    <div><span className="text-xs text-slate-500">棚位置</span><div className="font-mono">{scanResult.data.location}</div></div>
+                    <div><span className="text-xs text-slate-500">単価</span><div className="font-mono">{yen(scanResult.data.unitPrice)}</div></div>
+                  </div>
+                </div>
+              )}
+              {scanResult?.type === 'location' && (
+                <div className="bg-white border border-slate-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin size={16} className="text-blue-600" />
+                    <span className="font-bold">ロケーション情報</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                    <div><span className="text-xs text-slate-500">ID</span><div className="font-mono font-bold">{scanResult.data.id}</div></div>
+                    <div><span className="text-xs text-slate-500">倉庫</span><div>{scanResult.data.warehouse}</div></div>
+                    <div><span className="text-xs text-slate-500">名称</span><div>{scanResult.data.name}</div></div>
+                    <div><span className="text-xs text-slate-500">タイプ</span><div>{scanResult.data.locType}</div></div>
+                  </div>
+                  {scanResult.parts?.length > 0 && (
+                    <>
+                      <div className="text-xs font-semibold text-slate-600 mb-1">格納部品 ({scanResult.parts.length}件)</div>
+                      <div className="space-y-1">
+                        {scanResult.parts.map((p: Part) => (
+                          <div key={p.id} className="flex items-center gap-2 text-xs bg-slate-50 rounded px-2 py-1">
+                            <span className="font-mono text-slate-500">{p.id}</span>
+                            <span className="flex-1">{p.name}</span>
+                            <span className="font-mono font-semibold">{p.stock} {p.unit}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ========================== Settings ==========================
 const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
   toast: (msg: string) => void; chatWidgetEnabled: boolean; setChatWidgetEnabled: (v: boolean) => void;
 }) => {
@@ -1980,6 +2190,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   users: { title: 'ユーザー管理', subtitle: 'ユーザーの招待・ロール管理' },
   departments: { title: '部署管理', subtitle: '部署の階層構造を管理' },
   entities: { title: 'エンティティ管理', subtitle: '会社名・人名・契約情報の管理' },
+  qr: { title: 'QRコード', subtitle: 'QRラベル発行・スキャン' },
   settings: { title: '設定', subtitle: 'パスワード変更・表示設定' },
 };
 
@@ -2067,6 +2278,7 @@ export default function AppPage() {
           {view === 'users' && <UsersScreen toast={toast} />}
           {view === 'departments' && <DepartmentsScreen toast={toast} />}
           {view === 'entities' && <EntitiesScreen toast={toast} />}
+          {view === 'qr' && <QrScreen parts={parts} locations={locations} toast={toast} />}
           {view === 'settings' && <SettingsScreen toast={toast} chatWidgetEnabled={chatWidgetEnabled} setChatWidgetEnabled={setChatWidgetEnabled} />}
         </div>
       </main>
