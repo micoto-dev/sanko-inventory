@@ -102,9 +102,11 @@ export async function POST(request: Request) {
     });
 
     // Send invitation email with setup link
-    const appUrl = process.env.AUTH_URL || (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+      || process.env.AUTH_URL
+      || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+      || "http://localhost:3000";
     const setupUrl = `${appUrl}/setup?token=${inviteToken}&email=${encodeURIComponent(email)}`;
 
     if (resend) {

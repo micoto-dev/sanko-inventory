@@ -1,19 +1,28 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Anchor } from "lucide-react"
 
 function SetupForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const email = searchParams.get("email") || ""
-  const token = searchParams.get("token") || ""
+  const [email, setEmail] = useState("")
+  const [token, setToken] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    const e = searchParams.get("email") || ""
+    const t = searchParams.get("token") || ""
+    setEmail(e)
+    setToken(t)
+    setReady(true)
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,6 +42,14 @@ function SetupForm() {
       else { setSuccess(true); setTimeout(() => router.push("/login"), 2000) }
     } catch { setError("エラーが発生しました") }
     finally { setLoading(false) }
+  }
+
+  if (!ready) {
+    return (
+      <div className="rounded-lg bg-white px-8 py-10 shadow-md text-center text-slate-500">
+        読み込み中...
+      </div>
+    )
   }
 
   if (!email || !token) {
