@@ -7,7 +7,9 @@ export function proxy(request: NextRequest) {
   // Allow public routes without auth check
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/setup") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/users/setup") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {

@@ -1152,6 +1152,22 @@ const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
   };
   useEffect(() => { load(); }, []);
 
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  const handleDeleteUser = (user: any) => {
+    setDeleteTarget(user);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.deleteUser(deleteTarget.id);
+      toast(`${deleteTarget.name} を削除しました`);
+      setDeleteTarget(null);
+      load();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
   const handleToggleActive = async (user: any) => {
     if (user.isActive) {
       setConfirmDeactivate(user);
@@ -1266,6 +1282,9 @@ const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
                       <button onClick={() => { setResetPwUser(u); setNewPassword(''); }} className="text-xs text-slate-500 hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition flex items-center gap-1" title="パスワードリセット">
                         <KeyRound size={11} /> PW
                       </button>
+                      <button onClick={() => handleDeleteUser(u)} className="text-xs text-slate-500 hover:text-rose-600 px-1.5 py-0.5 rounded hover:bg-rose-50 transition flex items-center gap-1" title="削除">
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -1318,6 +1337,24 @@ const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
           </div>
         </Modal>
       )}
+
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="ユーザー削除の確認" size="sm">
+          <div className="space-y-4 text-sm">
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
+              <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-rose-800">本当に削除しますか？</p>
+                <p className="text-rose-700 mt-1">「{deleteTarget.name}」({deleteTarget.email}) を削除します。この操作は取り消せません。</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+              <Btn variant="danger" icon={Trash2} onClick={confirmDeleteUser}>削除する</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -1329,7 +1366,7 @@ const UserForm = ({ user, isNew, departments, roles, onSave, onClose }: any) => 
     <div className="space-y-3 text-sm">
       <Field label="名前*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
       <Field label="メールアドレス*"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} placeholder={isNew ? '招待メールを送信します' : ''} /></Field>
-      {isNew && <Field label="初期パスワード*"><input type="password" value={form.password || ''} onChange={e => upd('password', e.target.value)} className={inputClass} /></Field>}
+      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-700">招待メールが送信され、ユーザーが初回アクセス時にパスワードを設定します</div>}
       <Field label="ロール">
         <select value={form.role} onChange={e => upd('role', e.target.value)} className={inputClass}>
           {roles.map((r: any) => <option key={r.value} value={r.value}>{r.label}</option>)}
@@ -1342,7 +1379,7 @@ const UserForm = ({ user, isNew, departments, roles, onSave, onClose }: any) => 
         </select>
       </Field>
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name || !form.email || (isNew && !form.password)}>{isNew ? '招待メール送信' : '保存'}</Btn>
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name || !form.email}>{isNew ? '招待メール送信' : '保存'}</Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
     </div>

@@ -107,3 +107,40 @@ export async function PATCH(
     return Response.json({ error: "Failed to update user" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const userId = Number(id);
+
+    const existing = await prisma.mUser.findUnique({ where: { id: userId } });
+    if (!existing || existing.deletedAt) {
+      return Response.json({ error: "User not found" }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.mUser.update({
+        where: { id: userId },
+        data: { deletedAt: new Date(), isActive: false },
+      });
+
+      await tx.tLog.create({
+        data: {
+          category: "user",
+          action: "delete",
+          targetType: "MUser",
+          targetId: String(userId),
+          description: `ユーザー削除: ${existing.name} (${existing.email})`,
+        },
+      });
+    });
+
+    return Response.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return Response.json({ error: "Failed to delete user" }, { status: 500 });
+  }
+}
