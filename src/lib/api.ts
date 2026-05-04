@@ -84,4 +84,19 @@ export const api = {
 
   // AI Chat
   chat: (message: string, sessionId?: string) => request<any>('/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }) }),
+  getConversations: () => request<any>('/chat/conversations'),
+  getConversation: (id: string) => request<any>(`/chat/conversations/${id}`),
+  createConversation: () => request<any>('/chat/conversations', { method: 'POST' }),
+
+  // Users extra
+  resetUserPassword: (id: number, newPassword: string) => request<any>(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) }),
+
+  // Entity Masters
+  getEntityMasters: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<any>(`/entity-masters${qs}`);
+  },
+  createEntityMaster: (data: any) => request<any>('/entity-masters', { method: 'POST', body: JSON.stringify(data) }),
+  updateEntityMaster: (id: number, data: any) => request<any>(`/entity-masters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteEntityMaster: (id: number) => request<any>(`/entity-masters/${id}`, { method: 'DELETE' }),
 };
