@@ -47,10 +47,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check for duplicate email
-    const existing = await prisma.mUser.findFirst({ where: { email, deletedAt: null } });
-    if (existing) {
+    // Check for duplicate email (active users only)
+    const existingActive = await prisma.mUser.findFirst({ where: { email, deletedAt: null } });
+    if (existingActive) {
       return Response.json({ error: "このメールアドレスは既に登録されています" }, { status: 409 });
+    }
+
+    // Clear deleted users with same email/loginId to avoid unique constraint
+    const deletedUsers = await prisma.mUser.findMany({ where: { email, deletedAt: { not: null } } });
+    for (const du of deletedUsers) {
+      await prisma.mUser.update({
+        where: { id: du.id },
+        data: { email: `deleted_${du.id}_${du.email}`, loginId: `deleted_${du.id}_${du.loginId}` },
+      });
     }
 
     // Generate unique loginId from email, append number if duplicate
