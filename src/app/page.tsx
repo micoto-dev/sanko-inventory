@@ -8,7 +8,7 @@ import {
   Factory, Warehouse, Trash2, Save, Send, MessageSquare, Users,
   History, Cpu, Loader2, Building, Database, Shield, UserPlus,
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
-  X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut,
+  X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -67,6 +67,7 @@ const Sidebar = ({ view, setView, alertCount, moCount }: {
     { id: 'users', label: 'ユーザー管理', icon: Users },
     { id: 'departments', label: '部署管理', icon: Building },
     { id: 'entities', label: 'エンティティ', icon: Database },
+    { id: 'settings', label: '設定', icon: Shield },
   ];
   return (
     <aside className="w-56 bg-slate-900 text-slate-100 flex flex-col flex-shrink-0">
@@ -1811,6 +1812,157 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
   );
 };
 
+// ========================== Settings ==========================
+const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
+  toast: (msg: string) => void; chatWidgetEnabled: boolean; setChatWidgetEnabled: (v: boolean) => void;
+}) => {
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (newPw.length < 6) { toast('パスワードは6文字以上で入力してください'); return; }
+    if (newPw !== confirmPw) { toast('新しいパスワードが一致しません'); return; }
+    setPwLoading(true);
+    try {
+      await api.updateUser(1, { password: newPw }); // TODO: use current user ID
+      toast('パスワードを変更しました');
+      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+    setPwLoading(false);
+  };
+
+  return (
+    <div className="p-5 space-y-6 max-w-2xl">
+      <div className="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><KeyRound size={16} /> パスワード変更</h2>
+        <div className="space-y-3">
+          <Field label="現在のパスワード"><input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} className={inputClass} /></Field>
+          <Field label="新しいパスワード"><input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} className={inputClass} placeholder="6文字以上" /></Field>
+          <Field label="新しいパスワード（確認）"><input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} className={inputClass} /></Field>
+          <Btn variant="primary" icon={Save} onClick={handleChangePassword} disabled={pwLoading || !currentPw || !newPw || !confirmPw}>
+            {pwLoading ? '変更中...' : 'パスワードを変更'}
+          </Btn>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><MessageSquare size={16} /> AIチャットウィジェット</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium">フローティングチャット</div>
+            <div className="text-xs text-slate-500">画面右下にAIチャットボタンを表示します</div>
+          </div>
+          <button onClick={() => setChatWidgetEnabled(!chatWidgetEnabled)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${chatWidgetEnabled ? 'bg-blue-600' : 'bg-slate-300'}`}>
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${chatWidgetEnabled ? 'left-6.5 translate-x-0' : 'left-0.5'}`}
+              style={{ left: chatWidgetEnabled ? '26px' : '2px' }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========================== Floating Chat Widget ==========================
+const FloatingChatWidget = () => {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | undefined>();
+  const msgEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const msg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: msg }]);
+    setLoading(true);
+    try {
+      const res = await api.chat(msg, sessionId);
+      setSessionId(res.data.sessionId);
+      setMessages(prev => [...prev, { role: 'assistant', content: res.data.message }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${e.message}` }]);
+    }
+    setLoading(false);
+  };
+
+  const handleReset = () => { setMessages([]); setSessionId(undefined); };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105">
+        <MessageSquare size={24} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 w-[380px] h-[540px] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+      style={{ animation: 'slideUp 0.2s ease-out' }}>
+      <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }`}</style>
+
+      <div className="bg-blue-600 text-white px-4 py-3 flex items-center gap-2">
+        <Sparkles size={18} />
+        <span className="font-bold text-sm flex-1">AIアシスタント</span>
+        <button onClick={handleReset} className="p-1 hover:bg-blue-500 rounded" title="リセット"><RotateCcw size={16} /></button>
+        <button onClick={() => setOpen(false)} className="p-1 hover:bg-blue-500 rounded"><X size={16} /></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50">
+        {messages.length === 0 && (
+          <div className="text-center mt-12 text-slate-400">
+            <Sparkles size={32} className="mx-auto mb-2 opacity-50" />
+            <p className="text-xs">在庫・発注・製造について<br/>何でも聞いてください</p>
+            <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
+              {['在庫切れは？', '発注状況', '欠品部品'].map(q => (
+                <button key={q} onClick={() => setInput(q)} className="text-[11px] px-2 py-1 bg-white border border-slate-200 rounded-full text-blue-600 hover:bg-blue-50">{q}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] px-3 py-2 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm'}`}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-slate-200 px-3 py-2 rounded-lg rounded-bl-sm">
+              <div className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={msgEndRef} />
+      </div>
+
+      <div className="border-t border-slate-200 p-2 flex gap-1.5 bg-white">
+        <textarea value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) { e.preventDefault(); handleSend(); } }}
+          placeholder="質問を入力..."
+          rows={1}
+          className="flex-1 resize-none px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 max-h-20" />
+        <button onClick={handleSend} disabled={loading || !input.trim()}
+          className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 transition">
+          <Send size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ========================== View Titles ==========================
 const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: 'ダッシュボード', subtitle: '在庫状況の概要' },
@@ -1829,6 +1981,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   users: { title: 'ユーザー管理', subtitle: 'ユーザーの招待・ロール管理' },
   departments: { title: '部署管理', subtitle: '部署の階層構造を管理' },
   entities: { title: 'エンティティ管理', subtitle: '会社名・人名・契約情報の管理' },
+  settings: { title: '設定', subtitle: 'パスワード変更・表示設定' },
 };
 
 export default function AppPage() {
@@ -1840,6 +1993,17 @@ export default function AppPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chatWidgetEnabled, setChatWidgetEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('chatWidgetEnabled');
+      return stored !== null ? stored === 'true' : true;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('chatWidgetEnabled', String(chatWidgetEnabled));
+  }, [chatWidgetEnabled]);
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -1910,9 +2074,11 @@ export default function AppPage() {
           {view === 'users' && <UsersScreen toast={toast} />}
           {view === 'departments' && <DepartmentsScreen toast={toast} />}
           {view === 'entities' && <EntitiesScreen toast={toast} />}
+          {view === 'settings' && <SettingsScreen toast={toast} chatWidgetEnabled={chatWidgetEnabled} setChatWidgetEnabled={setChatWidgetEnabled} />}
         </div>
       </main>
       <Toast msg={toastMsg} />
+      {chatWidgetEnabled && view !== 'chat' && <FloatingChatWidget />}
     </div>
   );
 }
