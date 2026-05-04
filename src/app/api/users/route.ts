@@ -34,14 +34,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { loginId, email, name, role, departmentId, password } = body;
+    const { email, name, role, departmentId, password } = body;
 
-    if (!loginId || !email || !name || !password) {
+    if (!email || !name || !password) {
       return Response.json(
-        { error: "loginId, email, name, and password are required" },
+        { error: "email, name, and password are required" },
         { status: 400 }
       );
     }
+
+    // Auto-generate loginId from email
+    const loginId = email.split('@')[0];
 
     const passwordHash = await bcrypt.hash(password, 10);
 

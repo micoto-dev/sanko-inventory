@@ -7,7 +7,7 @@ import { Anchor } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [loginId, setLoginId] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -19,13 +19,13 @@ export default function LoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        loginId,
+        email,
         password,
         redirect: false,
       })
 
       if (result?.error) {
-        setError("社内IDまたはパスワードが正しくありません")
+        setError("メールアドレスまたはパスワードが正しくありません")
       } else {
         router.push("/")
       }
@@ -40,7 +40,6 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="w-full max-w-md">
         <div className="rounded-lg bg-white px-8 py-10 shadow-md">
-          {/* Header */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600">
               <Anchor className="h-8 w-8 text-white" />
@@ -49,39 +48,31 @@ export default function LoginPage() {
             <p className="mt-1 text-sm text-gray-500">在庫管理システム</p>
           </div>
 
-          {/* Error message */}
           {error && (
             <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
               {error}
             </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label
-                htmlFor="loginId"
-                className="block text-sm font-medium text-gray-700"
-              >
-                社内ID
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                メールアドレス
               </label>
               <input
-                id="loginId"
-                type="text"
+                id="email"
+                type="email"
                 required
-                value={loginId}
-                onChange={(e) => setLoginId(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="例: tanaka01"
-                autoComplete="username"
+                placeholder="example@sanko-denki.co.jp"
+                autoComplete="email"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 パスワード
               </label>
               <input

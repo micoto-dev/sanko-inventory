@@ -7,14 +7,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        loginId: { label: "社内ID", type: "text" },
+        email: { label: "メールアドレス", type: "email" },
         password: { label: "パスワード", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.loginId || !credentials?.password) return null
+        if (!credentials?.email || !credentials?.password) return null
 
         const user = await prisma.mUser.findUnique({
-          where: { loginId: credentials.loginId as string, deletedAt: null },
+          where: { email: credentials.email as string, deletedAt: null },
         })
         if (!user || !user.isActive) return null
 

@@ -8,7 +8,7 @@ import {
   Factory, Warehouse, Trash2, Save, Send, MessageSquare, Users,
   History, Cpu, Loader2, Building, Database, Shield, UserPlus,
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
-  X, KeyRound, PlusCircle, ChevronDown, Tag,
+  X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -95,9 +95,15 @@ const Sidebar = ({ view, setView, alertCount, moCount }: {
           );
         })}
       </nav>
-      <div className="p-3 border-t border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center"><Anchor size={12} /></div>
-        <div className="flex-1 min-w-0"><div className="text-slate-200">ユーザー</div><div>管理者</div></div>
+      <div className="p-3 border-t border-slate-800 text-xs text-slate-400">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center"><Anchor size={12} /></div>
+          <div className="flex-1 min-w-0"><div className="text-slate-200">ユーザー</div><div>管理者</div></div>
+        </div>
+        <button onClick={() => { fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login'); }}
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition text-xs">
+          <LogOut size={14} /> ログアウト
+        </button>
       </div>
     </aside>
   );
@@ -1111,8 +1117,8 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
 
         <div className="border-t border-slate-200 p-3 flex gap-2">
           <textarea value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="メッセージを入力...（Shift+Enter で改行）" rows={1}
+            onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="メッセージを入力...（⌘+Enter で送信）" rows={1}
             className="flex-1 resize-none px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 max-h-28"
             style={{ overflowY: input.split('\n').length > 3 ? 'auto' : 'hidden' }} />
           <Btn variant="primary" icon={Send} onClick={() => handleSend()} disabled={loading || !input.trim()}>送信</Btn>
@@ -1320,8 +1326,7 @@ const UserForm = ({ user, isNew, departments, roles, onSave, onClose }: any) => 
   return (
     <div className="space-y-3 text-sm">
       <Field label="名前*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
-      {isNew && <Field label="社内ID*"><input value={form.loginId || ''} onChange={e => upd('loginId', e.target.value)} className={inputClass} /></Field>}
-      <Field label="メール*"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+      <Field label="メールアドレス*"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} placeholder={isNew ? '招待メールを送信します' : ''} /></Field>
       {isNew && <Field label="初期パスワード*"><input type="password" value={form.password || ''} onChange={e => upd('password', e.target.value)} className={inputClass} /></Field>}
       <Field label="ロール">
         <select value={form.role} onChange={e => upd('role', e.target.value)} className={inputClass}>
@@ -1335,7 +1340,7 @@ const UserForm = ({ user, isNew, departments, roles, onSave, onClose }: any) => 
         </select>
       </Field>
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name || (isNew && (!form.loginId || !form.password))}>{isNew ? '招待' : '保存'}</Btn>
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name || !form.email || (isNew && !form.password)}>{isNew ? '招待メール送信' : '保存'}</Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
     </div>
