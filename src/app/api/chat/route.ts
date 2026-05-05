@@ -1,8 +1,8 @@
 import { prisma } from "@/server/db";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { v4 as uuidv4 } from "uuid";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
 // Helper: gather system context based on keywords in the message
 async function gatherContext(message: string) {
@@ -83,8 +83,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "message is required" }, { status: 400 });
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return Response.json({ error: "ANTHROPIC_API_KEY is not configured" }, { status: 500 });
+    if (!process.env.OPENAI_API_KEY) {
+      return Response.json({ error: "OPENAI_API_KEY が設定されていません。Vercelの環境変数に追加してください。" }, { status: 500 });
     }
 
     const sessionId = inputSessionId || uuidv4();
@@ -104,33 +104,35 @@ export async function POST(request: Request) {
     // Gather system data context
     const systemContext = await gatherContext(message);
 
-    // Build messages for Claude
-    const messages: Anthropic.MessageParam[] = history.map(h => ({
-      role: h.role as 'user' | 'assistant',
-      content: h.content,
-    }));
-
-    // If last message in history is already the current user message, don't duplicate
-    if (messages.length === 0 || messages[messages.length - 1].content !== message) {
-      messages.push({ role: 'user', content: message });
-    }
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: `あなたは三工電機の部品在庫管理システムのAIアシスタントです。
+    // Build messages for OpenAI
+    const messages: OpenAI.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content: `あなたは三工電機の部品在庫管理システムのAIアシスタントです。
 船舶用分電盤の製造に使用する部品の在庫、発注、製造指図に関する質問に答えてください。
 以下はシステムから取得した最新のデータです。このデータに基づいて回答してください。
 回答は日本語で、簡潔かつ正確にお願いします。数値やステータスは正確に伝えてください。
 
 ${systemContext}`,
+      },
+      ...history.map(h => ({
+        role: h.role as 'user' | 'assistant',
+        content: h.content,
+      })),
+    ];
+
+    // If last message in history is already the current user message, don't duplicate
+    if (messages.length <= 1 || messages[messages.length - 1].content !== message) {
+      messages.push({ role: 'user', content: message });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 2048,
       messages,
     });
 
-    const assistantContent = response.content
-      .filter(block => block.type === 'text')
-      .map(block => (block as Anthropic.TextBlock).text)
-      .join('\n');
+    const assistantContent = response.choices[0]?.message?.content || '回答を生成できませんでした。';
 
     // Save assistant response
     await prisma.tChatMessage.create({
@@ -145,7 +147,7 @@ ${systemContext}`,
     });
   } catch (e) {
     console.error('Chat error:', e);
-    const message = e instanceof Error ? e.message : 'Chat failed';
-    return Response.json({ error: message }, { status: 500 });
+    const msg = e instanceof Error ? e.message : 'Chat failed';
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
