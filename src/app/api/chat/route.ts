@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     const systemContext = await gatherContext(message);
 
     // Build messages for OpenAI
-    const messages: OpenAI.ChatCompletionMessageParam[] = [
+    const messages: Array<{role: 'system' | 'user' | 'assistant'; content: string}> = [
       {
         role: 'system',
         content: `あなたは三工電機の部品在庫管理システムのAIアシスタントです。
