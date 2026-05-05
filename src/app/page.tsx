@@ -56,7 +56,6 @@ const MENU_ITEMS = [
   { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
   { id: 'master', label: '部品マスタ', icon: Package },
   { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
-  { id: 'inventory', label: '在庫一覧', icon: Boxes },
   { id: 'locations', label: 'ロケーション', icon: Warehouse },
   { id: 'suppliers', label: '仕入先管理', icon: Building2 },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
