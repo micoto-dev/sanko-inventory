@@ -1205,12 +1205,40 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
   const [editLoc, setEditLoc] = useState<Location | null>(null);
   const [newLoc, setNewLoc] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<Location | null>(null);
+  const [editWarehouse, setEditWarehouse] = useState<{ oldName: string; newName: string } | null>(null);
+  const [newWarehouse, setNewWarehouse] = useState(false);
+  const [newWhName, setNewWhName] = useState('');
+  const [deleteWarehouse, setDeleteWarehouse] = useState<string | null>(null);
 
   const grouped = useMemo(() => {
     const wh: Record<string, Location[]> = {};
     locations.forEach(l => { if (!wh[l.warehouse]) wh[l.warehouse] = []; wh[l.warehouse].push(l); });
     return Object.entries(wh);
   }, [locations]);
+
+  const handleRenameWarehouse = async () => {
+    if (!editWarehouse || !editWarehouse.newName.trim()) return;
+    try {
+      const locsToUpdate = locations.filter(l => l.warehouse === editWarehouse.oldName);
+      for (const l of locsToUpdate) {
+        await api.updateLocation(l.id, { warehouse: editWarehouse.newName.trim() });
+      }
+      toast(`倉庫名を「${editWarehouse.newName.trim()}」に変更しました`);
+      setEditWarehouse(null);
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDeleteWarehouse = async () => {
+    if (!deleteWarehouse) return;
+    const locsInWh = locations.filter(l => l.warehouse === deleteWarehouse);
+    try {
+      for (const l of locsInWh) { await api.deleteLocation(l.id); }
+      toast(`倉庫「${deleteWarehouse}」と${locsInWh.length}件のロケーションを削除しました`);
+      setDeleteWarehouse(null);
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
 
   const handleSave = async (form: any, isNew: boolean) => {
     try {
@@ -1242,14 +1270,21 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
           <div className="font-bold text-blue-900">ロケーション体系</div>
           <div className="text-xs text-blue-700">倉庫 / 棚 / 列 / 段 / 左右の階層で在庫位置を管理</div>
         </div>
-        <Btn icon={Plus} onClick={() => setNewLoc({ warehouse: '', shelf: '', col: '', row: '', side: '', name: '', maxQty: 100, locType: '棚' })}>ロケーション追加</Btn>
+        <Btn variant="secondary" icon={Plus} onClick={() => setNewWarehouse(true)}>倉庫追加</Btn>
+        <Btn icon={Plus} onClick={() => setNewLoc({ warehouse: grouped[0]?.[0] || '', shelf: '', col: '', row: '', side: '', name: '', maxQty: 100, locType: '通常棚' })}>ロケーション追加</Btn>
       </div>
       {grouped.map(([wh, locs]) => (
         <div key={wh} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-            <Warehouse size={14} className="text-black" />
-            <span className="font-bold text-sm">{wh}</span>
-            <span className="text-xs text-black">({locs.length}ロケーション)</span>
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Warehouse size={14} className="text-black" />
+              <span className="font-bold text-sm">{wh}</span>
+              <span className="text-xs text-black">({locs.length}ロケーション)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setEditWarehouse({ oldName: wh, newName: wh })} className="text-xs text-blue-600 hover:bg-blue-50 px-2 py-1 rounded flex items-center gap-1"><Edit size={11} /> 倉庫名変更</button>
+              <button onClick={() => setDeleteWarehouse(wh)} className="text-xs text-rose-600 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1"><Trash2 size={11} /> 倉庫削除</button>
+            </div>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-white text-xs text-black border-b border-slate-100">
@@ -1289,6 +1324,49 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
         <Modal open onClose={() => setDeleteTarget(null)} title="ロケーションの削除確認" size="sm">
           <div className="text-sm mb-4"><p>以下のロケーションを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.id}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
+        </Modal>
+      )}
+      {newWarehouse && (
+        <Modal open onClose={() => { setNewWarehouse(false); setNewWhName(''); }} title="倉庫を追加" size="sm">
+          <div className="space-y-3 text-sm">
+            <Field label="倉庫名*"><input value={newWhName} onChange={e => setNewWhName(e.target.value)} className={inputClass} placeholder="例: 第2倉庫" /></Field>
+            <div className="flex gap-2 pt-2">
+              <Btn variant="primary" icon={Plus} disabled={!newWhName.trim()} onClick={() => {
+                setNewLoc({ warehouse: newWhName.trim(), shelf: '', col: '', row: '', side: '', name: '', maxQty: 100, locType: '通常棚' });
+                setNewWarehouse(false); setNewWhName('');
+                toast(`倉庫「${newWhName.trim()}」用のロケーションを登録してください`);
+              }}>追加してロケーション作成</Btn>
+              <Btn variant="secondary" onClick={() => { setNewWarehouse(false); setNewWhName(''); }}>キャンセル</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {editWarehouse && (
+        <Modal open onClose={() => setEditWarehouse(null)} title={`倉庫名の変更: ${editWarehouse.oldName}`} size="sm">
+          <div className="space-y-3 text-sm">
+            <Field label="新しい倉庫名*"><input value={editWarehouse.newName} onChange={e => setEditWarehouse({ ...editWarehouse, newName: e.target.value })} className={inputClass} /></Field>
+            <div className="flex gap-2 pt-2">
+              <Btn variant="primary" icon={Save} disabled={!editWarehouse.newName.trim() || editWarehouse.newName === editWarehouse.oldName} onClick={handleRenameWarehouse}>変更する</Btn>
+              <Btn variant="secondary" onClick={() => setEditWarehouse(null)}>キャンセル</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {deleteWarehouse && (
+        <Modal open onClose={() => setDeleteWarehouse(null)} title="倉庫の削除確認" size="sm">
+          <div className="space-y-3 text-sm">
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
+              <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-800">「{deleteWarehouse}」を削除しますか？</p>
+                <p className="text-rose-700 mt-1">この倉庫内の{locations.filter(l => l.warehouse === deleteWarehouse).length}件のロケーションも全て削除されます。</p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Btn variant="danger" icon={Trash2} onClick={handleDeleteWarehouse}>倉庫ごと削除する</Btn>
+              <Btn variant="secondary" onClick={() => setDeleteWarehouse(null)}>キャンセル</Btn>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
