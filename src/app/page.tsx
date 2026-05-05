@@ -712,21 +712,14 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
     if (!showDetail) return;
     try {
       const data: any = {};
-      if (editStatus !== showDetail.status) data.status = editStatus;
-      if (editExpDate !== (showDetail.expectedDeliveryDate || '')) data.expectedDeliveryDate = editExpDate || null;
+      data.status = editStatus;
+      if (editExpDate) data.expectedDeliveryDate = editExpDate;
       if (editComment.trim()) {
-        const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
-        data.newComment = newComment;
-        setCommentHistory(prev => [newComment, ...prev]);
-        setEditComment('');
-      }
-      if (Object.keys(data).length === 0) {
-        toast('変更がありません');
-        return;
+        data.newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
       }
       await api.updateOrder(showDetail.id, data);
       setShowDetail(null);
-      toast('発注情報を更新しました');
+      toast('発注情報を保存しました');
       onRefresh();
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
