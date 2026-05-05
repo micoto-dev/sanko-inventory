@@ -725,8 +725,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
         return;
       }
       await api.updateOrder(showDetail.id, data);
-      // Update showDetail with new values
-      setShowDetail(prev => prev ? { ...prev, status: editStatus, expectedDeliveryDate: editExpDate || undefined } : prev);
+      setShowDetail(null);
       toast('発注情報を更新しました');
       onRefresh();
     } catch (e: any) {

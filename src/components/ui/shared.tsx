@@ -48,7 +48,7 @@ export const StatusBadge = ({ statusKey, statusMap }: { statusKey: string; statu
 };
 
 export const Toast = ({ msg }: { msg: string }) => msg ? (
-  <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 text-sm">
+  <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-lg shadow-lg z-[60] flex items-center gap-2 text-sm">
     <CheckCircle2 size={16} className="text-emerald-400" />
     {msg}
   </div>
