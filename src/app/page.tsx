@@ -284,7 +284,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; on
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
             <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="品番・品名・メーカー品番・棚位置で検索"
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
           <Btn icon={Plus} onClick={() => setNewPart({ code: '', name: '', maker: '', makerCode: '', category: '電気部品', supplier: '', stock: 0, reorderPoint: 10, safetyStock: 5, maxStock: 50, unit: '個', unitPrice: 0, leadTime: 14, location: '', spec: '' })}>
             新規登録
@@ -292,7 +292,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; on
         </div>
         <div className="flex items-center gap-2">
           <Filter size={12} className="text-slate-600" />
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="text-xs px-2 py-1 border border-slate-200 rounded">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-slate-900">
             <option value="all">全ステータス</option>
             {Object.entries(STATUS_COLOR).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
@@ -860,7 +860,7 @@ const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locati
       </div>
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
         <span className="text-xs text-slate-600">倉庫:</span>
-        <select value={warehouse} onChange={e => setWarehouse(e.target.value)} className="text-xs px-2 py-1 border border-slate-200 rounded">
+        <select value={warehouse} onChange={e => setWarehouse(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-slate-900">
           {warehouses.map(w => <option key={w} value={w}>{w === 'all' ? '全倉庫' : w}</option>)}
         </select>
       </div>
@@ -945,7 +945,7 @@ const LocationsScreen = ({ locations }: { locations: Location[] }) => {
                   <td className="px-3 py-2">{l.name}</td>
                   <td className="px-3 py-2 text-xs"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
                   <td className="px-3 py-2 text-right font-mono">{l.maxQty.toLocaleString()}</td>
-                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${l.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{l.isActive ? '有効' : '無効'}</span></td>
+                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${l.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>{l.isActive ? '有効' : '無効'}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -1016,7 +1016,7 @@ const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefres
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
             <div className="text-xs text-slate-600 mb-2">納品待ち発注から選択</div>
-            <select value={selectedPO} onChange={e => setSelectedPO(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-200 rounded px-2 py-2 text-sm">
+            <select value={selectedPO} onChange={e => setSelectedPO(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded px-2 py-2 text-sm">
               <option value="">-- 発注を選択 --</option>
               {pendingOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo} / {o.supplier} / {o.desiredDate || '-'}</option>)}
             </select>
@@ -1056,10 +1056,10 @@ const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefres
                         <td className="px-3 py-2 text-right">
                           <input type="number" value={receiveQty[d.partId] || 0} max={remaining}
                             onChange={e => setReceiveQty(s => ({ ...s, [d.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
-                            className="w-20 border border-slate-200 rounded px-2 py-1 text-right" />
+                            className="w-20 border border-slate-300 rounded px-2 py-1 text-right" />
                         </td>
                         <td className="px-3 py-2">
-                          <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-200 rounded px-2 py-1">
+                          <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-300 rounded px-2 py-1">
                             <option>合格</option><option>条件付合格</option><option>不合格</option>
                           </select>
                         </td>
@@ -1293,7 +1293,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
             <div className="text-xs text-slate-600 mb-2">アクティブな製造指図</div>
-            <select value={selectedMo} onChange={e => setSelectedMo(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-200 rounded px-2 py-2 text-sm">
+            <select value={selectedMo} onChange={e => setSelectedMo(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded px-2 py-2 text-sm">
               <option value="">-- 指図を選択 --</option>
               {activeOrders.map(m => (
                 <option key={m.id} value={m.id}>{m.prodNo} / {m.productName || m.productCode} x {m.qty} / 納期{m.dueDate}</option>
@@ -1346,7 +1346,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
                           {remaining > 0 ? (
                             <input type="number" value={pickQty[bs.partId] || 0} max={remaining} min={0}
                               onChange={e => setPickQty(s => ({ ...s, [bs.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
-                              className="w-20 border border-slate-200 rounded px-2 py-1 text-right" />
+                              className="w-20 border border-slate-300 rounded px-2 py-1 text-right" />
                           ) : <span className="text-emerald-600 font-bold text-xs">完了</span>}
                         </td>
                       </tr>
@@ -1465,7 +1465,7 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
             { l: '\u9032\u6357', v: total > 0 ? Math.round(doneCount / total * 100) + '%' : '0%', c: 'text-slate-900' },
             { l: '\u5B8C\u4E86', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
             { l: '\u5DEE\u7570\u3042\u308A', v: String(diffCount), c: 'text-amber-600' },
-            { l: '\u672A\u7740\u624B', v: String(pendingCount), c: 'text-slate-400' },
+            { l: '\u672A\u7740\u624B', v: String(pendingCount), c: 'text-slate-600' },
           ].map((k, i) => (
             <div key={i} className="bg-white rounded p-2.5">
               <div className="text-[11px] text-slate-600">{k.l}</div>
@@ -1498,7 +1498,7 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
               const hasCount = partsInLoc.some(p => counts[p.id] !== undefined);
               const diffTotal = hasCount ? actualTotal - bookTotal : 0;
               const st = getLocStatus(l.id);
-              const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500';
+              const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700';
               const lbl = st === 'done' ? '\u5B8C\u4E86' : st === 'diff' ? '\u5DEE\u7570\u3042\u308A' : '\u672A\u7740\u624B';
               return (
                 <tr key={l.id} className="hover:bg-slate-50">
@@ -1537,7 +1537,7 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
                     <td className="py-2">{p.name}</td>
                     <td className="py-2 text-right font-mono">{p.stock}</td>
                     <td className="py-2 text-right">
-                      <input type="number" value={actual === undefined ? '' : actual} onChange={e => updateCount(p.id, e.target.value)} className="w-20 border border-slate-200 rounded px-2 py-1 text-right font-mono" />
+                      <input type="number" value={actual === undefined ? '' : actual} onChange={e => updateCount(p.id, e.target.value)} className="w-20 border border-slate-300 rounded px-2 py-1 text-right font-mono" />
                     </td>
                     <td className="py-2 text-right font-mono">
                       {actual !== undefined && dif !== 0 ? <span className={dif > 0 ? 'text-blue-600' : 'text-rose-600 font-bold'}>{dif > 0 ? '+' : ''}{dif}</span> : '\u2014'}
@@ -1592,7 +1592,7 @@ const LogsScreen = ({ logs }: { logs: Log[] }) => {
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
         <Filter size={12} className="text-slate-600" />
-        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-200 rounded">
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-slate-900">
           <option value="all">全カテゴリ</option>
           {Object.entries(LOG_CATEGORY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
@@ -1983,7 +1983,7 @@ const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
                   <td className="px-3 py-2 text-xs">{u.department || '-'}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('ja-JP') : '-'}</td>
                   <td className="px-3 py-2">
-                    <button onClick={() => handleToggleActive(u)} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <button onClick={() => handleToggleActive(u)} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
                       {u.isActive ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}{u.isActive ? '有効' : '無効'}
                     </button>
                   </td>
@@ -2150,7 +2150,7 @@ const DepartmentsScreen = ({ toast }: { toast: (msg: string) => void }) => {
           {!isRoot && <span className="text-slate-600 text-sm mr-0.5 flex-shrink-0">└</span>}
 
           {/* Hierarchy icon */}
-          <Building size={14} className={isRoot ? 'text-blue-500' : 'text-slate-400'} />
+          <Building size={14} className={isRoot ? 'text-blue-500' : 'text-slate-600'} />
 
           {/* Name */}
           <span className={`flex-1 min-w-0 truncate ${isRoot ? 'font-bold text-slate-900' : 'font-medium text-slate-600'}`}>{node.name}</span>
@@ -2355,7 +2355,7 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
         <>
           <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
             <Filter size={12} className="text-slate-600" />
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-200 rounded">
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-slate-900">
               <option value="all">すべての種別</option>
               {ENTITY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -2566,125 +2566,153 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
 const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [error, setError] = useState('');
+  const [phase, setPhase] = useState<'idle' | 'starting' | 'active' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const scanningRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
+  const jsQRRef = useRef<any>(null);
 
-  const startCamera = async () => {
-    setError('');
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('このブラウザはカメラに対応していません。Chrome/Safariをお試しください。');
-      return;
-    }
-    try {
-      // Try rear camera first, fall back to any camera
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.setAttribute('webkit-playsinline', 'true');
-        await videoRef.current.play();
-        setCameraActive(true);
-        scanningRef.current = true;
-        requestAnimationFrame(() => scanLoop());
-      }
-    } catch (err: any) {
-      if (err?.name === 'NotAllowedError') {
-        setError('カメラの使用が許可されていません。ブラウザの設定でカメラを許可してください。');
-      } else if (err?.name === 'NotFoundError') {
-        setError('カメラが見つかりません。');
-      } else {
-        setError(`カメラエラー: ${err?.message || 'アクセスできません'}`);
-      }
-    }
-  };
-
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     scanningRef.current = false;
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-    setCameraActive(false);
-  };
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setPhase('idle');
+  }, []);
 
-  const scanLoop = async () => {
-    if (!scanningRef.current || !videoRef.current || !canvasRef.current) return;
+  const scanFrame = useCallback(() => {
+    if (!scanningRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx || video.readyState !== video.HAVE_ENOUGH_DATA) {
-      requestAnimationFrame(scanLoop);
+    if (!video || !canvas || video.readyState < 2) {
+      requestAnimationFrame(scanFrame);
       return;
     }
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) { requestAnimationFrame(scanFrame); return; }
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    try {
-      const jsQR = (await import('jsqr')).default;
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
-      if (code?.data) {
-        onScan(code.data);
-        stopCamera();
-        return;
-      }
-    } catch {
-      // No QR found in this frame, continue scanning
+    if (jsQRRef.current && canvas.width > 0 && canvas.height > 0) {
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQRRef.current(imageData.data, imageData.width, imageData.height);
+        if (code?.data) {
+          onScan(code.data);
+          stopCamera();
+          return;
+        }
+      } catch { /* continue */ }
+    }
+    requestAnimationFrame(scanFrame);
+  }, [onScan, stopCamera]);
+
+  const startCamera = async () => {
+    setPhase('starting');
+    setErrorMsg('');
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setErrorMsg('このブラウザはカメラに対応していません');
+      setPhase('error');
+      return;
     }
 
-    if (scanningRef.current) {
-      setTimeout(scanLoop, 300); // scan every 300ms
+    // Preload jsQR
+    try {
+      const mod = await import('jsqr');
+      jsQRRef.current = mod.default;
+    } catch {
+      setErrorMsg('QRスキャナーの読み込みに失敗しました');
+      setPhase('error');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
+      streamRef.current = stream;
+
+      const video = videoRef.current;
+      if (!video) { stopCamera(); return; }
+
+      video.srcObject = stream;
+
+      // Wait for video to actually start playing
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          video.play().then(resolve).catch(reject);
+        };
+        setTimeout(() => reject(new Error('timeout')), 5000);
+      });
+
+      setPhase('active');
+      scanningRef.current = true;
+      requestAnimationFrame(scanFrame);
+    } catch (err: any) {
+      stopCamera();
+      if (err?.name === 'NotAllowedError') {
+        setErrorMsg('カメラの使用が許可されていません。設定を確認してください。');
+      } else if (err?.name === 'NotFoundError' || err?.name === 'NotReadableError') {
+        setErrorMsg('カメラが見つからないか、使用中です。');
+      } else {
+        setErrorMsg(`カメラエラー: ${err?.message || '起動に失敗しました'}`);
+      }
+      setPhase('error');
     }
   };
 
-  useEffect(() => { return () => { stopCamera(); }; }, []);
+  useEffect(() => { return () => { scanningRef.current = false; stopCamera(); }; }, [stopCamera]);
 
   return (
-    <div className="relative">
-      {!cameraActive ? (
-        <div className="bg-slate-900 rounded-xl aspect-video flex flex-col items-center justify-center relative overflow-hidden cursor-pointer" onClick={startCamera}>
+    <div>
+      {(phase === 'idle' || phase === 'error') && (
+        <div className="bg-slate-900 rounded-xl flex flex-col items-center justify-center relative overflow-hidden cursor-pointer"
+          style={{ minHeight: '240px' }} onClick={startCamera}>
           <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-purple-900/40" />
-          <div className="absolute inset-12 border-2 border-cyan-400/50 rounded-lg" />
-          <Camera size={56} className="text-white/40 mb-3 relative z-10" />
-          <div className="text-white/70 text-sm font-medium relative z-10">タップしてカメラを起動</div>
-          <div className="text-cyan-300/60 text-xs mt-1 relative z-10">QRコードを読み取ります</div>
-          {error && <div className="absolute bottom-4 left-4 right-4 bg-red-500/80 rounded px-3 py-2 text-xs text-white">{error}</div>}
+          <Camera size={48} className="text-white/50 mb-3 relative z-10" />
+          <div className="text-white text-sm font-medium relative z-10">タップしてカメラを起動</div>
+          <div className="text-cyan-300 text-xs mt-1 relative z-10">QRコードを読み取ります</div>
+          {errorMsg && <div className="absolute bottom-3 left-3 right-3 bg-red-600 rounded px-3 py-2 text-xs text-white z-10">{errorMsg}</div>}
         </div>
-      ) : (
-        <div className="bg-slate-900 rounded-xl aspect-video relative overflow-hidden">
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
+      )}
+
+      {phase === 'starting' && (
+        <div className="bg-slate-900 rounded-xl flex flex-col items-center justify-center" style={{ minHeight: '240px' }}>
+          <Loader2 size={32} className="text-cyan-400 animate-spin mb-2" />
+          <div className="text-white text-sm">カメラを起動中...</div>
+        </div>
+      )}
+
+      {phase === 'active' && (
+        <div className="bg-black rounded-xl relative overflow-hidden" style={{ minHeight: '240px' }}>
+          <video ref={videoRef}
+            style={{ width: '100%', height: 'auto', display: 'block', minHeight: '240px', objectFit: 'cover' }}
+            playsInline muted autoPlay
+          />
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-12 border-2 border-cyan-400 rounded-lg" />
-            {/* Scan line animation */}
-            <div className="absolute left-12 right-12 h-0.5 bg-cyan-400"
-              style={{ boxShadow: '0 0 12px #22d3ee', animation: 'qrScanLine 2s ease-in-out infinite' }} />
-            {/* Corner markers */}
-            <div className="absolute top-10 left-10 w-6 h-6 border-t-3 border-l-3 border-cyan-400" />
-            <div className="absolute top-10 right-10 w-6 h-6 border-t-3 border-r-3 border-cyan-400" />
-            <div className="absolute bottom-10 left-10 w-6 h-6 border-b-3 border-l-3 border-cyan-400" />
-            <div className="absolute bottom-10 right-10 w-6 h-6 border-b-3 border-r-3 border-cyan-400" />
+            <div style={{ position: 'absolute', top: '15%', left: '15%', right: '15%', bottom: '15%', border: '2px solid #22d3ee', borderRadius: '8px' }} />
+            <div style={{ position: 'absolute', top: '15%', left: '15%', right: '15%', height: '2px', background: '#22d3ee', boxShadow: '0 0 12px #22d3ee', animation: 'qrScanLine 2s ease-in-out infinite' }} />
           </div>
-          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-            <div className="bg-black/60 rounded px-3 py-2 text-xs text-cyan-200 flex items-center gap-2">
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+            <div className="bg-black/70 rounded px-3 py-2 text-xs text-cyan-200 flex items-center gap-2">
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               スキャン中...
             </div>
-            <button onClick={stopCamera} className="bg-black/60 hover:bg-black/80 text-white rounded px-3 py-2 text-xs">停止</button>
+            <button onClick={stopCamera} className="bg-white/20 hover:bg-white/30 text-white rounded px-4 py-2 text-sm font-medium">停止</button>
           </div>
-          <style>{`@keyframes qrScanLine { 0%,100% { top: 12%; } 50% { top: 85%; } }`}</style>
+          <style>{`@keyframes qrScanLine { 0%,100% { top: 15%; } 50% { top: 80%; } }`}</style>
         </div>
       )}
-      <canvas ref={canvasRef} className="hidden" />
+
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   );
 };
