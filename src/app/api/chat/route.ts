@@ -1,8 +1,12 @@
 import { prisma } from "@/server/db";
-import OpenAI from "openai";
+import { AzureOpenAI } from "openai";
 import { v4 as uuidv4 } from "uuid";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
+const openai = new AzureOpenAI({
+  apiKey: process.env.AZURE_OPENAI_API_KEY || "",
+  endpoint: process.env.AZURE_OPENAI_ENDPOINT || "",
+  apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
+});
 
 // Helper: gather system context based on keywords in the message
 async function gatherContext(message: string) {
@@ -83,8 +87,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "message is required" }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return Response.json({ error: "OPENAI_API_KEY が設定されていません。Vercelの環境変数に追加してください。" }, { status: 500 });
+    if (!process.env.AZURE_OPENAI_API_KEY) {
+      return Response.json({ error: "AZURE_OPENAI_API_KEY が設定されていません。Vercelの環境変数に追加してください。" }, { status: 500 });
     }
 
     const sessionId = inputSessionId || uuidv4();
@@ -127,7 +131,7 @@ ${systemContext}`,
     }
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
       max_tokens: 2048,
       messages,
     });
