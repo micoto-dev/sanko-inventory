@@ -61,9 +61,9 @@ export const Field = ({ label, children, full }: { label: string; children: Reac
 
 export const Card = ({ label, value, sub }: { label: string; value: string | number; sub: string }) => (
   <div className="bg-white rounded-lg border border-slate-200 p-3">
-    <div className="text-[11px] text-slate-800">{label}</div>
+    <div className="text-[11px] text-slate-900">{label}</div>
     <div className="text-xl font-bold text-slate-900 mt-0.5">{value}</div>
-    <div className="text-[11px] text-slate-800">{sub}</div>
+    <div className="text-[11px] text-slate-900">{sub}</div>
   </div>
 );
 
