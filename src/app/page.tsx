@@ -838,7 +838,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                   <th className="text-right py-2 px-3 w-16">残</th>
                   <th className="text-right py-2 px-3 w-24">単価</th>
                   <th className="text-right py-2 px-3 w-28">小計</th>
-                  <th className="py-2 px-3 w-24 text-center">操作</th>
+                  <th className="py-2 px-3 w-40 text-center">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -856,12 +856,12 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                     <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
                     <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
                     <td className="py-2 px-3">
-                      <div className="flex gap-1.5 justify-center">
+                      <div className="flex gap-1.5 justify-center whitespace-nowrap">
                         {it.id && it.remarks === 'manufacturer_shortage' ? (<>
-                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">取消</button>
-                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[10px] px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">代替品</button>
+                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">取消</button>
+                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[11px] px-2.5 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 whitespace-nowrap">代替品</button>
                         </>) : it.id && it.qty - it.receivedQty > 0 ? (
-                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-2 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200">欠品</button>
+                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 whitespace-nowrap">欠品</button>
                         ) : null}
                       </div>
                     </td>
