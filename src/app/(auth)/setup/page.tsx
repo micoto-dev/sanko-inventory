@@ -66,8 +66,8 @@ function SetupForm() {
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600">
           <Anchor className="h-8 w-8 text-white" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">パスワード設定</h1>
-        <p className="mt-1 text-sm text-gray-900">初回ログイン用のパスワードを設定してください</p>
+        <h1 className="text-2xl font-bold text-black">パスワード設定</h1>
+        <p className="mt-1 text-sm text-black">初回ログイン用のパスワードを設定してください</p>
       </div>
 
       {success ? (
@@ -84,15 +84,15 @@ function SetupForm() {
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-900">パスワード</label>
+              <label htmlFor="password" className="block text-sm font-medium text-black">パスワード</label>
               <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-black shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="6文字以上" />
             </div>
             <div>
-              <label htmlFor="confirm" className="block text-sm font-medium text-gray-900">パスワード（確認）</label>
+              <label htmlFor="confirm" className="block text-sm font-medium text-black">パスワード（確認）</label>
               <input id="confirm" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-black shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="もう一度入力" />
             </div>
             <button type="submit" disabled={loading}
