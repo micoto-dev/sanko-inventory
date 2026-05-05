@@ -1,35 +1,15 @@
 import { prisma } from "@/server/db";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || "";
-    const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20));
-    const skip = (page - 1) * limit;
-
-    const where: Record<string, unknown> = {};
-    if (status) where.status = status;
-
-    const [stocktakes, total] = await Promise.all([
-      prisma.tStocktake.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          createdBy: { select: { id: true, name: true } },
-          approvedBy: { select: { id: true, name: true } },
-          _count: { select: { details: true } },
-        },
-      }),
-      prisma.tStocktake.count({ where }),
-    ]);
-
-    return Response.json({
-      data: stocktakes,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    const stocktakes = await prisma.tStocktake.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        createdBy: { select: { name: true } },
+        _count: { select: { details: true } },
+      },
     });
+    return Response.json({ data: stocktakes });
   } catch (e) {
     console.error(e);
     return Response.json({ error: "Failed to fetch stocktakes" }, { status: 500 });
@@ -39,60 +19,67 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { warehouse, startDate, notes, createdById } = body;
-
-    if (!startDate || !createdById) {
-      return Response.json({ error: "startDate and createdById are required" }, { status: 400 });
-    }
+    const { warehouse, startDate, locationId, items } = body;
 
     const result = await prisma.$transaction(async (tx) => {
-      // Generate stocktakeNo
       const count = await tx.tStocktake.count();
-      const stocktakeNo = `ST-${String(count + 1).padStart(6, "0")}`;
-
-      // Get current stock records (optionally filtered by warehouse)
-      const stockWhere: Record<string, unknown> = {};
-      if (warehouse) {
-        stockWhere.location = { warehouse };
-      }
-      const stocks = await tx.tStock.findMany({
-        where: stockWhere,
-        include: { location: { select: { warehouse: true } } },
-      });
+      const stocktakeNo = `ST-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
 
       const stocktake = await tx.tStocktake.create({
         data: {
           stocktakeNo,
-          warehouse,
-          startDate: new Date(startDate),
-          notes,
-          createdById,
+          status: 'approved',
+          warehouse: warehouse || null,
+          startDate: new Date(startDate || new Date()),
+          createdById: 1,
+          approvedAt: new Date(),
+          approvedById: 1,
           details: {
-            create: stocks.map((s) => ({
-              partId: s.partId,
-              locationId: s.locationId,
-              bookQty: s.qty,
+            create: (items || []).map((item: any) => ({
+              partId: item.partId,
+              locationId: item.locationId || locationId,
+              bookQty: item.bookQty,
+              actualQty: item.actualQty,
+              diffQty: item.diffQty,
+              approved: true,
+              countedAt: new Date(),
+              countedById: 1,
             })),
           },
         },
-        include: { details: true },
       });
+
+      // Update stock quantities based on actual counts
+      for (const item of (items || []) as { partId: string; locationId?: string; actualQty: number; diffQty: number }[]) {
+        const locId = item.locationId || locationId;
+        if (item.diffQty !== 0 && locId) {
+          const stock = await tx.tStock.findUnique({
+            where: { partId_locationId: { partId: item.partId, locationId: locId } },
+          });
+          if (stock) {
+            await tx.tStock.update({
+              where: { partId_locationId: { partId: item.partId, locationId: locId } },
+              data: { qty: item.actualQty, lastInoutAt: new Date() },
+            });
+          }
+        }
+      }
 
       await tx.tLog.create({
         data: {
           category: "stocktake",
-          action: "create",
+          action: "approve",
           targetType: "TStocktake",
           targetId: String(stocktake.id),
-          description: `Created stocktake ${stocktakeNo} with ${stocks.length} items`,
-          userId: createdById,
+          description: `棚卸し ${stocktakeNo} (${locationId || warehouse || '全体'}) ${items?.length || 0}品目の実査結果を承認・在庫更新`,
+          userId: 1,
         },
       });
 
       return stocktake;
     });
 
-    return Response.json(result, { status: 201 });
+    return Response.json({ data: result }, { status: 201 });
   } catch (e) {
     console.error(e);
     return Response.json({ error: "Failed to create stocktake" }, { status: 500 });

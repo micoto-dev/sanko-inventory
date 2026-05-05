@@ -2068,7 +2068,7 @@ const ExcelImportDropdown = ({ onDownload, onImport }: { onDownload: () => void;
   );
 };
 
-const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void }) => {
+const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void; onRefresh: () => void }) => {
   const [selected, setSelected] = useState<Location | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [confirmedDiffs, setConfirmedDiffs] = useState<Record<string, boolean>>({});
@@ -2103,10 +2103,27 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
   const updateCount = (partId: string, value: string) => {
     setCounts(c => ({ ...c, [partId]: Math.max(0, Number(value) || 0) }));
   };
-  const approveDiff = (loc: Location) => {
-    setConfirmedDiffs(c => ({ ...c, [loc.id]: true }));
-    toast(loc.id + ' \u306E\u5DEE\u7570\u3092\u627F\u8A8D\u3057\u307E\u3057\u305F');
-    setSelected(null);
+  const approveDiff = async (loc: Location) => {
+    const partsInLoc = partsByLoc[loc.id] || [];
+    const items = partsInLoc
+      .filter(p => counts[p.id] !== undefined)
+      .map(p => ({ partId: p.id, locationId: loc.id, bookQty: p.stock, actualQty: counts[p.id], diffQty: counts[p.id] - p.stock }));
+
+    try {
+      // Save stocktake to DB via API
+      await api.createStocktake({
+        warehouse: loc.warehouse,
+        startDate: new Date().toISOString().slice(0, 10),
+        locationId: loc.id,
+        items,
+      });
+      setConfirmedDiffs(c => ({ ...c, [loc.id]: true }));
+      toast(`${loc.id} の棚卸し結果を保存・在庫を更新しました`);
+      setSelected(null);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
   };
   const downloadExcelTemplate = () => {
     const header = '\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3ID,\u54C1\u756A,\u54C1\u540D,\u5E33\u7C3F\u6570,\u5B9F\u6570,\u5DEE\u7570,\u5099\u8003';
@@ -2356,9 +2373,18 @@ const ReportsScreen = () => {
   );
 };
 
-const LogsScreen = ({ logs }: { logs: Log[] }) => {
+const LogsScreen = () => {
+  const [logs, setLogs] = useState<Log[]>([]);
   const [catFilter, setCatFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getLogs({ limit: '200' }).then(res => { setLogs(res.data || []); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
   const filtered = useMemo(() => catFilter === 'all' ? logs : logs.filter(l => l.category === catFilter), [catFilter, logs]);
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
 
   return (
     <div className="p-5 space-y-3">
@@ -4726,9 +4752,9 @@ export default function AppPage() {
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
-          {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} />}
+          {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}
           {view === 'reports' && <ReportsScreen />}
-          {view === 'logs' && <LogsScreen logs={logs} />}
+          {view === 'logs' && <LogsScreen />}
           {view === 'chat' && <ChatScreen toast={toast} />}
           {view === 'users' && <UsersScreen toast={toast} />}
           {view === 'departments' && <DepartmentsScreen toast={toast} />}
