@@ -720,11 +720,15 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
         setCommentHistory(prev => [newComment, ...prev]);
         setEditComment('');
       }
-      if (Object.keys(data).length > 0) {
-        await api.updateOrder(showDetail.id, data);
-        toast('発注情報を更新しました');
-        onRefresh();
+      if (Object.keys(data).length === 0) {
+        toast('変更がありません');
+        return;
       }
+      await api.updateOrder(showDetail.id, data);
+      // Update showDetail with new values
+      setShowDetail(prev => prev ? { ...prev, status: editStatus, expectedDeliveryDate: editExpDate || undefined } : prev);
+      toast('発注情報を更新しました');
+      onRefresh();
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
     }
