@@ -78,6 +78,36 @@ async function gatherContext(message: string) {
     });
   }
 
+  // RAG: Search uploaded knowledge documents
+  const knowledgeDocs = await prisma.tKnowledgeDoc.findMany({
+    where: { deletedAt: null },
+    select: { id: true, fileName: true },
+  });
+
+  if (knowledgeDocs.length > 0) {
+    // Search chunks that contain keywords from the message
+    const keywords = lower.split(/[\s、。？！,.\?!]+/).filter(k => k.length >= 2);
+    if (keywords.length > 0) {
+      const chunks = await prisma.tKnowledgeChunk.findMany({
+        where: {
+          doc: { deletedAt: null },
+          OR: keywords.map(k => ({ content: { contains: k, mode: 'insensitive' as const } })),
+        },
+        include: { doc: { select: { fileName: true } } },
+        take: 5,
+      });
+      if (chunks.length > 0) {
+        context.push(`\n[アップロードドキュメントからの関連情報]:`);
+        chunks.forEach(c => {
+          context.push(`  [${c.doc.fileName}] ${c.content.slice(0, 500)}`);
+        });
+      }
+    } else {
+      // No keywords, show doc list
+      context.push(`\n[アップロード済みドキュメント]: ${knowledgeDocs.map(d => d.fileName).join(', ')}`);
+    }
+  }
+
   return context.join('\n');
 }
 

@@ -2252,6 +2252,11 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [conversations, setConversations] = useState<any[]>([]);
   const [convsLoading, setConvsLoading] = useState(true);
+  const [chatTab, setChatTab] = useState<'chat' | 'docs'>('chat');
+  const [knowledgeDocs, setKnowledgeDocs] = useState<any[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadConversations = async () => {
@@ -2260,6 +2265,28 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
       setConversations(res.data || res || []);
     } catch { /* ignore */ }
     setConvsLoading(false);
+  };
+
+  const loadDocs = async () => {
+    setDocsLoading(true);
+    try { const res = await api.getKnowledgeDocs(); setKnowledgeDocs(res.data || []); } catch { /* ignore */ }
+    setDocsLoading(false);
+  };
+  const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      await api.uploadKnowledgeDoc(file);
+      toast(`「${file.name}」をアップロードしました`);
+      loadDocs();
+    } catch (err: any) { toast(`エラー: ${err.message}`); }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+  const handleDeleteDoc = async (doc: any) => {
+    try { await api.deleteKnowledgeDoc(doc.id); toast(`「${doc.fileName}」を削除しました`); loadDocs(); }
+    catch (err: any) { toast(`エラー: ${err.message}`); }
   };
 
   useEffect(() => { loadConversations(); }, []);
@@ -2351,12 +2378,61 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
 
       {/* Chat area */}
       <div className="flex-1 bg-white rounded-r-lg border border-slate-200 flex flex-col overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-slate-200 flex items-center gap-2">
-          <Sparkles size={16} className="text-blue-600" />
-          <span className="text-sm font-bold text-black">AI チャット</span>
-          {sessionId && <span className="text-xs text-black font-mono">#{sessionId.slice(0, 8)}</span>}
+        <div className="px-4 py-0 border-b border-slate-200 flex items-center gap-0">
+          <button onClick={() => setChatTab('chat')} className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-1.5 ${chatTab === 'chat' ? 'border-blue-600 text-blue-600' : 'border-transparent text-black'}`}>
+            <Sparkles size={14} /> チャット
+          </button>
+          <button onClick={() => { setChatTab('docs'); loadDocs(); }} className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-1.5 ${chatTab === 'docs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-black'}`}>
+            <FileText size={14} /> ドキュメント
+          </button>
+          {chatTab === 'chat' && sessionId && <span className="ml-auto text-xs text-black font-mono">#{sessionId.slice(0, 8)}</span>}
         </div>
 
+        {chatTab === 'docs' && (
+          <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-sm">ナレッジドキュメント</h3>
+                <p className="text-xs text-black">アップロードしたファイルの内容がAIチャットの回答に活用されます</p>
+              </div>
+              <div>
+                <input ref={fileInputRef} type="file" accept=".txt,.csv,.tsv,.md,.json,.log,.pdf,.xlsx,.docx" onChange={handleUploadDoc} className="hidden" />
+                <Btn icon={Plus} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                  {uploading ? 'アップロード中...' : 'ファイルをアップロード'}
+                </Btn>
+              </div>
+            </div>
+            <div className="text-xs text-black mb-3">対応形式: TXT, CSV, JSON, Markdown, ログファイル（PDF/XLSX/DOCXは基本テキスト抽出のみ）</div>
+            {docsLoading ? (
+              <div className="text-center py-8"><Loader2 size={20} className="animate-spin mx-auto" /></div>
+            ) : knowledgeDocs.length === 0 ? (
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center">
+                <FileText size={40} className="mx-auto text-slate-300 mb-3" />
+                <p className="text-sm text-black font-medium">ドキュメントがまだありません</p>
+                <p className="text-xs text-black mt-1">ファイルをアップロードすると、AIがその内容を参照して回答します</p>
+                <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-sm text-blue-600 hover:underline">ファイルを選択</button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {knowledgeDocs.map((doc: any) => (
+                  <div key={doc.id} className="flex items-center gap-3 bg-slate-50 rounded-lg p-3 border border-slate-200">
+                    <FileText size={20} className="text-blue-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm truncate">{doc.fileName}</div>
+                      <div className="text-xs text-black">
+                        {doc.fileType.toUpperCase()} / {(doc.fileSize / 1024).toFixed(1)}KB / {doc.chunkCount}チャンク
+                        {doc.createdAt && ` / ${new Date(doc.createdAt).toLocaleDateString('ja-JP')}`}
+                      </div>
+                    </div>
+                    <button onClick={() => handleDeleteDoc(doc)} className="p-1.5 text-black hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {chatTab === 'chat' && ( <>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-black mt-16">
@@ -2430,8 +2506,6 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
           )}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Suggestion pills when messages exist but empty input */}
         {messages.length > 0 && !input && (
           <div className="px-4 pb-1 flex flex-wrap gap-1.5">
             {suggestions.slice(0, 4).map(q => (
@@ -2439,7 +2513,6 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
             ))}
           </div>
         )}
-
         <div className="border-t border-slate-200 p-3 flex gap-2">
           <textarea value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) { e.preventDefault(); handleSend(); } }}
@@ -2448,6 +2521,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
             style={{ overflowY: input.split('\n').length > 3 ? 'auto' : 'hidden' }} />
           <Btn variant="primary" icon={Send} onClick={() => handleSend()} disabled={loading || !input.trim()}>送信</Btn>
         </div>
+        </> )}
       </div>
     </div>
   );

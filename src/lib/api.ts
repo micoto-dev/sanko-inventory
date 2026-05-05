@@ -106,6 +106,17 @@ export const api = {
   getConversation: (id: string) => request<any>(`/chat/conversations/${id}`),
   createConversation: () => request<any>('/chat/conversations', { method: 'POST' }),
 
+  // Knowledge (RAG)
+  getKnowledgeDocs: () => request<any>('/knowledge'),
+  uploadKnowledgeDoc: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/knowledge', { method: 'POST', body: formData });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || res.statusText); }
+    return res.json();
+  },
+  deleteKnowledgeDoc: (id: number) => request<any>(`/knowledge/${id}`, { method: 'DELETE' }),
+
   // Users extra
   resetUserPassword: (id: number, newPassword: string) => request<any>(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) }),
 
