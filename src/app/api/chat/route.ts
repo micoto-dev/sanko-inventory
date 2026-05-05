@@ -3,9 +3,10 @@ import { AzureOpenAI } from "openai";
 import { v4 as uuidv4 } from "uuid";
 
 function getOpenAI() {
+  const endpoint = (process.env.AZURE_OPENAI_ENDPOINT || "").trim().replace(/\/+$/, "");
   return new AzureOpenAI({
-    apiKey: process.env.AZURE_OPENAI_API_KEY!,
-    endpoint: process.env.AZURE_OPENAI_ENDPOINT!,
+    apiKey: (process.env.AZURE_OPENAI_API_KEY || "").trim(),
+    endpoint,
     apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
   });
 }
@@ -92,6 +93,9 @@ export async function POST(request: Request) {
     if (!process.env.AZURE_OPENAI_API_KEY) {
       return Response.json({ error: "AZURE_OPENAI_API_KEY が設定されていません。Vercelの環境変数に追加してください。" }, { status: 500 });
     }
+    if (!process.env.AZURE_OPENAI_ENDPOINT) {
+      return Response.json({ error: "AZURE_OPENAI_ENDPOINT が設定されていません。" }, { status: 500 });
+    }
 
     const sessionId = inputSessionId || uuidv4();
 
@@ -154,6 +158,9 @@ ${systemContext}`,
   } catch (e) {
     console.error('Chat error:', e);
     const msg = e instanceof Error ? e.message : 'Chat failed';
+    const endpoint = (process.env.AZURE_OPENAI_ENDPOINT || "").trim().replace(/\/+$/, "");
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || "not set";
+    console.error('Chat debug:', { endpoint: endpoint.slice(0, 30) + '...', deployment, hasKey: !!process.env.AZURE_OPENAI_API_KEY });
     return Response.json({ error: msg }, { status: 500 });
   }
 }
