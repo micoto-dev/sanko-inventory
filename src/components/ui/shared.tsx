@@ -28,7 +28,7 @@ export const Btn = ({ children, variant = 'primary', size = 'md', onClick, disab
     primary: 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-300',
     success: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300',
     danger: 'bg-rose-600 text-white hover:bg-rose-700',
-    secondary: 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50',
+    secondary: 'bg-white border border-slate-200 text-slate-900 hover:bg-slate-50',
     ghost: 'text-blue-600 hover:bg-blue-50',
   };
   const s: Record<string, string> = { sm: 'px-2 py-1 text-xs', md: 'px-3 py-1.5 text-sm', lg: 'px-4 py-2' };
@@ -54,16 +54,16 @@ export const Toast = ({ msg }: { msg: string }) => msg ? (
 
 export const Field = ({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) => (
   <div className={full ? 'col-span-2' : ''}>
-    <label className="block text-xs font-semibold text-slate-700 mb-1">{label}</label>
+    <label className="block text-xs font-semibold text-slate-900 mb-1">{label}</label>
     {children}
   </div>
 );
 
 export const Card = ({ label, value, sub }: { label: string; value: string | number; sub: string }) => (
   <div className="bg-white rounded-lg border border-slate-200 p-3">
-    <div className="text-[11px] text-slate-600">{label}</div>
+    <div className="text-[11px] text-slate-800">{label}</div>
     <div className="text-xl font-bold text-slate-900 mt-0.5">{value}</div>
-    <div className="text-[11px] text-slate-600">{sub}</div>
+    <div className="text-[11px] text-slate-800">{sub}</div>
   </div>
 );
 
