@@ -680,6 +680,25 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
     try {
       await api.markItemShortage(orderId, detailId);
       toast('該当明細をメーカー欠品としてマークしました');
+      // Update showDetail immediately
+      setShowDetail((prev: any) => prev ? {
+        ...prev,
+        details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: 'manufacturer_shortage' } : d),
+      } : prev);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
+  const handleItemShortageCancel = async (orderId: number, detailId: number) => {
+    try {
+      await api.cancelItemShortage(orderId, detailId);
+      toast('欠品マークを取り消しました');
+      setShowDetail((prev: any) => prev ? {
+        ...prev,
+        details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: null } : d),
+      } : prev);
       onRefresh();
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
@@ -819,9 +838,11 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
                     <td className="text-right py-1.5 font-mono">{yen(it.unitPrice)}</td>
                     <td className="text-right py-1.5 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
                     <td className="py-1.5 text-center">
-                      {it.id && it.qty - it.receivedQty > 0 && it.remarks !== 'manufacturer_shortage' && (
+                      {it.id && it.remarks === 'manufacturer_shortage' ? (
+                        <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200" title="欠品を取り消す">取消</button>
+                      ) : it.id && it.qty - it.receivedQty > 0 ? (
                         <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200" title="この明細を欠品マーク">欠品</button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}

@@ -44,6 +44,7 @@ export const api = {
   updateOrder: (id: number, data: any) => request<any>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   markManufacturerShortage: (id: number) => request<any>(`/orders/${id}/manufacturer-shortage`, { method: 'POST' }),
   markItemShortage: (orderId: number, detailId: number) => request<any>(`/orders/${orderId}/details/${detailId}/shortage`, { method: 'POST' }),
+  cancelItemShortage: (orderId: number, detailId: number) => request<any>(`/orders/${orderId}/details/${detailId}/shortage`, { method: 'DELETE' }),
 
   // Parts import
   importParts: (data: any[]) => request<any>('/parts/import', { method: 'POST', body: JSON.stringify({ parts: data }) }),
