@@ -78,6 +78,19 @@ export async function POST(request: Request) {
         });
       }
 
+      // Update order status based on received quantities
+      const orderIds = [...new Set(items.map((i: any) => i.orderId).filter(Boolean))];
+      for (const orderId of orderIds) {
+        const orderDetails = await tx.tOrderDetail.findMany({ where: { orderId } });
+        const allComplete = orderDetails.every(d => d.receivedQty >= d.qty);
+        const anyReceived = orderDetails.some(d => d.receivedQty > 0);
+        if (allComplete) {
+          await tx.tOrder.update({ where: { id: orderId }, data: { status: 'completed' } });
+        } else if (anyReceived) {
+          await tx.tOrder.update({ where: { id: orderId }, data: { status: 'partial' } });
+        }
+      }
+
       return receives;
     });
 

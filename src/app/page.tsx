@@ -1374,7 +1374,7 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
 };
 
 // ========================== Other Screens ==========================
-const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefresh: () => void; toast: (msg: string) => void }) => {
+const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; parts: Part[]; onRefresh: () => void; toast: (msg: string) => void }) => {
   const pendingOrders = orders.filter(o => ['awaiting', 'partial', 'delayed'].includes(o.status));
   const [selectedPO, setSelectedPO] = useState<number | ''>('');
   const [receiveQty, setReceiveQty] = useState<Record<string, number>>({});
@@ -1399,17 +1399,28 @@ const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefres
     if (!order) return;
     const items = Object.entries(receiveQty)
       .filter(([, q]) => q > 0)
-      .map(([partId, qty]) => ({
-        partId,
-        qty: inspection[partId] === '合格' ? qty : 0,
-        orderDetailId: (order.details.find(d => d.partId === partId) as any)?.id,
-        locationId: 'A-03-2-L',
-        result: inspection[partId] === '合格' ? 'ok' : 'ng',
-      }))
+      .map(([partId, qty]) => {
+        const detail = order.details.find(d => d.partId === partId);
+        const insp = inspection[partId] || '合格';
+        const receiveQtyFinal = insp === '不合格' ? 0 : qty;
+        return {
+          partId,
+          qty: receiveQtyFinal,
+          orderDetailId: detail?.id,
+          orderId: order.id,
+          locationId: (detail as any)?.locationId || parts.find(p => p.id === partId)?.location || 'A-03-2-L',
+          result: insp === '不合格' ? 'reject' : 'ok',
+          rejectReason: insp === '不合格' ? '検査不合格' : insp === '条件付合格' ? '条件付合格' : undefined,
+        };
+      })
       .filter(i => i.qty > 0);
+    if (items.length === 0) {
+      toast('入庫する品目がありません（不合格のみ）');
+      return;
+    }
     try {
-      await api.createReceive({ receivedById: 1, items: items.map(i => ({ ...i, orderId: order.id })) });
-      toast('入庫を登録しました');
+      await api.createReceive({ receivedById: 1, items });
+      toast(`入庫を確定しました（${items.length}品目）`);
       setSelectedPO('');
       onRefresh();
     } catch (e: any) {
@@ -4390,7 +4401,7 @@ export default function AppPage() {
           {view === 'locations' && <LocationsScreen locations={locations} onRefresh={fetchAll} toast={toast} />}
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} />}
-          {view === 'receive' && <ReceiveScreen orders={orders} onRefresh={fetchAll} toast={toast} />}
+          {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} />}
