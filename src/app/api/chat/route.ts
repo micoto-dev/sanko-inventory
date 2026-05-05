@@ -2,11 +2,13 @@ import { prisma } from "@/server/db";
 import { AzureOpenAI } from "openai";
 import { v4 as uuidv4 } from "uuid";
 
-const openai = new AzureOpenAI({
-  apiKey: process.env.AZURE_OPENAI_API_KEY || "",
-  endpoint: process.env.AZURE_OPENAI_ENDPOINT || "",
-  apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
-});
+function getOpenAI() {
+  return new AzureOpenAI({
+    apiKey: process.env.AZURE_OPENAI_API_KEY!,
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT!,
+    apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
+  });
+}
 
 // Helper: gather system context based on keywords in the message
 async function gatherContext(message: string) {
@@ -130,7 +132,7 @@ ${systemContext}`,
       messages.push({ role: 'user', content: message });
     }
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
       max_tokens: 2048,
       messages,
