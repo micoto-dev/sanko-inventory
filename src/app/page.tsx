@@ -2564,159 +2564,109 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
 // ========================== Settings ==========================
 // ========================== QR Camera Scanner ==========================
 const QrCameraScanner = ({ onScan, autoStart = false }: { onScan: (text: string) => void; autoStart?: boolean }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'idle' | 'starting' | 'active' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const scanningRef = useRef(false);
-  const streamRef = useRef<MediaStream | null>(null);
-  const jsQRRef = useRef<any>(null);
+  const [debugInfo, setDebugInfo] = useState('');
+  const scannerRef = useRef<any>(null);
 
   const stopCamera = useCallback(() => {
-    scanningRef.current = false;
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (scannerRef.current) {
+      try { scannerRef.current.stop(); } catch { /* ignore */ }
+      try { scannerRef.current.clear(); } catch { /* ignore */ }
+      scannerRef.current = null;
     }
     setPhase('idle');
   }, []);
 
-  const scanFrame = useCallback(() => {
-    if (!scanningRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2) {
-      requestAnimationFrame(scanFrame);
-      return;
-    }
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) { requestAnimationFrame(scanFrame); return; }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    if (jsQRRef.current && canvas.width > 0 && canvas.height > 0) {
-      try {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQRRef.current(imageData.data, imageData.width, imageData.height);
-        if (code?.data) {
-          onScan(code.data);
-          stopCamera();
-          return;
-        }
-      } catch { /* continue */ }
-    }
-    requestAnimationFrame(scanFrame);
-  }, [onScan, stopCamera]);
-
   const startCamera = async () => {
     setPhase('starting');
     setErrorMsg('');
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setErrorMsg('このブラウザはカメラに対応していません');
-      setPhase('error');
-      return;
-    }
-
-    // Preload jsQR
-    try {
-      const mod = await import('jsqr');
-      jsQRRef.current = mod.default;
-    } catch {
-      setErrorMsg('QRスキャナーの読み込みに失敗しました');
-      setPhase('error');
-      return;
-    }
+    setDebugInfo('カメラを初期化中...');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
-      });
-      streamRef.current = stream;
+      const { Html5Qrcode } = await import('html5-qrcode');
+      setDebugInfo('ライブラリ読込完了。カメラを起動中...');
 
-      const video = videoRef.current;
-      if (!video) { stopCamera(); return; }
+      const scannerId = 'qr-scanner-' + Date.now();
+      const container = containerRef.current;
+      if (!container) { setPhase('error'); setErrorMsg('コンテナが見つかりません'); return; }
 
-      video.srcObject = stream;
+      // Create scanner element
+      let scannerEl = container.querySelector('#qr-reader') as HTMLDivElement;
+      if (scannerEl) scannerEl.remove();
+      scannerEl = document.createElement('div');
+      scannerEl.id = scannerId;
+      scannerEl.style.width = '100%';
+      container.prepend(scannerEl);
 
-      // Wait for video to actually start playing
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          video.play().then(resolve).catch(reject);
-        };
-        setTimeout(() => reject(new Error('timeout')), 5000);
-      });
+      const scanner = new Html5Qrcode(scannerId);
+      scannerRef.current = scanner;
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        (decodedText: string) => {
+          onScan(decodedText);
+          stopCamera();
+        },
+        () => { /* ignore scan failures */ }
+      );
 
       setPhase('active');
-      scanningRef.current = true;
-      requestAnimationFrame(scanFrame);
+      setDebugInfo('');
     } catch (err: any) {
       stopCamera();
-      if (err?.name === 'NotAllowedError') {
-        setErrorMsg('カメラの使用が許可されていません。設定を確認してください。');
-      } else if (err?.name === 'NotFoundError' || err?.name === 'NotReadableError') {
-        setErrorMsg('カメラが見つからないか、使用中です。');
+      const msg = err?.message || String(err);
+      setDebugInfo(`エラー詳細: ${msg}`);
+      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
+        setErrorMsg('カメラの使用が許可されていません。ブラウザ設定でカメラを許可してください。');
+      } else if (msg.includes('NotFound') || msg.includes('Requested device not found')) {
+        setErrorMsg('カメラが見つかりません。');
       } else {
-        setErrorMsg(`カメラエラー: ${err?.message || '起動に失敗しました'}`);
+        setErrorMsg(`カメラを起動できません: ${msg}`);
       }
       setPhase('error');
     }
   };
 
   useEffect(() => {
-    if (autoStart && phase === 'idle') { startCamera(); }
-    return () => { scanningRef.current = false; stopCamera(); };
+    if (autoStart) { startCamera(); }
+    return () => { stopCamera(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopCamera]);
+  }, []);
 
   return (
-    <div>
+    <div ref={containerRef}>
       {(phase === 'idle' || phase === 'error') && (
         <div className="bg-slate-900 rounded-xl flex flex-col items-center justify-center relative overflow-hidden cursor-pointer"
-          style={{ minHeight: '240px' }} onClick={startCamera}>
+          style={{ minHeight: '280px' }} onClick={startCamera}>
           <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-purple-900/40" />
           <Camera size={48} className="text-white/50 mb-3 relative z-10" />
           <div className="text-white text-sm font-medium relative z-10">タップしてカメラを起動</div>
           <div className="text-cyan-300 text-xs mt-1 relative z-10">QRコードを読み取ります</div>
           {errorMsg && <div className="absolute bottom-3 left-3 right-3 bg-red-600 rounded px-3 py-2 text-xs text-white z-10">{errorMsg}</div>}
+          {debugInfo && <div className="absolute top-3 left-3 right-3 bg-yellow-600 rounded px-3 py-2 text-xs text-white z-10">{debugInfo}</div>}
         </div>
       )}
 
       {phase === 'starting' && (
-        <div className="bg-slate-900 rounded-xl flex flex-col items-center justify-center" style={{ minHeight: '240px' }}>
+        <div className="bg-slate-900 rounded-xl flex flex-col items-center justify-center" style={{ minHeight: '280px' }}>
           <Loader2 size={32} className="text-cyan-400 animate-spin mb-2" />
           <div className="text-white text-sm">カメラを起動中...</div>
+          {debugInfo && <div className="text-cyan-300 text-xs mt-2">{debugInfo}</div>}
         </div>
       )}
 
       {phase === 'active' && (
-        <div className="bg-black rounded-xl relative overflow-hidden" style={{ minHeight: '240px' }}>
-          <video ref={videoRef}
-            style={{ width: '100%', height: 'auto', display: 'block', minHeight: '240px', objectFit: 'cover' }}
-            playsInline muted autoPlay
-          />
-          <div className="absolute inset-0 pointer-events-none">
-            <div style={{ position: 'absolute', top: '15%', left: '15%', right: '15%', bottom: '15%', border: '2px solid #22d3ee', borderRadius: '8px' }} />
-            <div style={{ position: 'absolute', top: '15%', left: '15%', right: '15%', height: '2px', background: '#22d3ee', boxShadow: '0 0 12px #22d3ee', animation: 'qrScanLine 2s ease-in-out infinite' }} />
+        <div className="relative">
+          <div className="flex justify-center mt-3">
+            <button onClick={stopCamera} className="bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-6 py-2 text-sm font-medium flex items-center gap-2">
+              <X size={16} /> カメラを停止
+            </button>
           </div>
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-            <div className="bg-black/70 rounded px-3 py-2 text-xs text-cyan-200 flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              スキャン中...
-            </div>
-            <button onClick={stopCamera} className="bg-white/20 hover:bg-white/30 text-white rounded px-4 py-2 text-sm font-medium">停止</button>
-          </div>
-          <style>{`@keyframes qrScanLine { 0%,100% { top: 15%; } 50% { top: 80%; } }`}</style>
         </div>
       )}
-
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   );
 };
