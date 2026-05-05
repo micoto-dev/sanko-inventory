@@ -2563,7 +2563,7 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
 
 // ========================== Settings ==========================
 // ========================== QR Camera Scanner ==========================
-const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
+const QrCameraScanner = ({ onScan, autoStart = false }: { onScan: (text: string) => void; autoStart?: boolean }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [phase, setPhase] = useState<'idle' | 'starting' | 'active' | 'error'>('idle');
@@ -2669,7 +2669,11 @@ const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
     }
   };
 
-  useEffect(() => { return () => { scanningRef.current = false; stopCamera(); }; }, [stopCamera]);
+  useEffect(() => {
+    if (autoStart && phase === 'idle') { startCamera(); }
+    return () => { scanningRef.current = false; stopCamera(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopCamera]);
 
   return (
     <div>
@@ -2719,7 +2723,7 @@ const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
 
 // ========================== QR Code ==========================
 const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void }) => {
-  const [tab, setTab] = useState<'parts' | 'locations' | 'scan'>('parts');
+  const [tab, setTab] = useState<'parts' | 'locations' | 'scan'>('scan');
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
   const [selectedLocs, setSelectedLocs] = useState<Set<string>>(new Set());
   const [scanResult, setScanResult] = useState<any>(null);
@@ -2859,7 +2863,7 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
           <div className="p-5">
             <div className="max-w-2xl mx-auto space-y-4">
               {/* Live camera QR scanner */}
-              <QrCameraScanner onScan={(text) => { setScanInput(text); handleScanText(text); }} />
+              <QrCameraScanner autoStart onScan={(text) => { setScanInput(text); handleScanText(text); }} />
 
               {/* Manual input fallback */}
               <div className="text-xs text-slate-900 text-center">または手入力で検索</div>
