@@ -2341,7 +2341,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
               )}
               <div className={`max-w-[75%] flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={`px-4 py-2.5 rounded-xl text-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-slate-100 text-black rounded-tl-sm'}`}>
-                  <div className="whitespace-pre-wrap">{m.content}</div>
+                  <div className="whitespace-pre-wrap">{m.content.replace(/\*\*(.+?)\*\*/g, '「$1」')}</div>
                 </div>
 
                 {/* No results warning */}
@@ -3570,7 +3570,7 @@ const FloatingChatWidget = () => {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-3 py-2 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-black rounded-bl-sm'}`}>
-              {m.content}
+              {m.content.replace(/\*\*(.+?)\*\*/g, '「$1」')}
             </div>
           </div>
         ))}
