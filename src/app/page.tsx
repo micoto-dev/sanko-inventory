@@ -718,8 +718,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
         data.newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
       }
       await api.updateOrder(showDetail.id, data);
-      setShowDetail(null);
       toast('発注情報を保存しました');
+      setShowDetail(null);
       onRefresh();
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
