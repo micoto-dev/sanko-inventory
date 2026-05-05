@@ -2346,26 +2346,47 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
   );
 };
 
-const ReportsScreen = () => {
+const ReportsScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [downloading, setDownloading] = useState('');
   const reports = [
-    { name: '\u5728\u5EAB\u4E00\u89A7\u8868', icon: Package },
-    { name: '\u6EDE\u7559\u5728\u5EAB\u30EC\u30DD\u30FC\u30C8', icon: Clock },
-    { name: 'ABC\u5206\u6790', icon: BarChart3 },
-    { name: '\u56DE\u8EE2\u7387\u30EC\u30DD\u30FC\u30C8', icon: TrendingUp },
-    { name: '\u767A\u6CE8\u4E88\u5B9A\u984D', icon: ShoppingCart },
-    { name: '\u30E1\u30FC\u30AB\u30FC\u6B20\u54C1\u5F71\u97FF', icon: AlertCircle },
-    { name: '\u6708\u6B21\u4ED5\u5165\u96C6\u8A08', icon: Building2 },
-    { name: '\u68DA\u5378\u7D50\u679C\u5831\u544A\u66F8', icon: ClipboardCheck },
+    { name: '在庫一覧表', type: 'inventory', icon: Package, desc: '全部品の在庫数・金額・状態を一覧出力' },
+    { name: '滞留在庫レポート', type: 'slow_moving', icon: Clock, desc: '入出庫のない在庫を滞留日数順に表示' },
+    { name: 'ABC分析', type: 'abc', icon: BarChart3, desc: '在庫金額の累計比率でA/B/Cランク分類' },
+    { name: '回転率レポート', type: 'turnover', icon: TrendingUp, desc: '直近90日の出庫数から回転率を算出' },
+    { name: '発注予定額', type: 'order_forecast', icon: ShoppingCart, desc: '発注点割れ部品の推奨発注数と予定額' },
+    { name: 'メーカー欠品影響', type: 'shortage_impact', icon: AlertCircle, desc: '欠品部品が影響する製品・BOMを把握' },
+    { name: '月次仕入集計', type: 'monthly_purchase', icon: Building2, desc: '仕入先別・月別の発注件数と金額' },
+    { name: '棚卸結果報告書', type: 'stocktake_result', icon: ClipboardCheck, desc: '直近の棚卸し結果（帳簿vs実数の差異）' },
   ];
+  const handleDownload = async (type: string, name: string) => {
+    setDownloading(type);
+    try {
+      const res = await fetch(`/api/reports?type=${type}`);
+      if (!res.ok) throw new Error('レポート生成に失敗しました');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`${name}をダウンロードしました`);
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+    setDownloading('');
+  };
   return (
     <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
       {reports.map(r => {
         const Icon = r.icon;
         return (
-          <div key={r.name} className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition cursor-pointer">
+          <div key={r.name} className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition">
             <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-md flex items-center justify-center mb-2"><Icon size={16} /></div>
             <div className="font-bold text-sm">{r.name}</div>
-            <button className="mt-2 text-xs text-blue-600 font-semibold flex items-center gap-1">{'\u51FA\u529B'} <ArrowUpRight size={11} /></button>
+            <div className="text-xs text-black mt-1">{r.desc}</div>
+            <button onClick={() => handleDownload(r.type, r.name)} disabled={downloading === r.type}
+              className="mt-3 text-xs text-blue-600 font-semibold flex items-center gap-1 hover:underline disabled:opacity-50">
+              {downloading === r.type ? <><Loader2 size={11} className="animate-spin" /> 生成中...</> : <><Download size={11} /> CSV出力</>}
+            </button>
           </div>
         );
       })}
@@ -4753,7 +4774,7 @@ export default function AppPage() {
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}
-          {view === 'reports' && <ReportsScreen />}
+          {view === 'reports' && <ReportsScreen toast={toast} />}
           {view === 'logs' && <LogsScreen />}
           {view === 'chat' && <ChatScreen toast={toast} />}
           {view === 'users' && <UsersScreen toast={toast} />}
