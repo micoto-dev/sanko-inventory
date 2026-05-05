@@ -896,7 +896,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       )}
 
       {showNew && (
-        <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} />
+        <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} onShowPdf={(o) => setPdfOrder(o)} />
       )}
 
       {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => setPdfOrder(null)} />}
@@ -953,8 +953,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
   );
 };
 
-const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
-  parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void;
+const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf }: {
+  parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onShowPdf?: (order: Order) => void;
 }) => {
   const lowStockParts = parts.filter(p => {
     const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
@@ -992,7 +992,7 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
   const submit = async () => {
     if (filteredItems.length === 0) return;
     try {
-      await api.createOrder({
+      const res = await api.createOrder({
         supplierId: filteredItems[0]?.supplierId || 1,
         desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
         details: filteredItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
@@ -1000,6 +1000,18 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
       toast('発注書を作成しました');
       onRefresh();
       onClose();
+      // Show PDF after creation
+      if (onShowPdf && res) {
+        const newOrder: Order = {
+          id: res.id, orderNo: res.orderNo || '', supplier: supplier,
+          supplierId: filteredItems[0]?.supplierId || 1,
+          orderDate: new Date().toISOString().slice(0, 10),
+          desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+          status: 'draft', totalAmount: total,
+          details: filteredItems.map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
+        };
+        onShowPdf(newOrder);
+      }
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
     }
