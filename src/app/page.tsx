@@ -1377,6 +1377,7 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
 const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; parts: Part[]; onRefresh: () => void; toast: (msg: string) => void }) => {
   const pendingOrders = orders.filter(o => ['awaiting', 'partial', 'delayed'].includes(o.status));
   const [selectedPO, setSelectedPO] = useState<number | ''>('');
+  const [showQrScanner, setShowQrScanner] = useState(false);
   const [receiveQty, setReceiveQty] = useState<Record<string, number>>({});
   const [inspection, setInspection] = useState<Record<string, string>>({});
 
@@ -1437,10 +1438,38 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
         <p className="text-xs text-black mb-4">発注書のQRコードを読み取るか、発注番号を選択してください</p>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100">
-            <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
-            <div className="text-sm font-bold text-blue-900">発注QRを読取</div>
-            <div className="text-xs text-blue-600 mt-1">納品書の発注番号QR</div>
+          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100"
+            onClick={() => setShowQrScanner(true)}>
+            {showQrScanner ? (
+              <div>
+                <QrCameraScanner onScan={(text) => {
+                  setShowQrScanner(false);
+                  try {
+                    const data = JSON.parse(text);
+                    if (data.type === 'order' && data.id) {
+                      const found = pendingOrders.find(o => o.orderNo === data.id || o.id === Number(data.id));
+                      if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
+                      else toast('該当する納品待ち発注が見つかりません');
+                    } else {
+                      const found = pendingOrders.find(o => o.orderNo === text || o.id === Number(text));
+                      if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
+                      else toast('該当する納品待ち発注が見つかりません');
+                    }
+                  } catch {
+                    const found = pendingOrders.find(o => o.orderNo === text);
+                    if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
+                    else toast('該当する納品待ち発注が見つかりません');
+                  }
+                }} />
+                <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-xs text-blue-600 hover:underline">キャンセル</button>
+              </div>
+            ) : (
+              <>
+                <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
+                <div className="text-sm font-bold text-blue-900">発注QRを読取</div>
+                <div className="text-xs text-blue-600 mt-1">納品書の発注番号QR</div>
+              </>
+            )}
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
             <div className="text-xs text-black mb-2">納品待ち発注から選択</div>
