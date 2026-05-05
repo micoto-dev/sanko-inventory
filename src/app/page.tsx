@@ -9,7 +9,7 @@ import {
   History, Cpu, Loader2, Building, Database, Shield, UserPlus,
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
   X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
-  QrCode, Printer, ExternalLink, ScanLine, Menu,
+  QrCode, Printer, ExternalLink, ScanLine, Menu, Camera,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -677,102 +677,130 @@ const LocationsScreen = ({ locations }: { locations: Location[] }) => {
 // ========================== Other Screens ==========================
 const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefresh: () => void; toast: (msg: string) => void }) => {
   const pendingOrders = orders.filter(o => ['awaiting', 'partial', 'delayed'].includes(o.status));
-  const [receiving, setReceiving] = useState<Order | null>(null);
+  const [selectedPO, setSelectedPO] = useState<number | ''>('');
+  const [receiveQty, setReceiveQty] = useState<Record<string, number>>({});
+  const [inspection, setInspection] = useState<Record<string, string>>({});
 
-  const handleReceive = async (order: Order, receiveItems: { partId: string; qty: number }[]) => {
-    try {
-      await api.createReceive({
-        orderId: order.id,
-        items: receiveItems.map(item => ({
-          ...item,
-          orderDetailId: (order.details.find(d => d.partId === item.partId) as any)?.id,
-          locationId: 'A-03-2-L', // default location
-          result: 'ok',
-        })),
+  const order = pendingOrders.find(o => o.id === selectedPO) || null;
+
+  useEffect(() => {
+    if (order) {
+      const qty: Record<string, number> = {};
+      const ins: Record<string, string> = {};
+      (order.details || []).filter(d => d.qty - d.receivedQty > 0).forEach(d => {
+        qty[d.partId] = d.qty - d.receivedQty;
+        ins[d.partId] = '合格';
       });
+      setReceiveQty(qty);
+      setInspection(ins);
+    }
+  }, [selectedPO]);
+
+  const handleReceive = async () => {
+    if (!order) return;
+    const items = Object.entries(receiveQty)
+      .filter(([, q]) => q > 0)
+      .map(([partId, qty]) => ({
+        partId,
+        qty: inspection[partId] === '合格' ? qty : 0,
+        orderDetailId: (order.details.find(d => d.partId === partId) as any)?.id,
+        locationId: 'A-03-2-L',
+        result: inspection[partId] === '合格' ? 'ok' : 'ng',
+      }))
+      .filter(i => i.qty > 0);
+    try {
+      await api.createReceive({ orderId: order.id, items });
       toast('入庫を登録しました');
-      setReceiving(null);
+      setSelectedPO('');
       onRefresh();
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
     }
   };
 
+  const remainingDetails = order?.details?.filter(d => d.qty - d.receivedQty > 0) || [];
+
   return (
-    <div className="p-5 space-y-3">
-      <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200"><h2 className="font-bold text-sm">入庫待ち発注 ({pendingOrders.length}件)</h2></div>
-        {pendingOrders.length === 0 ? (
-          <div className="p-6 text-center text-sm text-slate-500">入庫待ちの発注はありません</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">発注番号</th>
-                  <th className="text-left px-3 py-2 font-medium">仕入先</th>
-                  <th className="text-left px-3 py-2 font-medium">部品</th>
-                  <th className="text-right px-3 py-2 font-medium">発注数</th>
-                  <th className="text-right px-3 py-2 font-medium">入庫済</th>
-                  <th className="text-right px-3 py-2 font-medium">残数</th>
-                  <th className="text-left px-3 py-2 font-medium">ステータス</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pendingOrders.map(o => o.details?.filter(d => d.qty - d.receivedQty > 0).map((d, i) => (
-                  <tr key={`${o.id}-${i}`} className="hover:bg-slate-50">
-                    <td className="px-3 py-2 font-mono text-xs">{i === 0 ? o.orderNo : ''}</td>
-                    <td className="px-3 py-2 text-xs">{i === 0 ? o.supplier : ''}</td>
-                    <td className="px-3 py-2"><div className="font-semibold">{d.partName || d.partId}</div><div className="text-xs text-slate-500 font-mono">{d.partId}</div></td>
-                    <td className="px-3 py-2 text-right font-mono">{d.qty}</td>
-                    <td className="px-3 py-2 text-right font-mono text-slate-500">{d.receivedQty}</td>
-                    <td className="px-3 py-2 text-right font-mono font-semibold text-amber-700">{d.qty - d.receivedQty}</td>
-                    <td className="px-3 py-2">{i === 0 && <StatusBadge statusKey={o.status} statusMap={ORDER_STATUS} />}</td>
-                    <td className="px-3 py-2">{i === 0 && <Btn variant="success" size="sm" icon={Truck} onClick={() => setReceiving(o)}>入庫</Btn>}</td>
-                  </tr>
-                )))}
-              </tbody>
-            </table>
+    <div className="p-5 max-w-5xl">
+      <div className="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 className="font-bold mb-1">入庫処理</h2>
+        <p className="text-xs text-slate-500 mb-4">発注書のQRコードを読み取るか、発注番号を選択してください</p>
+
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100">
+            <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
+            <div className="text-sm font-bold text-blue-900">発注QRを読取</div>
+            <div className="text-xs text-blue-600 mt-1">納品書の発注番号QR</div>
           </div>
+          <div className="border border-slate-200 rounded-lg p-3">
+            <div className="text-xs text-slate-500 mb-2">納品待ち発注から選択</div>
+            <select value={selectedPO} onChange={e => setSelectedPO(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-200 rounded px-2 py-2 text-sm">
+              <option value="">-- 発注を選択 --</option>
+              {pendingOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo} / {o.supplier} / {o.desiredDate || '-'}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {order && (
+          <>
+            <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
+              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <div className="font-mono text-xs text-slate-500">{order.orderNo}</div>
+                  <div className="font-bold">{order.supplier}</div>
+                </div>
+                <StatusBadge statusKey={order.status} statusMap={ORDER_STATUS} />
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-white border-b border-slate-100 text-xs text-slate-500">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">品番</th>
+                    <th className="text-left px-3 py-2 font-medium">品名</th>
+                    <th className="text-right px-3 py-2 font-medium">発注</th>
+                    <th className="text-right px-3 py-2 font-medium">入庫済</th>
+                    <th className="text-right px-3 py-2 font-medium">今回入庫</th>
+                    <th className="text-left px-3 py-2 font-medium">検査</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {remainingDetails.map(d => {
+                    const remaining = d.qty - d.receivedQty;
+                    return (
+                      <tr key={d.partId}>
+                        <td className="px-3 py-2 font-mono text-xs">{d.partId}</td>
+                        <td className="px-3 py-2">{d.partName || d.partId}</td>
+                        <td className="px-3 py-2 text-right">{d.qty}</td>
+                        <td className="px-3 py-2 text-right">{d.receivedQty}</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" value={receiveQty[d.partId] || 0} max={remaining}
+                            onChange={e => setReceiveQty(s => ({ ...s, [d.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
+                            className="w-20 border border-slate-200 rounded px-2 py-1 text-right" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-200 rounded px-2 py-1">
+                            <option>合格</option><option>条件付合格</option><option>不合格</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex gap-2">
+              <Btn variant="success" icon={CheckCircle2} onClick={handleReceive}>入庫を確定（在庫加算・現品票発行）</Btn>
+              <Btn variant="secondary" onClick={() => setSelectedPO('')}>キャンセル</Btn>
+            </div>
+
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-800 flex items-start gap-2">
+              <AlertCircle size={13} className="mt-0.5" />
+              <div>確定すると、検査合格分が在庫に加算され、発注残が減算されます。全数入庫で完納、未達なら一部入庫ステータスになります。</div>
+            </div>
+          </>
         )}
       </div>
-      {receiving && (
-        <ReceiveModal order={receiving} onClose={() => setReceiving(null)} onReceive={handleReceive} />
-      )}
     </div>
-  );
-};
-
-const ReceiveModal = ({ order, onClose, onReceive }: { order: Order; onClose: () => void; onReceive: (order: Order, items: { partId: string; qty: number }[]) => void }) => {
-  const remainingDetails = order.details?.filter(d => d.qty - d.receivedQty > 0) || [];
-  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
-    const q: Record<string, number> = {};
-    remainingDetails.forEach(d => { q[d.partId] = d.qty - d.receivedQty; });
-    return q;
-  });
-
-  return (
-    <Modal open onClose={onClose} title={`入庫処理: ${order.orderNo}`} size="lg">
-      <div className="mb-3 text-sm text-slate-600">仕入先: <span className="font-semibold">{order.supplier}</span></div>
-      <table className="w-full text-sm mb-4">
-        <thead className="text-xs text-slate-500 bg-slate-50"><tr><th className="text-left px-3 py-2">部品</th><th className="text-right px-3 py-2">発注</th><th className="text-right px-3 py-2">入庫済</th><th className="text-right px-3 py-2">今回入庫数</th></tr></thead>
-        <tbody className="divide-y divide-slate-100">
-          {remainingDetails.map(d => (
-            <tr key={d.partId}>
-              <td className="px-3 py-2"><div className="font-semibold">{d.partName || d.partId}</div></td>
-              <td className="px-3 py-2 text-right font-mono">{d.qty}</td>
-              <td className="px-3 py-2 text-right font-mono text-slate-500">{d.receivedQty}</td>
-              <td className="px-3 py-2"><input type="number" value={quantities[d.partId] || 0} onChange={e => setQuantities(prev => ({ ...prev, [d.partId]: Math.min(Number(e.target.value) || 0, d.qty - d.receivedQty) }))} className={`${inputClass} text-right w-24 ml-auto`} max={d.qty - d.receivedQty} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="flex gap-2 pt-3 border-t border-slate-100">
-        <Btn variant="success" icon={CheckCircle2} onClick={() => onReceive(order, Object.entries(quantities).filter(([, q]) => q > 0).map(([partId, qty]) => ({ partId, qty })))}>入庫確定</Btn>
-        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
-      </div>
-    </Modal>
   );
 };
 
@@ -810,25 +838,139 @@ const ProductionScreen = ({ prodOrders }: { prodOrders: ProdOrder[] }) => (
   </div>
 );
 
-const IssueScreen = ({ prodOrders }: { prodOrders: ProdOrder[] }) => {
-  const active = prodOrders.filter(m => ['allocated', 'picking'].includes(m.status));
+const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]; onRefresh: () => void; toast: (msg: string) => void }) => {
+  const activeOrders = prodOrders.filter(m => ['allocated', 'picking'].includes(m.status));
+  const [selectedMo, setSelectedMo] = useState<number | ''>('');
+  const [moDetail, setMoDetail] = useState<any>(null);
+  const [pickQty, setPickQty] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(false);
+
+  const mo = prodOrders.find(m => m.id === selectedMo) || null;
+
+  useEffect(() => {
+    if (selectedMo) {
+      setLoading(true);
+      api.getProductionOrder(Number(selectedMo))
+        .then((detail: any) => {
+          setMoDetail(detail);
+          const q: Record<string, number> = {};
+          (detail.bomSnapshot || []).forEach((bs: any) => {
+            const need = bs.qty * (detail.qty || 1);
+            const already = bs.pickedQty || 0;
+            const remaining = Math.max(0, need - already);
+            q[bs.partId] = remaining;
+          });
+          setPickQty(q);
+        })
+        .catch(() => toast('指図の詳細取得に失敗しました'))
+        .finally(() => setLoading(false));
+    } else {
+      setMoDetail(null);
+    }
+  }, [selectedMo]);
+
+  const handleComplete = async () => {
+    if (!moDetail) return;
+    const items = (moDetail.bomSnapshot || [])
+      .filter((bs: any) => (pickQty[bs.partId] || 0) > 0)
+      .map((bs: any) => ({
+        partId: bs.partId,
+        qty: pickQty[bs.partId] || 0,
+        locationId: bs.part?.location || 'A-03-2-L',
+      }));
+    if (items.length === 0) { toast('ピッキング数を入力してください'); return; }
+    try {
+      await api.issueProductionOrder(Number(selectedMo), { items, issuedById: 1 });
+      toast('出庫処理が完了しました');
+      setSelectedMo('');
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
   return (
-    <div className="p-5 space-y-3">
-      <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200"><h2 className="font-bold text-sm">出庫処理 - 製造指図からのピッキング</h2></div>
-        {active.length === 0 ? (
-          <div className="p-6 text-center text-sm text-slate-500">出庫待ちの指図はありません</div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {active.map(m => (
-              <div key={m.id} className="px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <div><span className="font-mono text-xs text-slate-500">{m.prodNo}</span><span className="mx-2 text-sm font-semibold">{m.productName}</span><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></div>
-                  <span className="text-xs text-slate-500">納期: {m.dueDate}</span>
-                </div>
-              </div>
-            ))}
+    <div className="p-5 max-w-5xl">
+      <div className="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 className="font-bold mb-1">出庫処理（製造指図ベース）</h2>
+        <p className="text-xs text-slate-500 mb-4">引当済み・ピッキング中の製造指図からピッキングリストを表示します</p>
+
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100">
+            <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
+            <div className="text-sm font-bold text-blue-900">指図QRを読取</div>
+            <div className="text-xs text-blue-600 mt-1">ピッキングリストの指図番号QR</div>
           </div>
+          <div className="border border-slate-200 rounded-lg p-3">
+            <div className="text-xs text-slate-500 mb-2">アクティブな製造指図</div>
+            <select value={selectedMo} onChange={e => setSelectedMo(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-200 rounded px-2 py-2 text-sm">
+              <option value="">-- 指図を選択 --</option>
+              {activeOrders.map(m => (
+                <option key={m.id} value={m.id}>{m.prodNo} / {m.productName || m.productCode} x {m.qty} / 納期{m.dueDate}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {loading && <div className="text-center py-8"><Loader2 className="animate-spin mx-auto" /></div>}
+
+        {mo && moDetail && !loading && (
+          <>
+            <div className="bg-slate-50 rounded p-3 mb-3 flex items-center gap-3">
+              <Factory size={18} className="text-blue-600" />
+              <div className="flex-1">
+                <div className="text-xs text-slate-500">指図 {mo.prodNo}</div>
+                <div className="font-bold">{mo.productName || moDetail.product?.name} x {mo.qty}</div>
+                <div className="text-xs text-slate-500">納期: {mo.dueDate} / {mo.customer}</div>
+              </div>
+              <StatusBadge statusKey={mo.status} statusMap={MO_STATUS} />
+            </div>
+
+            <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
+              <div className="bg-slate-50 px-4 py-2 text-xs text-slate-500 border-b border-slate-200">ピッキングリスト（ロケーション順）</div>
+              <table className="w-full text-sm">
+                <thead className="text-xs text-slate-500 border-b border-slate-100">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-medium">棚位置</th>
+                    <th className="text-left px-3 py-1.5 font-medium">部品</th>
+                    <th className="text-right px-3 py-1.5 font-medium">必要</th>
+                    <th className="text-right px-3 py-1.5 font-medium">既ピック</th>
+                    <th className="text-right px-3 py-1.5 font-medium">今回ピック</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(moDetail.bomSnapshot || []).map((bs: any) => {
+                    const need = bs.qty * mo.qty;
+                    const already = bs.pickedQty || 0;
+                    const remaining = need - already;
+                    return (
+                      <tr key={bs.partId} className={remaining <= 0 ? 'bg-emerald-50/30' : ''}>
+                        <td className="px-3 py-1.5 font-mono text-xs"><MapPin size={10} className="inline mr-0.5" />{bs.part?.location || '-'}</td>
+                        <td className="px-3 py-1.5">
+                          <div className="font-mono text-xs text-slate-500">{bs.partId}</div>
+                          <div className="font-semibold">{bs.part?.name || '-'}</div>
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono">{need}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-slate-500">{already}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          {remaining > 0 ? (
+                            <input type="number" value={pickQty[bs.partId] || 0} max={remaining} min={0}
+                              onChange={e => setPickQty(s => ({ ...s, [bs.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
+                              className="w-20 border border-slate-200 rounded px-2 py-1 text-right" />
+                          ) : <span className="text-emerald-600 font-bold text-xs">完了</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex gap-2">
+              <Btn variant="success" icon={CheckCircle2} onClick={handleComplete}>ピッキング確定（在庫減算）</Btn>
+              <Btn variant="secondary" onClick={() => setSelectedMo('')}>キャンセル</Btn>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -2010,12 +2152,17 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
 
         {tab === 'scan' && (
           <div className="p-5">
-            <div className="max-w-lg mx-auto space-y-4">
-              <div className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-8 text-center">
-                <ScanLine size={48} className="mx-auto text-slate-400 mb-3" />
-                <p className="text-sm text-slate-600 mb-1">QRコードをスキャンまたは品番/ロケーションIDを入力</p>
-                <p className="text-xs text-slate-400">タブレットのカメラでQRを読み取るか、手入力で検索</p>
+            <div className="max-w-2xl mx-auto space-y-4">
+              {/* Camera viewfinder mock */}
+              <div className="bg-slate-900 rounded-xl p-8 aspect-video flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-purple-900/40" />
+                <div className="absolute inset-12 border-2 border-cyan-400 rounded-lg" />
+                <div className="absolute top-1/2 left-12 right-12 h-px bg-cyan-400 animate-pulse" style={{ boxShadow: '0 0 10px #22d3ee' }} />
+                <Camera size={56} className="text-white/30" />
+                <div className="absolute bottom-4 left-4 right-4 bg-black/50 rounded px-3 py-2 text-xs text-cyan-200">QRコードをカメラに向けてください...</div>
               </div>
+
+              {/* Manual input fallback */}
               <div className="flex gap-2">
                 <input value={scanInput} onChange={e => setScanInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleScan()}
@@ -2024,52 +2171,49 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
                 <Btn variant="primary" icon={Search} onClick={handleScan}>検索</Btn>
               </div>
 
+              {/* Last scan result */}
               {scanResult?.type === 'error' && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{scanResult.message}</div>
               )}
               {scanResult?.type === 'part' && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Package size={16} className="text-blue-600" />
-                    <span className="font-bold">部品情報</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><span className="text-xs text-slate-500">品番</span><div className="font-mono">{scanResult.data.id}</div></div>
-                    <div><span className="text-xs text-slate-500">社内品番</span><div className="font-mono">{scanResult.data.code}</div></div>
-                    <div className="col-span-2"><span className="text-xs text-slate-500">品名</span><div className="font-semibold">{scanResult.data.name}</div></div>
-                    <div><span className="text-xs text-slate-500">在庫</span><div className="font-mono text-lg font-bold">{scanResult.data.stock} {scanResult.data.unit}</div></div>
-                    <div><span className="text-xs text-slate-500">引当</span><div className="font-mono">{scanResult.data.allocated}</div></div>
-                    <div><span className="text-xs text-slate-500">棚位置</span><div className="font-mono">{scanResult.data.location}</div></div>
-                    <div><span className="text-xs text-slate-500">単価</span><div className="font-mono">{yen(scanResult.data.unitPrice)}</div></div>
+                <div className="bg-white rounded-lg border border-slate-200 p-4">
+                  <div className="text-xs text-slate-500 mb-2">直近の読取結果</div>
+                  <div className="flex items-center gap-3">
+                    <QrCode size={40} className="text-slate-400" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-xs text-slate-500">{scanResult.data.id}</div>
+                      <div className="font-bold truncate">{scanResult.data.name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">在庫: {scanResult.data.stock} {scanResult.data.unit} / 棚: {scanResult.data.location}</div>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-400" />
                   </div>
                 </div>
               )}
               {scanResult?.type === 'location' && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <MapPin size={16} className="text-blue-600" />
-                    <span className="font-bold">ロケーション情報</span>
+                <div className="bg-white rounded-lg border border-slate-200 p-4">
+                  <div className="text-xs text-slate-500 mb-2">直近の読取結果</div>
+                  <div className="flex items-center gap-3">
+                    <QrCode size={40} className="text-slate-400" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-xs text-slate-500">{scanResult.data.id}</div>
+                      <div className="font-bold truncate">{scanResult.data.name} ({scanResult.data.warehouse})</div>
+                      <div className="text-xs text-slate-500 mt-0.5">格納部品: {scanResult.parts?.length || 0}件</div>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-400" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                    <div><span className="text-xs text-slate-500">ID</span><div className="font-mono font-bold">{scanResult.data.id}</div></div>
-                    <div><span className="text-xs text-slate-500">倉庫</span><div>{scanResult.data.warehouse}</div></div>
-                    <div><span className="text-xs text-slate-500">名称</span><div>{scanResult.data.name}</div></div>
-                    <div><span className="text-xs text-slate-500">タイプ</span><div>{scanResult.data.locType}</div></div>
+                </div>
+              )}
+              {!scanResult && parts.length > 0 && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4">
+                  <div className="text-xs text-slate-500 mb-2">直近の読取結果</div>
+                  <div className="flex items-center gap-3">
+                    <QrCode size={40} className="text-slate-400" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-xs text-slate-500">{parts[0].id}</div>
+                      <div className="font-bold truncate">{parts[0].name}</div>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-400" />
                   </div>
-                  {scanResult.parts?.length > 0 && (
-                    <>
-                      <div className="text-xs font-semibold text-slate-600 mb-1">格納部品 ({scanResult.parts.length}件)</div>
-                      <div className="space-y-1">
-                        {scanResult.parts.map((p: Part) => (
-                          <div key={p.id} className="flex items-center gap-2 text-xs bg-slate-50 rounded px-2 py-1">
-                            <span className="font-mono text-slate-500">{p.id}</span>
-                            <span className="flex-1">{p.name}</span>
-                            <span className="font-mono font-semibold">{p.stock} {p.unit}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
                 </div>
               )}
             </div>
@@ -2330,7 +2474,7 @@ export default function AppPage() {
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} />}
           {view === 'receive' && <ReceiveScreen orders={orders} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} />}
-          {view === 'issue' && <IssueScreen prodOrders={prodOrders} />}
+          {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen />}
           {view === 'reports' && <ReportsScreen />}
           {view === 'logs' && <LogsScreen logs={logs} />}
