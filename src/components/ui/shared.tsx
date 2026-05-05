@@ -9,13 +9,15 @@ export const Modal = ({ open, onClose, title, children, size = 'md' }: {
   if (!open) return null;
   const sz: Record<string, string> = { sm: 'max-w-md', md: 'max-w-2xl', lg: 'max-w-4xl', xl: 'max-w-6xl' };
   return (
-    <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-      <div className={`bg-white rounded-lg ${sz[size] || sz.md} w-full max-h-[90vh] overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-black">{title}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded"><X size={18} /></button>
+    <div className="fixed inset-0 bg-slate-900/50 z-50 overflow-y-auto">
+      <div className="min-h-full flex items-start justify-center p-4 pt-[5vh]">
+        <div className={`bg-white rounded-lg ${sz[size] || sz.md} w-full my-4`} onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-lg z-10">
+            <h2 className="font-bold text-black">{title}</h2>
+            <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded"><X size={18} /></button>
+          </div>
+          <div className="p-5">{children}</div>
         </div>
-        <div className="overflow-y-auto p-5 flex-1">{children}</div>
       </div>
     </div>
   );
