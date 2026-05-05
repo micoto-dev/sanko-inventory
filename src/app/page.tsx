@@ -123,7 +123,7 @@ const Sidebar = ({ view, setView, mobileOpen, setMobileOpen }: {
   </>
 );
 
-const TopBar = ({ title, subtitle, onMenuOpen }: { title: string; subtitle?: string; onMenuOpen: () => void }) => (
+const TopBar = ({ title, subtitle, onMenuOpen, userName }: { title: string; subtitle?: string; onMenuOpen: () => void; userName?: string }) => (
   <div className="bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between gap-2">
     <div className="flex items-center gap-2 min-w-0">
       <button onClick={onMenuOpen} className="md:hidden p-1.5 -ml-1 hover:bg-slate-100 rounded">
@@ -136,8 +136,8 @@ const TopBar = ({ title, subtitle, onMenuOpen }: { title: string; subtitle?: str
     </div>
     <div className="flex items-center gap-2 flex-shrink-0">
       <div className="hidden sm:flex items-center gap-2 text-xs text-black">
-        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center"><Anchor size={10} /></div>
-        <span>ユーザー</span>
+        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">{(userName || 'U').slice(0, 1)}</div>
+        <span>{userName || 'ユーザー'}</span>
       </div>
       <button onClick={() => { fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login'); }}
         className="flex items-center gap-1 px-2 py-1 text-xs text-black hover:text-black hover:bg-slate-100 rounded transition">
@@ -4573,6 +4573,7 @@ export default function AppPage() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentUserName, setCurrentUserName] = useState('');
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [chatWidgetEnabled, setChatWidgetEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -4605,6 +4606,12 @@ export default function AppPage() {
       setProdOrders(prodRes.data || []);
       setLocations(locRes.data || []);
       setLogs(logsRes.data || []);
+      // Get current user name
+      try {
+        const usersRes = await api.getUsers();
+        const users = usersRes.data || [];
+        if (users.length > 0 && !currentUserName) setCurrentUserName(users[0].name);
+      } catch { /* ignore */ }
     } catch (e) {
       console.error('Failed to load data:', e);
     } finally {
@@ -4631,7 +4638,7 @@ export default function AppPage() {
     <div className="flex h-screen bg-slate-100">
       <Sidebar view={view} setView={setView} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <TopBar title={vt.title} subtitle={vt.subtitle} onMenuOpen={() => setMobileMenuOpen(true)} />
+        <TopBar title={vt.title} subtitle={vt.subtitle} onMenuOpen={() => setMobileMenuOpen(true)} userName={currentUserName} />
         <div className="flex-1 overflow-y-auto">
           {view === 'dashboard' && <Dashboard parts={parts} orders={orders} prodOrders={prodOrders} setView={setView} />}
           {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} openPart={setSelectedPart} locations={locations} />}
