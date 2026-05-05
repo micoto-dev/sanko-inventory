@@ -45,7 +45,7 @@ export default function LoginPage() {
               <Anchor className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">三工電機</h1>
-            <p className="mt-1 text-sm text-gray-600">在庫管理システム</p>
+            <p className="mt-1 text-sm text-gray-900">在庫管理システム</p>
           </div>
 
           {error && (
@@ -97,7 +97,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="mt-4 text-center text-xs text-gray-600">
+        <p className="mt-4 text-center text-xs text-gray-900">
           パスワードを忘れた場合はシステム管理者にお問い合わせください
         </p>
       </div>

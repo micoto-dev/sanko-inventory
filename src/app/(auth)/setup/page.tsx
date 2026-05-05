@@ -67,7 +67,7 @@ function SetupForm() {
           <Anchor className="h-8 w-8 text-white" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900">パスワード設定</h1>
-        <p className="mt-1 text-sm text-gray-600">初回ログイン用のパスワードを設定してください</p>
+        <p className="mt-1 text-sm text-gray-900">初回ログイン用のパスワードを設定してください</p>
       </div>
 
       {success ? (
