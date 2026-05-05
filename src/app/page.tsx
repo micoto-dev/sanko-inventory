@@ -9,7 +9,7 @@ import {
   History, Cpu, Loader2, Building, Database, Shield, UserPlus,
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
   X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
-  QrCode, Printer, ExternalLink, ScanLine,
+  QrCode, Printer, ExternalLink, ScanLine, Menu,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -48,74 +48,96 @@ interface Log {
 }
 
 // ========================== Sidebar ==========================
-const Sidebar = ({ view, setView }: {
-  view: string; setView: (v: string) => void;
-}) => {
-  const items = [
-    { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
-    { id: 'master', label: '部品マスタ', icon: Package },
-    { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
-    { id: 'inventory', label: '在庫一覧', icon: Boxes },
-    { id: 'locations', label: 'ロケーション', icon: Warehouse },
-    { id: 'orders', label: '発注管理', icon: ShoppingCart },
-    { id: 'receive', label: '入庫処理', icon: Truck },
-    { id: 'production', label: '製造指図', icon: Factory },
-    { id: 'issue', label: '出庫処理', icon: Package2 },
-    { id: 'qr', label: 'QRコード', icon: QrCode },
-    { id: 'stocktake', label: '棚卸し', icon: ClipboardCheck },
-    { id: 'reports', label: 'レポート', icon: BarChart3 },
-    { id: 'logs', label: '履歴・ログ', icon: History },
-    { id: 'chat', label: 'AIチャット', icon: MessageSquare },
-    { id: 'users', label: 'ユーザー管理', icon: Users },
-    { id: 'departments', label: '部署管理', icon: Building },
-    { id: 'entities', label: 'エンティティ', icon: Database },
-    { id: 'settings', label: '設定', icon: Shield },
-  ];
-  return (
-    <aside className="w-56 bg-slate-900 text-slate-100 flex flex-col flex-shrink-0">
-      <div className="p-3.5 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-300 rounded-md flex items-center justify-center">
-            <Anchor size={17} className="text-slate-900" />
-          </div>
-          <div>
-            <div className="font-bold text-sm">三工電機</div>
-            <div className="text-[10px] text-slate-400 uppercase">Inventory</div>
-          </div>
+const MENU_ITEMS = [
+  { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
+  { id: 'master', label: '部品マスタ', icon: Package },
+  { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
+  { id: 'inventory', label: '在庫一覧', icon: Boxes },
+  { id: 'locations', label: 'ロケーション', icon: Warehouse },
+  { id: 'orders', label: '発注管理', icon: ShoppingCart },
+  { id: 'receive', label: '入庫処理', icon: Truck },
+  { id: 'production', label: '製造指図', icon: Factory },
+  { id: 'issue', label: '出庫処理', icon: Package2 },
+  { id: 'qr', label: 'QRコード', icon: QrCode },
+  { id: 'stocktake', label: '棚卸し', icon: ClipboardCheck },
+  { id: 'reports', label: 'レポート', icon: BarChart3 },
+  { id: 'logs', label: '履歴・ログ', icon: History },
+  { id: 'chat', label: 'AIチャット', icon: MessageSquare },
+  { id: 'users', label: 'ユーザー管理', icon: Users },
+  { id: 'departments', label: '部署管理', icon: Building },
+  { id: 'entities', label: 'エンティティ', icon: Database },
+  { id: 'settings', label: '設定', icon: Shield },
+];
+
+const SidebarContent = ({ view, setView, onNavigate }: { view: string; setView: (v: string) => void; onNavigate?: () => void }) => (
+  <>
+    <div className="p-3.5 border-b border-slate-800">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-300 rounded-md flex items-center justify-center">
+          <Anchor size={17} className="text-slate-900" />
+        </div>
+        <div>
+          <div className="font-bold text-sm">三工電機</div>
+          <div className="text-[10px] text-slate-400 uppercase">Inventory</div>
         </div>
       </div>
-      <nav className="flex-1 p-2 overflow-y-auto">
-        {items.map(item => {
-          const Icon = item.icon;
-          const active = view === item.id;
-          return (
-            <button key={item.id} onClick={() => setView(item.id)}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm mb-0.5 transition ${active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
-              <Icon size={16} />
-              <span className="flex-1 text-left">{item.label}</span>
-              {(item as any).badge > 0 && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">{(item as any).badge}</span>}
-            </button>
-          );
-        })}
-      </nav>
-    </aside>
-  );
-};
-
-const TopBar = ({ title, subtitle }: { title: string; subtitle?: string }) => (
-  <div className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center justify-between">
-    <div>
-      <h1 className="text-base font-bold text-slate-900">{title}</h1>
-      {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
     </div>
-    <div className="flex items-center gap-3">
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+    <nav className="flex-1 p-2 overflow-y-auto">
+      {MENU_ITEMS.map(item => {
+        const Icon = item.icon;
+        const active = view === item.id;
+        return (
+          <button key={item.id} onClick={() => { setView(item.id); onNavigate?.(); }}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm mb-0.5 transition ${active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
+            <Icon size={16} />
+            <span className="flex-1 text-left">{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  </>
+);
+
+const Sidebar = ({ view, setView, mobileOpen, setMobileOpen }: {
+  view: string; setView: (v: string) => void; mobileOpen: boolean; setMobileOpen: (v: boolean) => void;
+}) => (
+  <>
+    {/* Desktop sidebar */}
+    <aside className="hidden md:flex w-56 bg-slate-900 text-slate-100 flex-col flex-shrink-0">
+      <SidebarContent view={view} setView={setView} />
+    </aside>
+
+    {/* Mobile overlay */}
+    {mobileOpen && (
+      <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 bg-slate-900/60" onClick={() => setMobileOpen(false)} />
+        <aside className="relative w-64 bg-slate-900 text-slate-100 flex flex-col z-10">
+          <SidebarContent view={view} setView={setView} onNavigate={() => setMobileOpen(false)} />
+        </aside>
+      </div>
+    )}
+  </>
+);
+
+const TopBar = ({ title, subtitle, onMenuOpen }: { title: string; subtitle?: string; onMenuOpen: () => void }) => (
+  <div className="bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex items-center justify-between gap-2">
+    <div className="flex items-center gap-2 min-w-0">
+      <button onClick={onMenuOpen} className="md:hidden p-1.5 -ml-1 hover:bg-slate-100 rounded">
+        <Menu size={20} className="text-slate-700" />
+      </button>
+      <div className="min-w-0">
+        <h1 className="text-base font-bold text-slate-900 truncate">{title}</h1>
+        {subtitle && <p className="text-xs text-slate-500 hidden sm:block">{subtitle}</p>}
+      </div>
+    </div>
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
         <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center"><Anchor size={10} /></div>
         <span>ユーザー</span>
       </div>
       <button onClick={() => { fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login'); }}
         className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition">
-        <LogOut size={13} /> ログアウト
+        <LogOut size={13} /> <span className="hidden sm:inline">ログアウト</span>
       </button>
     </div>
   </div>
@@ -2240,6 +2262,7 @@ export default function AppPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatWidgetEnabled, setChatWidgetEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('chatWidgetEnabled');
@@ -2295,9 +2318,9 @@ export default function AppPage() {
 
   return (
     <div className="flex h-screen bg-slate-100">
-      <Sidebar view={view} setView={setView} />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title={vt.title} subtitle={vt.subtitle} />
+      <Sidebar view={view} setView={setView} mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <TopBar title={vt.title} subtitle={vt.subtitle} onMenuOpen={() => setMobileMenuOpen(true)} />
         <div className="flex-1 overflow-y-auto">
           {view === 'dashboard' && <Dashboard parts={parts} orders={orders} prodOrders={prodOrders} setView={setView} />}
           {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} />}
