@@ -37,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json({ error: "Product not found" }, { status: 404 });
     }
 
-    const { code, name, category, description, voltage, dimensions, drawingNo, isActive, updatedById } = body;
+    const { code, name, category, description, voltage, dimensions, drawingNo, isActive, updatedById, boms } = body;
 
     const data: Record<string, unknown> = {};
     if (code !== undefined) data.code = code;
@@ -52,6 +52,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const updated = await prisma.$transaction(async (tx) => {
       const product = await tx.mProduct.update({ where: { id: numId }, data });
+
+      if (boms !== undefined) {
+        await tx.mBom.deleteMany({ where: { productId: numId } });
+        if (boms.length > 0) {
+          await tx.mBom.createMany({
+            data: boms.map((b: { partId: string; qty: number; position?: string; note?: string; sortOrder?: number }, i: number) => ({
+              productId: numId,
+              partId: b.partId,
+              qty: b.qty,
+              position: b.position || null,
+              note: b.note || null,
+              sortOrder: b.sortOrder ?? i,
+            })),
+          });
+        }
+      }
 
       await tx.tLog.create({
         data: {
@@ -72,5 +88,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (e) {
     console.error(e);
     return Response.json({ error: "Failed to update product" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const numId = Number(id);
+
+    const existing = await prisma.mProduct.findUnique({ where: { id: numId } });
+    if (!existing) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.mProduct.update({
+        where: { id: numId },
+        data: { deletedAt: new Date() },
+      });
+
+      await tx.tLog.create({
+        data: {
+          category: "product",
+          action: "delete",
+          targetType: "MProduct",
+          targetId: id,
+          description: `Deleted product ${existing.code} - ${existing.name}`,
+        },
+      });
+    });
+
+    return Response.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return Response.json({ error: "Failed to delete product" }, { status: 500 });
   }
 }

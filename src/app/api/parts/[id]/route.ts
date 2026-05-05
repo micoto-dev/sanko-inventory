@@ -80,3 +80,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: "Failed to update part" }, { status: 500 });
   }
 }
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+
+    const existing = await prisma.mPart.findUnique({ where: { id } });
+    if (!existing) {
+      return Response.json({ error: "Part not found" }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.mPart.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+
+      await tx.tLog.create({
+        data: {
+          category: "part",
+          action: "delete",
+          targetType: "MPart",
+          targetId: id,
+          description: `Deleted part ${existing.code} - ${existing.name}`,
+        },
+      });
+    });
+
+    return Response.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return Response.json({ error: "Failed to delete part" }, { status: 500 });
+  }
+}

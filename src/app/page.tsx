@@ -29,8 +29,10 @@ interface Part {
 
 interface Order {
   id: number; orderNo: string; supplier: string; supplierId: number;
-  orderDate: string; desiredDate?: string; status: string; totalAmount: number;
-  details: { partId: string; partName?: string; qty: number; receivedQty: number; unitPrice: number }[];
+  orderDate: string; desiredDate?: string; expectedDeliveryDate?: string;
+  status: string; totalAmount: number; notes?: string;
+  comments?: { text: string; ts: string; user?: string }[];
+  details: { id?: number; partId: string; partName?: string; qty: number; receivedQty: number; unitPrice: number; remarks?: string }[];
 }
 
 interface ProdOrder {
@@ -56,6 +58,7 @@ const MENU_ITEMS = [
   { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
   { id: 'inventory', label: '在庫一覧', icon: Boxes },
   { id: 'locations', label: 'ロケーション', icon: Warehouse },
+  { id: 'suppliers', label: '仕入先管理', icon: Building2 },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
   { id: 'production', label: '製造指図', icon: Factory },
@@ -236,11 +239,15 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
 };
 
 // ========================== Parts Master ==========================
-const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; onRefresh: () => void; toast: (msg: string) => void; openPart?: (p: Part) => void }) => {
+const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts: Part[]; onRefresh: () => void; toast: (msg: string) => void; openPart?: (p: Part) => void; locations?: Location[] }) => {
   const [query, setQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [editing, setEditing] = useState<Part | null>(null);
   const [newPart, setNewPart] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Part | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   const getStatus = (p: Part) => {
     if (p.shortageReason) return 'manufacturer_shortage';
@@ -259,6 +266,36 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; on
     if (filterStatus !== 'all' && getStatus(p) !== filterStatus) return false;
     return true;
   }), [query, filterStatus, parts]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paged = useMemo(() => filtered.slice((safePage - 1) * pageSize, safePage * pageSize), [filtered, safePage, pageSize]);
+
+  useEffect(() => { setCurrentPage(1); }, [query, filterStatus, pageSize]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.deletePart(deleteTarget.id);
+      toast(`部品「${deleteTarget.name}」を削除しました`);
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
+  const handleCsvDownload = () => {
+    const header = ['品番','社内品番','品名','仕様','分類','メーカー','メーカー品番','在庫','引当','発注残','発注点','安全在庫','最大在庫','単位','単価','リードタイム','ロケーション'];
+    const rows = parts.map(p => [p.id,p.code,p.name,p.spec||'',p.category||'',p.maker||'',p.makerCode||'',p.stock,p.allocated,p.onOrder,p.reorderPoint,p.safetyStock,p.maxStock,p.unit,p.unitPrice,p.leadTime,p.location||'']);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `parts_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast('CSVをダウンロードしました');
+  };
 
   const handleSave = async (form: any, isNew: boolean) => {
     try {
@@ -286,6 +323,8 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; on
             <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="品番・品名・メーカー品番・棚位置で検索"
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
+          <Btn variant="secondary" icon={Download} onClick={handleCsvDownload}>CSVダウンロード</Btn>
+          <Btn variant="secondary" icon={FileText} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
           <Btn icon={Plus} onClick={() => setNewPart({ code: '', name: '', maker: '', makerCode: '', category: '電気部品', supplier: '', stock: 0, reorderPoint: 10, safetyStock: 5, maxStock: 50, unit: '個', unitPrice: 0, leadTime: 14, location: '', spec: '' })}>
             新規登録
           </Btn>
@@ -316,7 +355,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; on
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(p => {
+              {paged.map(p => {
                 const st = getStatus(p);
                 const s = STATUS_COLOR[st];
                 return (
@@ -340,27 +379,169 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; on
                     <td className="px-3 py-2 text-right font-mono">{yen(p.unitPrice)}</td>
                     <td className="px-3 py-2 text-right font-mono">{p.reorderPoint}</td>
                     <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${s.bg} ${s.text} border ${s.border}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>{s.label}</span></td>
-                    <td className="px-3 py-2"><Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(p)}>編集</Btn></td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(p)}>編集</Btn>
+                        <button onClick={(e: any) => { e.stopPropagation(); setDeleteTarget(p); }} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+        <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-2 text-xs text-black">
+            <span>表示件数:</span>
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1 text-xs">
+              <option value={20}>20件</option>
+              <option value={50}>50件</option>
+              <option value={100}>100件</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-black">{filtered.length > 0 ? (safePage - 1) * pageSize + 1 : 0}-{Math.min(safePage * pageSize, filtered.length)} / {filtered.length}件</span>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage <= 1} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed">前へ</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed">次へ</button>
+          </div>
+        </div>
       </div>
 
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="部品の削除確認" size="sm">
+          <div className="text-sm mb-4">
+            <p>以下の部品を削除しますか？</p>
+            <div className="mt-2 bg-slate-50 rounded p-3">
+              <div className="font-mono text-xs text-black">{deleteTarget.id}</div>
+              <div className="font-semibold">{deleteTarget.name}</div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn>
+            <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+          </div>
+        </Modal>
+      )}
+
       {(editing || newPart) && (
-        <PartFormModal part={editing || newPart} isNew={!!newPart} onClose={() => { setEditing(null); setNewPart(null); }} onSave={handleSave} />
+        <PartFormModal part={editing || newPart} isNew={!!newPart} onClose={() => { setEditing(null); setNewPart(null); }} onSave={handleSave} locations={locations || []} />
+      )}
+
+      {showCsvImport && (
+        <CsvImportModal onClose={() => setShowCsvImport(false)} onRefresh={onRefresh} toast={toast} />
       )}
     </div>
   );
 };
 
-const PartFormModal = ({ part, isNew, onClose, onSave }: { part: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+// ========================== CSV Import Modal ==========================
+const CsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => void; onRefresh: () => void; toast: (msg: string) => void }) => {
+  const [previewRows, setPreviewRows] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const CSV_HEADERS = ['社内品番','品名','仕様','分類','メーカー','メーカー品番','単位','標準単価','納品リードタイム','発注点','安全在庫','最大在庫'];
+
+  const downloadTemplate = () => {
+    const csv = CSV_HEADERS.join(',') + '\nSK-0001,ブレーカー20A,AC100V 20A,電気部品,三菱電機,NF63-CV,個,1500,14,10,5,50';
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'parts_import_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { toast('データ行がありません'); return; }
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      const rows = lines.slice(1).map(line => {
+        const vals = line.split(',').map(v => v.replace(/"/g, '').trim());
+        return {
+          code: vals[headers.indexOf('社内品番')] || vals[0] || '',
+          name: vals[headers.indexOf('品名')] || vals[1] || '',
+          spec: vals[headers.indexOf('仕様')] || vals[2] || '',
+          category: vals[headers.indexOf('分類')] || vals[3] || '',
+          maker: vals[headers.indexOf('メーカー')] || vals[4] || '',
+          makerCode: vals[headers.indexOf('メーカー品番')] || vals[5] || '',
+          unit: vals[headers.indexOf('単位')] || vals[6] || '個',
+          unitPrice: Number(vals[headers.indexOf('標準単価')] || vals[7]) || 0,
+          leadTimeDays: Number(vals[headers.indexOf('納品リードタイム')] || vals[8]) || 14,
+          reorderPoint: Number(vals[headers.indexOf('発注点')] || vals[9]) || 0,
+          safetyStock: Number(vals[headers.indexOf('安全在庫')] || vals[10]) || 0,
+          maxStock: Number(vals[headers.indexOf('最大在庫')] || vals[11]) || 0,
+        };
+      }).filter(r => r.code && r.name);
+      setPreviewRows(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (previewRows.length === 0) return;
+    setImporting(true);
+    try {
+      await api.importParts(previewRows);
+      toast(`${previewRows.length}件の部品を登録しました`);
+      onRefresh();
+      onClose();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="CSV一括登録" size="lg">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={downloadTemplate} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Download size={14} />雛形ダウンロード</button>
+          <span className="text-xs text-black">CSVファイルを選択してアップロードしてください</span>
+        </div>
+        <input type="file" accept=".csv" onChange={handleFile} className="block w-full text-sm text-black file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+        {previewRows.length > 0 && (
+          <>
+            <div className="text-xs font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
+            <div className="max-h-60 overflow-auto border border-slate-200 rounded">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 sticky top-0"><tr><th className="px-2 py-1 text-left">品番</th><th className="px-2 py-1 text-left">品名</th><th className="px-2 py-1 text-left">メーカー</th><th className="px-2 py-1 text-right">単価</th><th className="px-2 py-1 text-right">発注点</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {previewRows.map((r, i) => (
+                    <tr key={i}><td className="px-2 py-1 font-mono">{r.code}</td><td className="px-2 py-1">{r.name}</td><td className="px-2 py-1">{r.maker}</td><td className="px-2 py-1 text-right font-mono">{yen(r.unitPrice)}</td><td className="px-2 py-1 text-right font-mono">{r.reorderPoint}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        <div className="flex gap-2 pt-3 border-t border-slate-100">
+          <Btn variant="primary" icon={Save} onClick={handleImport} disabled={previewRows.length === 0 || importing}>{importing ? '登録中...' : `${previewRows.length}件を登録`}</Btn>
+          <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void; locations?: Location[] }) => {
   const [form, setForm] = useState(() => ({ ...part }));
   const [ocrOpen, setOcrOpen] = useState(false);
+  const [locSearch, setLocSearch] = useState('');
+  const [locDropdownOpen, setLocDropdownOpen] = useState(false);
   const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
   const num = (v: string) => Number(v) || 0;
+
+  const filteredLocs = useMemo(() => {
+    if (!locations) return [];
+    if (!locSearch) return locations;
+    const q = locSearch.toLowerCase();
+    return locations.filter(l => l.id.toLowerCase().includes(q) || l.name.toLowerCase().includes(q) || l.warehouse.toLowerCase().includes(q));
+  }, [locations, locSearch]);
 
   const handleOcrApply = (fields: Record<string, any>) => {
     setForm((prev: any) => {
@@ -395,8 +576,23 @@ const PartFormModal = ({ part, isNew, onClose, onSave }: { part: any; isNew: boo
         <Field label="メーカー"><input value={form.maker || ''} onChange={e => upd('maker', e.target.value)} className={inputClass} /></Field>
         <Field label="単位"><input value={form.unit || ''} onChange={e => upd('unit', e.target.value)} className={inputClass} /></Field>
         <Field label="標準単価 (円)"><input type="number" value={form.unitPrice ?? 0} onChange={e => upd('unitPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
-        <Field label="リードタイム (日)"><input type="number" value={form.leadTime ?? 0} onChange={e => upd('leadTime', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
-        <Field label="保管ロケーション"><input value={form.location || form.defaultLocId || ''} onChange={e => upd('defaultLocId', e.target.value)} className={`${inputClass} font-mono`} /></Field>
+        <Field label="納品リードタイム（日）"><input type="number" value={form.leadTime ?? 0} onChange={e => upd('leadTime', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
+        <Field label="保管ロケーション">
+          <div className="relative">
+            <input value={locDropdownOpen ? locSearch : (form.location || form.defaultLocId || '')} onChange={e => { setLocSearch(e.target.value); setLocDropdownOpen(true); upd('defaultLocId', e.target.value); }} onFocus={() => { setLocDropdownOpen(true); setLocSearch(form.location || form.defaultLocId || ''); }} onBlur={() => setTimeout(() => setLocDropdownOpen(false), 200)} placeholder="ロケーションを検索..." className={`${inputClass} font-mono`} />
+            {locDropdownOpen && filteredLocs.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
+                {filteredLocs.slice(0, 20).map(l => (
+                  <button key={l.id} type="button" onMouseDown={e => { e.preventDefault(); upd('defaultLocId', l.id); upd('location', l.id); setLocSearch(l.id); setLocDropdownOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2">
+                    <span className="font-mono font-semibold">{l.id}</span>
+                    <span className="text-black">{l.name} ({l.warehouse})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Field>
+        {isNew && <Field label="在庫数"><input type="number" value={form.initialStock ?? 0} onChange={e => upd('initialStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>}
         <Field label="発注点*"><input type="number" value={form.reorderPoint ?? 0} onChange={e => upd('reorderPoint', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="安全在庫"><input type="number" value={form.safetyStock ?? 0} onChange={e => upd('safetyStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="最大在庫"><input type="number" value={form.maxStock ?? 0} onChange={e => upd('maxStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
@@ -418,6 +614,18 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
   const [showNew, setShowNew] = useState(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
   const [pdfOrder, setPdfOrder] = useState<Order | null>(null);
+  const [editStatus, setEditStatus] = useState('');
+  const [editExpDate, setEditExpDate] = useState('');
+  const [editComment, setEditComment] = useState('');
+  const [commentHistory, setCommentHistory] = useState<{ text: string; ts: string; user?: string }[]>([]);
+
+  const openDetail = (o: Order) => {
+    setShowDetail(o);
+    setEditStatus(o.status);
+    setEditExpDate(o.expectedDeliveryDate || '');
+    setEditComment('');
+    setCommentHistory(o.comments || []);
+  };
 
   const lowStockParts = useMemo(() => parts.filter(p => {
     const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
@@ -449,6 +657,38 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
       toast('メーカー欠品としてマークしました。発注残から除外されました');
       setShowDetail(null);
       onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
+  const handleItemShortage = async (orderId: number, detailId: number) => {
+    try {
+      await api.markItemShortage(orderId, detailId);
+      toast('該当明細をメーカー欠品としてマークしました');
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
+  const handleSaveDetail = async () => {
+    if (!showDetail) return;
+    try {
+      const data: any = {};
+      if (editStatus !== showDetail.status) data.status = editStatus;
+      if (editExpDate !== (showDetail.expectedDeliveryDate || '')) data.expectedDeliveryDate = editExpDate || null;
+      if (editComment.trim()) {
+        const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: '操作ユーザー' };
+        data.newComment = newComment;
+        setCommentHistory(prev => [newComment, ...prev]);
+        setEditComment('');
+      }
+      if (Object.keys(data).length > 0) {
+        await api.updateOrder(showDetail.id, data);
+        toast('発注情報を更新しました');
+        onRefresh();
+      }
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
     }
@@ -522,7 +762,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
                   <td className="px-3 py-2 text-xs">{o.desiredDate}</td>
                   <td className="px-3 py-2 text-right font-mono">{yen(o.totalAmount)}</td>
                   <td className="px-3 py-2"><StatusBadge statusKey={o.status} statusMap={ORDER_STATUS} /></td>
-                  <td className="px-3 py-2"><Btn variant="ghost" size="sm" onClick={() => setShowDetail(o)}>詳細</Btn></td>
+                  <td className="px-3 py-2"><Btn variant="ghost" size="sm" onClick={() => openDetail(o)}>詳細</Btn></td>
                 </tr>
               ))}
             </tbody>
@@ -536,31 +776,63 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
             <div><div className="text-xs text-black">仕入先</div><div className="font-semibold">{showDetail.supplier}</div></div>
             <div><div className="text-xs text-black">発注日</div><div>{showDetail.orderDate}</div></div>
             <div><div className="text-xs text-black">希望納期</div><div>{showDetail.desiredDate}</div></div>
-            <div><div className="text-xs text-black">ステータス</div><StatusBadge statusKey={showDetail.status} statusMap={ORDER_STATUS} /></div>
+            <div>
+              <div className="text-xs text-black">ステータス</div>
+              <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full">
+                {Object.entries(ORDER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-xs text-black">納品予定日</div>
+              <input type="date" value={editExpDate} onChange={e => setEditExpDate(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full" />
+            </div>
             <div><div className="text-xs text-black">明細数</div><div className="font-mono">{showDetail.details?.length || 0}</div></div>
-            <div><div className="text-xs text-black">発注数合計</div><div className="font-mono font-semibold">{(showDetail.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</div></div>
             <div><div className="text-xs text-black">入庫済合計</div><div className="font-mono">{(showDetail.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-black text-xs">/ {(showDetail.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
             <div><div className="text-xs text-black">合計金額</div><div className="font-mono font-bold">{yen(showDetail.totalAmount)}</div></div>
           </div>
           <div className="bg-slate-50 rounded p-3 mb-4">
             <div className="text-xs font-semibold text-black mb-2">明細</div>
             <table className="w-full text-sm">
-              <thead className="text-xs text-black"><tr><th className="text-left py-1">品名</th><th className="text-right py-1">発注数</th><th className="text-right py-1">入庫済</th><th className="text-right py-1">残</th><th className="text-right py-1">単価</th><th className="text-right py-1">小計</th></tr></thead>
+              <thead className="text-xs text-black"><tr><th className="text-left py-1">品名</th><th className="text-right py-1">発注数</th><th className="text-right py-1">入庫済</th><th className="text-right py-1">残</th><th className="text-right py-1">単価</th><th className="text-right py-1">小計</th><th className="py-1 w-16"></th></tr></thead>
               <tbody>
                 {showDetail.details?.map((it, i) => (
-                  <tr key={i} className="border-t border-slate-200">
-                    <td className="py-1.5"><div className="text-xs font-mono text-black">{it.partId}</div><div>{it.partName || it.partId}</div></td>
+                  <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' ? 'bg-rose-50' : ''}`}>
+                    <td className="py-1.5"><div className="text-xs font-mono text-black">{it.partId}</div><div>{it.partName || it.partId}</div>{it.remarks === 'manufacturer_shortage' && <span className="text-[10px] text-rose-600 font-semibold">欠品</span>}</td>
                     <td className="text-right py-1.5 font-mono">{it.qty}</td>
                     <td className="text-right py-1.5 font-mono text-black">{it.receivedQty}</td>
                     <td className="text-right py-1.5 font-mono font-semibold">{it.qty - it.receivedQty}</td>
                     <td className="text-right py-1.5 font-mono">{yen(it.unitPrice)}</td>
                     <td className="text-right py-1.5 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
+                    <td className="py-1.5 text-center">
+                      {it.id && it.qty - it.receivedQty > 0 && it.remarks !== 'manufacturer_shortage' && (
+                        <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200" title="この明細を欠品マーク">欠品</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <div className="mb-4">
+            <Field label="コメント" full>
+              <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-16`} />
+            </Field>
+          </div>
+          {commentHistory.length > 0 && (
+            <div className="mb-4 bg-slate-50 rounded p-3">
+              <div className="text-xs font-semibold text-black mb-2">コメント履歴</div>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {commentHistory.map((c, i) => (
+                  <div key={i} className="text-xs border-l-2 border-blue-300 pl-2">
+                    <div className="text-black">{c.user || ''} - {new Date(c.ts).toLocaleString('ja-JP')}</div>
+                    <div className="text-black">{c.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 pt-3 border-t border-slate-100">
+            <Btn variant="primary" icon={Save} onClick={handleSaveDetail}>変更を保存</Btn>
             {(showDetail.status === 'pending' || showDetail.status === 'draft') && (
               <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>承認 → 仕入先送付</Btn>
             )}
@@ -607,10 +879,16 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
     setSearchQ('');
   };
 
-  const searchResults = searchQ ? parts.filter(p =>
-    p.supplier === supplier && !items.find(i => i.partId === p.id) &&
-    (p.name.includes(searchQ) || p.id.includes(searchQ) || (p.code || '').includes(searchQ))
-  ).slice(0, 5) : [];
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const supplierParts = useMemo(() => parts.filter(p => p.supplier === supplier), [parts, supplier]);
+  const searchResults = useMemo(() => {
+    const available = supplierParts.filter(p => !items.find(i => i.partId === p.id));
+    if (!searchQ) return available.slice(0, 10);
+    const q = searchQ.toLowerCase();
+    return available.filter(p =>
+      p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.code || '').toLowerCase().includes(q)
+    ).slice(0, 10);
+  }, [supplierParts, items, searchQ]);
 
   const submit = async () => {
     if (filteredItems.length === 0) return;
@@ -663,15 +941,16 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
         )}
       </div>
 
-      <div className="mb-3">
+      <div className="mb-3 relative">
         <div className="text-xs font-semibold text-black mb-1">部品を追加 ({supplier})</div>
-        <input value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="品番・品名で検索..." className={inputClass} />
-        {searchResults.length > 0 && (
-          <div className="border border-slate-200 rounded mt-1 bg-white max-h-40 overflow-y-auto">
+        <input value={searchQ} onChange={e => { setSearchQ(e.target.value); setDropdownOpen(true); }} onFocus={() => setDropdownOpen(true)} placeholder="品番・品名で検索 (クリックで一覧表示)..." className={inputClass} />
+        {dropdownOpen && searchResults.length > 0 && (
+          <div className="absolute z-10 left-0 right-0 border border-slate-200 rounded mt-1 bg-white max-h-52 overflow-y-auto shadow-lg">
             {searchResults.map(p => (
-              <button key={p.id} onClick={() => addPart(p)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 flex items-center justify-between">
-                <div><span className="font-mono text-xs text-black">{p.id}</span> {p.name}</div>
-                <Plus size={13} className="text-blue-600" />
+              <button key={p.id} onClick={() => { addPart(p); setDropdownOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between border-b border-slate-50">
+                <div className="flex-1 min-w-0"><span className="font-mono text-xs text-black">{p.code || p.id}</span> <span className="font-semibold">{p.name}</span></div>
+                <span className="text-xs font-mono text-black mr-2">{yen(p.unitPrice)}</span>
+                <Plus size={13} className="text-blue-600 flex-shrink-0" />
               </button>
             ))}
           </div>
@@ -905,12 +1184,38 @@ const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locati
 };
 
 // ========================== Locations ==========================
-const LocationsScreen = ({ locations }: { locations: Location[] }) => {
+const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[]; onRefresh: () => void; toast: (msg: string) => void }) => {
+  const [editLoc, setEditLoc] = useState<Location | null>(null);
+  const [newLoc, setNewLoc] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Location | null>(null);
+
   const grouped = useMemo(() => {
     const wh: Record<string, Location[]> = {};
     locations.forEach(l => { if (!wh[l.warehouse]) wh[l.warehouse] = []; wh[l.warehouse].push(l); });
     return Object.entries(wh);
   }, [locations]);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) {
+        const locId = `${form.shelf}-${form.col}-${form.row}${form.side ? '-' + form.side : ''}`;
+        await api.createLocation({ ...form, id: locId });
+        toast(`ロケーション「${form.name}」を登録しました`);
+      } else {
+        await api.updateLocation(form.id, form);
+        toast(`ロケーション「${form.name}」を更新しました`);
+      }
+      setEditLoc(null); setNewLoc(null); onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try { await api.deleteLocation(deleteTarget.id); toast(`ロケーション「${deleteTarget.name}」を削除しました`); setDeleteTarget(null); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const formLoc = editLoc || newLoc;
 
   return (
     <div className="p-5 space-y-3">
@@ -920,6 +1225,7 @@ const LocationsScreen = ({ locations }: { locations: Location[] }) => {
           <div className="font-bold text-blue-900">ロケーション体系</div>
           <div className="text-xs text-blue-700">倉庫 / 棚 / 列 / 段 / 左右の階層で在庫位置を管理</div>
         </div>
+        <Btn icon={Plus} onClick={() => setNewLoc({ warehouse: '', shelf: '', col: '', row: '', side: '', name: '', maxQty: 100, locType: '棚' })}>ロケーション追加</Btn>
       </div>
       {grouped.map(([wh, locs]) => (
         <div key={wh} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
@@ -936,6 +1242,7 @@ const LocationsScreen = ({ locations }: { locations: Location[] }) => {
                 <th className="text-left px-3 py-2 font-medium">タイプ</th>
                 <th className="text-right px-3 py-2 font-medium">最大容量</th>
                 <th className="text-left px-3 py-2 font-medium">状態</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -946,12 +1253,27 @@ const LocationsScreen = ({ locations }: { locations: Location[] }) => {
                   <td className="px-3 py-2 text-xs"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
                   <td className="px-3 py-2 text-right font-mono">{l.maxQty.toLocaleString()}</td>
                   <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${l.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-black'}`}>{l.isActive ? '有効' : '無効'}</span></td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditLoc(l)}>編集</Btn>
+                      <button onClick={() => setDeleteTarget(l)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ))}
+      {formLoc && (
+        <LocationFormModal location={formLoc} isNew={!!newLoc} onClose={() => { setEditLoc(null); setNewLoc(null); }} onSave={handleSave} />
+      )}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="ロケーションの削除確認" size="sm">
+          <div className="text-sm mb-4"><p>以下のロケーションを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.id}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -991,7 +1313,7 @@ const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefres
       }))
       .filter(i => i.qty > 0);
     try {
-      await api.createReceive({ orderId: order.id, items });
+      await api.createReceive({ receivedById: 1, items: items.map(i => ({ ...i, orderId: order.id })) });
       toast('入庫を登録しました');
       setSelectedPO('');
       onRefresh();
@@ -1266,7 +1588,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
       .map((bs: any) => ({
         partId: bs.partId,
         qty: pickQty[bs.partId] || 0,
-        locationId: bs.part?.location || 'A-03-2-L',
+        locationId: bs.part?.defaultLocId || 'A-03-2-L',
       }));
     if (items.length === 0) { toast('ピッキング数を入力してください'); return; }
     try {
@@ -1367,15 +1689,64 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
   );
 };
 
-const ProductsScreen = () => {
+const ProductsScreen = ({ toast, parts }: { toast: (msg: string) => void; parts: Part[] }) => {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { api.getProducts().then(res => { setProducts(res.data || []); setLoading(false); }).catch(() => setLoading(false)); }, []);
+  const [editProduct, setEditProduct] = useState<any>(null);
+  const [newProduct, setNewProduct] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [bomViewProduct, setBomViewProduct] = useState<any>(null);
+  const [bomDetail, setBomDetail] = useState<any>(null);
+  const [bomLoading, setBomLoading] = useState(false);
+
+  const fetchProducts = () => { api.getProducts().then(res => { setProducts(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { fetchProducts(); }, []);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) { await api.createProduct(form); toast(`製品「${form.name}」を登録しました`); }
+      else { await api.updateProduct(form.id, form); toast(`製品「${form.name}」を更新しました`); }
+      setEditProduct(null); setNewProduct(null); fetchProducts();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try { await api.deleteProduct(deleteTarget.id); toast(`製品「${deleteTarget.name}」を削除しました`); setDeleteTarget(null); fetchProducts(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const openBom = async (p: any) => {
+    setBomViewProduct(p); setBomLoading(true);
+    try { const detail = await api.getProduct(p.id); setBomDetail(detail); }
+    catch { toast('BOM詳細の取得に失敗しました'); }
+    finally { setBomLoading(false); }
+  };
+
+  const handleBomAdd = async (partId: string, qty: number, position: string) => {
+    if (!bomViewProduct || !bomDetail) return;
+    const boms = [...(bomDetail.boms || []).map((b: any) => ({ partId: b.partId, qty: Number(b.qty), position: b.position })), { partId, qty, position }];
+    try { await api.updateProduct(bomViewProduct.id, { boms }); const detail = await api.getProduct(bomViewProduct.id); setBomDetail(detail); fetchProducts(); toast('BOM部品を追加しました'); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleBomRemove = async (bomId: number) => {
+    if (!bomViewProduct || !bomDetail) return;
+    const boms = (bomDetail.boms || []).filter((b: any) => b.id !== bomId).map((b: any) => ({ partId: b.partId, qty: Number(b.qty), position: b.position }));
+    try { await api.updateProduct(bomViewProduct.id, { boms }); const detail = await api.getProduct(bomViewProduct.id); setBomDetail(detail); fetchProducts(); toast('BOM部品を削除しました'); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+  const formProduct = editProduct || newProduct;
+
   return (
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200"><h2 className="font-bold text-sm">製品マスタ・BOM</h2></div>
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="font-bold text-sm">製品マスタ・BOM</h2>
+          <Btn icon={Plus} onClick={() => setNewProduct({ code: '', name: '', category: '', voltage: '', dimensions: '', drawingNo: '' })}>新規登録</Btn>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-black uppercase">
@@ -1386,23 +1757,46 @@ const ProductsScreen = () => {
                 <th className="text-left px-3 py-2 font-medium">電圧</th>
                 <th className="text-left px-3 py-2 font-medium">寸法</th>
                 <th className="text-right px-3 py-2 font-medium">BOM部品数</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {products.map((p: any) => (
-                <tr key={p.id} className="hover:bg-slate-50">
+                <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openBom(p)}>
                   <td className="px-3 py-2 font-mono text-xs">{p.code}</td>
                   <td className="px-3 py-2 font-semibold">{p.name}</td>
                   <td className="px-3 py-2 text-xs">{p.category}</td>
                   <td className="px-3 py-2 text-xs">{p.voltage}</td>
                   <td className="px-3 py-2 text-xs">{p.dimensions}</td>
                   <td className="px-3 py-2 text-right font-mono">{p._count?.boms || p.boms?.length || 0}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditProduct(p)}>編集</Btn>
+                      <button onClick={(e: any) => { e.stopPropagation(); setDeleteTarget(p); }} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+      {formProduct && (
+        <ProductFormModal product={formProduct} isNew={!!newProduct} onClose={() => { setEditProduct(null); setNewProduct(null); }} onSave={handleSave} />
+      )}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="製品の削除確認" size="sm">
+          <div className="text-sm mb-4"><p>以下の製品を削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.code}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
+        </Modal>
+      )}
+      {bomViewProduct && (
+        <Modal open onClose={() => { setBomViewProduct(null); setBomDetail(null); }} title={`BOM: ${bomViewProduct.name}`} size="lg">
+          {bomLoading ? <div className="flex items-center gap-2 text-sm text-black py-8 justify-center"><Loader2 size={16} className="animate-spin" /> BOM情報を読み込み中...</div>
+          : bomDetail ? <BomEditor boms={bomDetail.boms || []} parts={parts} onAdd={handleBomAdd} onRemove={handleBomRemove} />
+          : <div className="text-sm text-black text-center py-4">BOM情報を取得できませんでした</div>}
+        </Modal>
+      )}
     </div>
   );
 };
@@ -1411,12 +1805,18 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
   const [selected, setSelected] = useState<Location | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [confirmedDiffs, setConfirmedDiffs] = useState<Record<string, boolean>>({});
+  const excelInputRef = useRef<HTMLInputElement>(null);
   const partsByLoc = useMemo(() => {
     const m: Record<string, Part[]> = {};
     parts.forEach(p => { if (p.location) { if (!m[p.location]) m[p.location] = []; m[p.location].push(p); } });
     return m;
   }, [parts]);
   const targetLocations = useMemo(() => locations.filter(l => l.shelf === 'A' || l.shelf === 'B'), [locations]);
+  const warehouseGroups = useMemo(() => {
+    const wh: Record<string, Location[]> = {};
+    targetLocations.forEach(l => { if (!wh[l.warehouse]) wh[l.warehouse] = []; wh[l.warehouse].push(l); });
+    return Object.entries(wh);
+  }, [targetLocations]);
   const getLocStatus = (locId: string) => {
     const partsInLoc = partsByLoc[locId] || [];
     const allCounted = partsInLoc.length > 0 && partsInLoc.every(p => counts[p.id] !== undefined);
@@ -1431,12 +1831,6 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
   const pendingCount = targetLocations.filter(l => getLocStatus(l.id) === 'pending').length;
   const startCount = (loc: Location) => {
     setSelected(loc);
-    const pLoc = partsByLoc[loc.id] || [];
-    setCounts(c => {
-      const n = { ...c };
-      pLoc.forEach(p => { if (n[p.id] === undefined) n[p.id] = p.stock; });
-      return n;
-    });
   };
   const updateCount = (partId: string, value: string) => {
     setCounts(c => ({ ...c, [partId]: Math.max(0, Number(value) || 0) }));
@@ -1445,6 +1839,54 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
     setConfirmedDiffs(c => ({ ...c, [loc.id]: true }));
     toast(loc.id + ' \u306E\u5DEE\u7570\u3092\u627F\u8A8D\u3057\u307E\u3057\u305F');
     setSelected(null);
+  };
+  const downloadExcelTemplate = () => {
+    const header = '\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3ID,\u54C1\u756A,\u54C1\u540D,\u5E33\u7C3F\u6570,\u5B9F\u6570,\u5DEE\u7570,\u5099\u8003';
+    const rows = targetLocations.flatMap(l => (partsByLoc[l.id] || []).map(p => `${l.id},${p.id},${p.name},${p.stock},,,""`));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `stocktake_template_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast('Excel\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3057\u305F');
+  };
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { toast('\u30C7\u30FC\u30BF\u884C\u304C\u3042\u308A\u307E\u305B\u3093'); return; }
+      let imported = 0;
+      lines.slice(1).forEach(line => {
+        const vals = line.split(',').map(v => v.replace(/"/g, '').trim());
+        const partId = vals[1];
+        const actual = Number(vals[4]);
+        if (partId && !isNaN(actual) && vals[4] !== '') {
+          setCounts(c => ({ ...c, [partId]: actual }));
+          imported++;
+        }
+      });
+      toast(`${imported}\u4EF6\u306E\u5B9F\u6570\u30C7\u30FC\u30BF\u3092\u53D6\u308A\u8FBC\u307F\u307E\u3057\u305F`);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+  const handlePrint = () => {
+    const printNode = document.getElementById('stocktake-printable');
+    if (!printNode) return;
+    const win = window.open('', '_blank', 'width=900,height=1200');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>\u68DA\u5378\u8868</title><meta charset="utf-8"/><style>
+      body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif; padding: 20px; color: #0f172a; font-size: 12px; }
+      h1 { font-size: 18px; margin-bottom: 4px; } h2 { font-size: 14px; margin-top: 16px; }
+      table { width: 100%; border-collapse: collapse; margin: 8px 0; } th, td { border: 1px solid #94a3b8; padding: 4px 6px; }
+      th { background: #f1f5f9; } .right { text-align: right; }
+    </style></head><body>${printNode.innerHTML}</body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 300);
   };
   return (
     <div className="p-5 space-y-3">
@@ -1455,8 +1897,12 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
             <h2 className="text-base font-bold">{'\u6708\u6B21\u68DA\u5378\u3057\uFF08A\u68DA\u301CB\u68DA\uFF09'}</h2>
             <div className="text-xs text-black">{'\u5BFE\u8C61\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3: A\u68DA\u30FBB\u68DA'}</div>
           </div>
-          <div className="flex gap-2">
-            <Btn variant="secondary" icon={FileText} onClick={() => toast('Excel\u53D6\u8FBC\u6A5F\u80FD\u306F\u6E96\u5099\u4E2D\u3067\u3059')}>{'Excel\u53D6\u8FBC'}</Btn>
+          <div className="flex gap-2 flex-wrap">
+            <Btn variant="secondary" icon={Printer} onClick={handlePrint}>{'\u68DA\u5378\u8868\u5370\u5237'}</Btn>
+            <Btn variant="secondary" icon={Download} onClick={downloadExcelTemplate}>{'Excel\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9'}</Btn>
+            <Btn variant="secondary" icon={FileText} onClick={() => excelInputRef.current?.click()}>{'Excel\u53D6\u8FBC'}</Btn>
+            <input ref={excelInputRef} type="file" accept=".csv,.xlsx" onChange={handleExcelImport} className="hidden" />
+            <Btn variant="secondary" icon={ScanLine} onClick={() => toast('QR\u30B9\u30AD\u30E3\u30CA\u30FC\u3068\u9023\u52D5\u3057\u307E\u3059')}>{'QR\u8AAD\u53D6'}</Btn>
             <Btn icon={QrCode} onClick={() => toast('QR\u8AAD\u53D6\u3067\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3\u3092\u9078\u629E\u3057\u307E\u3059')}>{'QR\u8AAD\u53D6\u3067\u958B\u59CB'}</Btn>
           </div>
         </div>
@@ -1474,50 +1920,83 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
           ))}
         </div>
       </div>
-      <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="font-bold text-sm">{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3\u5225 \u68DA\u5378\u72B6\u6CC1'}</h3>
+      {warehouseGroups.map(([wh, locs]) => (
+        <div key={wh} className="bg-white rounded-lg border border-slate-200">
+          <div className="px-4 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-slate-50">
+            <Warehouse size={14} className="text-black" />
+            <span className="font-bold text-sm">{wh}</span>
+            <span className="text-xs text-black">({locs.length}{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3'})</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-black uppercase">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium">{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3'}</th>
+                <th className="text-right px-4 py-2 font-medium">{'\u54C1\u76EE\u6570'}</th>
+                <th className="text-right px-4 py-2 font-medium">{'\u5E33\u7C3F\u5408\u8A08'}</th>
+                <th className="text-right px-4 py-2 font-medium">{'\u5B9F\u6570\u5408\u8A08'}</th>
+                <th className="text-right px-4 py-2 font-medium">{'\u5DEE\u7570'}</th>
+                <th className="text-left px-4 py-2 font-medium">{'\u72B6\u614B'}</th>
+                <th className="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {locs.map(l => {
+                const partsInLoc = partsByLoc[l.id] || [];
+                const bookTotal = partsInLoc.reduce((s, p) => s + p.stock, 0);
+                const actualTotal = partsInLoc.reduce((s, p) => s + (counts[p.id] !== undefined ? counts[p.id] : 0), 0);
+                const hasCount = partsInLoc.some(p => counts[p.id] !== undefined);
+                const diffTotal = hasCount ? actualTotal - bookTotal : 0;
+                const st = getLocStatus(l.id);
+                const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-900' : 'bg-slate-200 text-black';
+                const lbl = st === 'done' ? '\u5B8C\u4E86' : st === 'diff' ? '\u5DEE\u7570\u3042\u308A' : '\u672A\u7740\u624B';
+                return (
+                  <tr key={l.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2"><span className="font-mono inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded text-xs"><MapPin size={10} />{l.id}</span></td>
+                    <td className="px-4 py-2 text-right">{partsInLoc.length}</td>
+                    <td className="px-4 py-2 text-right font-mono">{bookTotal}</td>
+                    <td className="px-4 py-2 text-right font-mono">{hasCount ? actualTotal : '\u2014'}</td>
+                    <td className="px-4 py-2 text-right font-mono">{hasCount && diffTotal !== 0 ? <span className={diffTotal > 0 ? 'text-blue-600' : 'text-rose-600'}>{diffTotal > 0 ? '+' : ''}{diffTotal}</span> : '\u2014'}</td>
+                    <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{lbl}</span></td>
+                    <td className="px-4 py-2 text-right">
+                      {partsInLoc.length === 0 ? <span className="text-xs text-black">{'\u90E8\u54C1\u306A\u3057'}</span>
+                        : <Btn variant="ghost" size="sm" onClick={() => startCount(l)}>{st === 'pending' ? '\u5B9F\u67FB\u958B\u59CB' : '\u5B9F\u67FB\u7D50\u679C'}</Btn>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-black uppercase">
-            <tr>
-              <th className="text-left px-4 py-2 font-medium">{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3'}</th>
-              <th className="text-right px-4 py-2 font-medium">{'\u54C1\u76EE\u6570'}</th>
-              <th className="text-right px-4 py-2 font-medium">{'\u5E33\u7C3F\u5408\u8A08'}</th>
-              <th className="text-right px-4 py-2 font-medium">{'\u5B9F\u6570\u5408\u8A08'}</th>
-              <th className="text-right px-4 py-2 font-medium">{'\u5DEE\u7570'}</th>
-              <th className="text-left px-4 py-2 font-medium">{'\u72B6\u614B'}</th>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {targetLocations.map(l => {
+      ))}
+
+      {/* Hidden printable stocktake sheet */}
+      <div id="stocktake-printable" style={{ display: 'none' }}>
+        <h1>{'\u68DA\u5378\u8868'}</h1>
+        <div>{'\u65E5\u4ED8'}: {new Date().toLocaleDateString('ja-JP')} / {'\u5BFE\u8C61'}: A{'\u68DA'}\u30FBB{'\u68DA'}</div>
+        {warehouseGroups.map(([wh, locs]) => (
+          <div key={wh}>
+            <h2>{wh}</h2>
+            {locs.map(l => {
               const partsInLoc = partsByLoc[l.id] || [];
-              const bookTotal = partsInLoc.reduce((s, p) => s + p.stock, 0);
-              const actualTotal = partsInLoc.reduce((s, p) => s + (counts[p.id] !== undefined ? counts[p.id] : 0), 0);
-              const hasCount = partsInLoc.some(p => counts[p.id] !== undefined);
-              const diffTotal = hasCount ? actualTotal - bookTotal : 0;
-              const st = getLocStatus(l.id);
-              const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-900' : 'bg-slate-200 text-black';
-              const lbl = st === 'done' ? '\u5B8C\u4E86' : st === 'diff' ? '\u5DEE\u7570\u3042\u308A' : '\u672A\u7740\u624B';
+              if (partsInLoc.length === 0) return null;
               return (
-                <tr key={l.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2"><span className="font-mono inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded text-xs"><MapPin size={10} />{l.id}</span></td>
-                  <td className="px-4 py-2 text-right">{partsInLoc.length}</td>
-                  <td className="px-4 py-2 text-right font-mono">{bookTotal}</td>
-                  <td className="px-4 py-2 text-right font-mono">{hasCount ? actualTotal : '\u2014'}</td>
-                  <td className="px-4 py-2 text-right font-mono">{hasCount && diffTotal !== 0 ? <span className={diffTotal > 0 ? 'text-blue-600' : 'text-rose-600'}>{diffTotal > 0 ? '+' : ''}{diffTotal}</span> : '\u2014'}</td>
-                  <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{lbl}</span></td>
-                  <td className="px-4 py-2 text-right">
-                    {partsInLoc.length === 0 ? <span className="text-xs text-black">{'\u90E8\u54C1\u306A\u3057'}</span>
-                      : <Btn variant="ghost" size="sm" onClick={() => startCount(l)}>{st === 'pending' ? '\u5B9F\u67FB\u958B\u59CB' : '\u5B9F\u67FB\u7D50\u679C'}</Btn>}
-                  </td>
-                </tr>
+                <div key={l.id}>
+                  <div style={{ fontWeight: 'bold', marginTop: 8 }}>{l.id} - {l.name}</div>
+                  <table>
+                    <thead><tr><th>{'\u54C1\u756A'}</th><th>{'\u54C1\u540D'}</th><th className="right">{'\u5E33\u7C3F\u6570'}</th><th className="right">{'\u5B9F\u6570'}</th><th className="right">{'\u5DEE\u7570'}</th><th>{'\u5099\u8003'}</th></tr></thead>
+                    <tbody>
+                      {partsInLoc.map(p => (
+                        <tr key={p.id}><td>{p.id}</td><td>{p.name}</td><td className="right">{p.stock}</td><td className="right"></td><td className="right"></td><td></td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        ))}
       </div>
+
       {selected && (
         <Modal open onClose={() => setSelected(null)} title={'\u68DA\u5378\u5B9F\u67FB: ' + selected.id + ' - ' + selected.name} size="lg">
           <div className="bg-blue-50 border border-blue-200 rounded p-2.5 mb-3 text-xs text-blue-800 flex items-center gap-2">
@@ -3496,6 +3975,226 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
   );
 };
 
+// ========================== ProductFormModal ==========================
+const ProductFormModal = ({ product, isNew, onClose, onSave }: { product: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => ({ ...product }));
+  const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
+  return (
+    <Modal open onClose={onClose} title={isNew ? '製品 新規登録' : `製品編集: ${product.code}`} size="lg">
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <Field label="製品コード*"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
+        <Field label="製品名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+        <Field label="分類*"><input value={form.category || ''} onChange={e => upd('category', e.target.value)} className={inputClass} /></Field>
+        <Field label="電圧"><input value={form.voltage || ''} onChange={e => upd('voltage', e.target.value)} className={inputClass} /></Field>
+        <Field label="寸法"><input value={form.dimensions || ''} onChange={e => upd('dimensions', e.target.value)} className={inputClass} /></Field>
+        <Field label="図面番号"><input value={form.drawingNo || ''} onChange={e => upd('drawingNo', e.target.value)} className={inputClass} /></Field>
+      </div>
+      <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.code || !form.name || !form.category}>{isNew ? '登録' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </Modal>
+  );
+};
+
+// ========================== BomEditor ==========================
+const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[]; onAdd: (partId: string, qty: number, position: string) => void; onRemove: (bomId: number) => void }) => {
+  const [addPartId, setAddPartId] = useState('');
+  const [addQty, setAddQty] = useState(1);
+  const [addPosition, setAddPosition] = useState('');
+  const [partSearch, setPartSearch] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const filteredParts = useMemo(() => {
+    if (!partSearch) return parts.slice(0, 20);
+    const q = partSearch.toLowerCase();
+    return parts.filter(p => p.id.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 20);
+  }, [parts, partSearch]);
+
+  return (
+    <div>
+      <table className="w-full text-sm mb-4">
+        <thead className="bg-slate-50 text-xs text-black border-b border-slate-200">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium">品番</th>
+            <th className="text-left px-3 py-2 font-medium">品名</th>
+            <th className="text-left px-3 py-2 font-medium">取付位置</th>
+            <th className="text-right px-3 py-2 font-medium">数量</th>
+            <th className="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {boms.map((b: any) => (
+            <tr key={b.id} className="hover:bg-slate-50">
+              <td className="px-3 py-2 font-mono text-xs">{b.partId}</td>
+              <td className="px-3 py-2">{b.part?.name || b.partId}</td>
+              <td className="px-3 py-2 text-xs">{b.position || '-'}</td>
+              <td className="px-3 py-2 text-right font-mono">{Number(b.qty)}</td>
+              <td className="px-3 py-2 text-right"><button onClick={() => onRemove(b.id)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button></td>
+            </tr>
+          ))}
+          {boms.length === 0 && <tr><td colSpan={5} className="px-3 py-4 text-center text-sm text-black">BOM部品がありません</td></tr>}
+        </tbody>
+      </table>
+      <div className="border-t border-slate-200 pt-3">
+        <div className="text-xs font-semibold text-black mb-2">部品を追加</div>
+        <div className="flex items-end gap-2">
+          <Field label="部品">
+            <div className="relative">
+              <input value={dropdownOpen ? partSearch : addPartId} onChange={e => { setPartSearch(e.target.value); setDropdownOpen(true); setAddPartId(e.target.value); }} onFocus={() => { setDropdownOpen(true); setPartSearch(addPartId); }} onBlur={() => setTimeout(() => setDropdownOpen(false), 200)} placeholder="品番/品名で検索..." className={`${inputClass} font-mono w-48`} />
+              {dropdownOpen && filteredParts.length > 0 && (
+                <div className="absolute z-10 w-64 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
+                  {filteredParts.map(p => (
+                    <button key={p.id} type="button" onMouseDown={e => { e.preventDefault(); setAddPartId(p.id); setPartSearch(p.id); setDropdownOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50">
+                      <span className="font-mono">{p.id}</span> <span className="text-black">{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Field>
+          <Field label="数量"><input type="number" value={addQty} onChange={e => setAddQty(Number(e.target.value) || 1)} min={1} className={`${inputClass} w-20 text-right font-mono`} /></Field>
+          <Field label="位置"><input value={addPosition} onChange={e => setAddPosition(e.target.value)} className={`${inputClass} w-24`} /></Field>
+          <Btn icon={Plus} onClick={() => { if (addPartId) { onAdd(addPartId, addQty, addPosition); setAddPartId(''); setAddQty(1); setAddPosition(''); setPartSearch(''); } }} disabled={!addPartId}>追加</Btn>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========================== LocationFormModal ==========================
+const LocationFormModal = ({ location, isNew, onClose, onSave }: { location: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => ({ ...location }));
+  const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
+  const num = (v: string) => Number(v) || 0;
+  const autoId = `${form.shelf || '?'}-${form.col || '?'}-${form.row || '?'}${form.side ? '-' + form.side : ''}`;
+  return (
+    <Modal open onClose={onClose} title={isNew ? 'ロケーション 新規登録' : `ロケーション編集: ${location.id}`} size="md">
+      {isNew && <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-800">自動生成ID: <span className="font-mono font-bold">{autoId}</span></div>}
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <Field label="倉庫*"><input value={form.warehouse || ''} onChange={e => upd('warehouse', e.target.value)} className={inputClass} /></Field>
+        <Field label="棚*"><input value={form.shelf || ''} onChange={e => upd('shelf', e.target.value)} className={inputClass} /></Field>
+        <Field label="列*"><input value={form.col || ''} onChange={e => upd('col', e.target.value)} className={inputClass} /></Field>
+        <Field label="段*"><input value={form.row || ''} onChange={e => upd('row', e.target.value)} className={inputClass} /></Field>
+        <Field label="左右"><input value={form.side || ''} onChange={e => upd('side', e.target.value)} className={inputClass} placeholder="L / R" /></Field>
+        <Field label="名称*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+        <Field label="最大容量"><input type="number" value={form.maxQty ?? 100} onChange={e => upd('maxQty', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
+        <Field label="タイプ">
+          <select value={form.locType || '棚'} onChange={e => upd('locType', e.target.value)} className={inputClass}>
+            <option value="棚">棚</option><option value="床置">床置</option><option value="冷蔵">冷蔵</option><option value="危険物">危険物</option><option value="外部倉庫">外部倉庫</option>
+          </select>
+        </Field>
+      </div>
+      <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.warehouse || !form.shelf || !form.col || !form.row || !form.name}>{isNew ? '登録' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </Modal>
+  );
+};
+
+// ========================== SuppliersScreen ==========================
+const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editSupplier, setEditSupplier] = useState<any>(null);
+  const [newSupplier, setNewSupplier] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  const fetchSuppliers = () => { api.getSuppliers().then(res => { setSuppliers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { fetchSuppliers(); }, []);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) { await api.createSupplier(form); toast(`仕入先「${form.name}」を登録しました`); }
+      else { await api.updateSupplier(form.id, form); toast(`仕入先「${form.name}」を更新しました`); }
+      setEditSupplier(null); setNewSupplier(null); fetchSuppliers();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try { await api.deleteSupplier(deleteTarget.id); toast(`仕入先「${deleteTarget.name}」を削除しました`); setDeleteTarget(null); fetchSuppliers(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+  const formSupplier = editSupplier || newSupplier;
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="font-bold text-sm">仕入先一覧</h2>
+          <Btn icon={Plus} onClick={() => setNewSupplier({ code: '', name: '', tel: '', email: '', contactPerson: '' })}>新規登録</Btn>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">コード</th>
+                <th className="text-left px-3 py-2 font-medium">仕入先名</th>
+                <th className="text-left px-3 py-2 font-medium">電話番号</th>
+                <th className="text-left px-3 py-2 font-medium">メール</th>
+                <th className="text-left px-3 py-2 font-medium">担当者</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {suppliers.map((s: any) => (
+                <tr key={s.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 font-mono text-xs">{s.code}</td>
+                  <td className="px-3 py-2 font-semibold">{s.name}</td>
+                  <td className="px-3 py-2 text-xs">{s.tel || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{s.email || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{s.contactPerson || '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditSupplier(s)}>編集</Btn>
+                      <button onClick={() => setDeleteTarget(s)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {suppliers.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">仕入先が登録されていません</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {formSupplier && (
+        <SupplierFormModal supplier={formSupplier} isNew={!!newSupplier} onClose={() => { setEditSupplier(null); setNewSupplier(null); }} onSave={handleSave} />
+      )}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="仕入先の削除確認" size="sm">
+          <div className="text-sm mb-4"><p>以下の仕入先を削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.code}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const SupplierFormModal = ({ supplier, isNew, onClose, onSave }: { supplier: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => ({ ...supplier }));
+  const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
+  return (
+    <Modal open onClose={onClose} title={isNew ? '仕入先 新規登録' : `仕入先編集: ${supplier.code}`} size="md">
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <Field label="仕入先コード*"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
+        <Field label="仕入先名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+        <Field label="電話番号"><input value={form.tel || ''} onChange={e => upd('tel', e.target.value)} className={inputClass} /></Field>
+        <Field label="メール"><input value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+        <Field label="担当者"><input value={form.contactPerson || ''} onChange={e => upd('contactPerson', e.target.value)} className={inputClass} /></Field>
+        <Field label="住所" full><input value={form.address || ''} onChange={e => upd('address', e.target.value)} className={inputClass} /></Field>
+      </div>
+      <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.code || !form.name}>{isNew ? '登録' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </Modal>
+  );
+};
+
 // ========================== View Titles ==========================
 const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: 'ダッシュボード', subtitle: '在庫状況の概要' },
@@ -3503,6 +4202,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   products: { title: '製品マスタ・BOM', subtitle: '製品構成部品の管理' },
   inventory: { title: '在庫一覧', subtitle: 'ロケーション別の在庫状況' },
   locations: { title: 'ロケーション', subtitle: '棚位置の管理' },
+  suppliers: { title: '仕入先管理', subtitle: '仕入先の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
   production: { title: '製造指図', subtitle: 'BOM展開・引当・ピッキング' },
@@ -3589,10 +4289,11 @@ export default function AppPage() {
         <TopBar title={vt.title} subtitle={vt.subtitle} onMenuOpen={() => setMobileMenuOpen(true)} />
         <div className="flex-1 overflow-y-auto">
           {view === 'dashboard' && <Dashboard parts={parts} orders={orders} prodOrders={prodOrders} setView={setView} />}
-          {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} openPart={setSelectedPart} />}
-          {view === 'products' && <ProductsScreen />}
+          {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} openPart={setSelectedPart} locations={locations} />}
+          {view === 'products' && <ProductsScreen toast={toast} parts={parts} />}
           {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} openPart={setSelectedPart} />}
-          {view === 'locations' && <LocationsScreen locations={locations} />}
+          {view === 'locations' && <LocationsScreen locations={locations} onRefresh={fetchAll} toast={toast} />}
+          {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} />}
           {view === 'receive' && <ReceiveScreen orders={orders} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}

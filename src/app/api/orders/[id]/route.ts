@@ -37,14 +37,33 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const { status, desiredDate, deliveryAddr, paymentTerms, notes } = body;
+    const { status, desiredDate, deliveryAddr, paymentTerms, notes, expectedDeliveryDate, newComment } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (desiredDate !== undefined) data.desiredDate = new Date(desiredDate);
     if (deliveryAddr !== undefined) data.deliveryAddr = deliveryAddr;
     if (paymentTerms !== undefined) data.paymentTerms = paymentTerms;
-    if (notes !== undefined) data.notes = notes;
+
+    // Handle extended notes with comments and expected delivery date
+    if (notes !== undefined || expectedDeliveryDate !== undefined || newComment) {
+      let meta: { expectedDeliveryDate?: string | null; comments?: { text: string; ts: string; user?: string }[] } = {};
+      try {
+        if (existing.notes && existing.notes.startsWith('{')) {
+          meta = JSON.parse(existing.notes);
+        }
+      } catch { /* not JSON, ignore */ }
+      if (expectedDeliveryDate !== undefined) meta.expectedDeliveryDate = expectedDeliveryDate;
+      if (newComment) {
+        if (!meta.comments) meta.comments = [];
+        meta.comments.unshift(newComment);
+      }
+      if (notes !== undefined && !expectedDeliveryDate && !newComment) {
+        data.notes = notes;
+      } else {
+        data.notes = JSON.stringify(meta);
+      }
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const order = await tx.tOrder.update({ where: { id: numId }, data });

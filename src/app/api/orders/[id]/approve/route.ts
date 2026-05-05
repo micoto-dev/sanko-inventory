@@ -19,8 +19,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!order) {
       return Response.json({ error: "Order not found" }, { status: 404 });
     }
-    if (order.status !== "draft") {
-      return Response.json({ error: "Only draft orders can be approved" }, { status: 400 });
+    if (order.status !== "draft" && order.status !== "pending") {
+      return Response.json({ error: "Only draft or pending orders can be approved" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const updated = await tx.tOrder.update({
         where: { id: numId },
         data: {
-          status: "approved",
+          status: "ordered",
           approvedAt: new Date(),
           approvedById,
         },

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       productId: o.productId,
       productCode: o.product?.code || '',
       productName: o.product?.name || '',
-      qty: o.qty,
+      qty: Number(o.qty),
       status: o.status,
       startDate: o.startDate?.toISOString?.()?.slice(0, 10) || '',
       dueDate: o.dueDate?.toISOString?.()?.slice(0, 10) || '',

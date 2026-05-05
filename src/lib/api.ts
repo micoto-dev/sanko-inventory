@@ -7,7 +7,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
-    throw new Error(err.error?.message || res.statusText);
+    const errMsg = typeof err.error === 'string' ? err.error : err.error?.message;
+    throw new Error(errMsg || res.statusText);
   }
   return res.json();
 }
@@ -24,12 +25,14 @@ export const api = {
   getPart: (id: string) => request<any>(`/parts/${id}`),
   createPart: (data: any) => request<any>('/parts', { method: 'POST', body: JSON.stringify(data) }),
   updatePart: (id: string, data: any) => request<any>(`/parts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePart: (id: string) => request<any>(`/parts/${id}`, { method: 'DELETE' }),
 
   // Products
   getProducts: () => request<any>('/products'),
   getProduct: (id: number) => request<any>(`/products/${id}`),
   createProduct: (data: any) => request<any>('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id: number, data: any) => request<any>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProduct: (id: number) => request<any>(`/products/${id}`, { method: 'DELETE' }),
 
   // Orders
   getOrders: (params?: Record<string, string>) => {
@@ -37,8 +40,13 @@ export const api = {
     return request<any>(`/orders${qs}`);
   },
   createOrder: (data: any) => request<any>('/orders', { method: 'POST', body: JSON.stringify(data) }),
-  approveOrder: (id: number) => request<any>(`/orders/${id}/approve`, { method: 'POST' }),
+  approveOrder: (id: number) => request<any>(`/orders/${id}/approve`, { method: 'POST', body: JSON.stringify({ approvedById: 1 }) }),
+  updateOrder: (id: number, data: any) => request<any>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   markManufacturerShortage: (id: number) => request<any>(`/orders/${id}/manufacturer-shortage`, { method: 'POST' }),
+  markItemShortage: (orderId: number, detailId: number) => request<any>(`/orders/${orderId}/details/${detailId}/shortage`, { method: 'POST' }),
+
+  // Parts import
+  importParts: (data: any[]) => request<any>('/parts/import', { method: 'POST', body: JSON.stringify({ parts: data }) }),
 
   // Receives
   createReceive: (data: any) => request<any>('/receives', { method: 'POST', body: JSON.stringify(data) }),
@@ -52,6 +60,14 @@ export const api = {
   // Locations
   getLocations: () => request<any>('/locations'),
   createLocation: (data: any) => request<any>('/locations', { method: 'POST', body: JSON.stringify(data) }),
+  updateLocation: (id: string, data: any) => request<any>(`/locations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteLocation: (id: string) => request<any>(`/locations/${id}`, { method: 'DELETE' }),
+
+  // Suppliers
+  getSuppliers: () => request<any>('/suppliers'),
+  createSupplier: (data: any) => request<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
+  updateSupplier: (id: number, data: any) => request<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSupplier: (id: number) => request<any>(`/suppliers/${id}`, { method: 'DELETE' }),
 
   // Logs
   getLogs: (params?: Record<string, string>) => {

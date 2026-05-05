@@ -29,27 +29,37 @@ export async function GET(request: Request) {
       prisma.tOrder.count({ where }),
     ]);
 
-    const data = orders.map((o: any) => ({
-      id: o.id,
-      orderNo: o.orderNo,
-      supplier: o.supplier?.name || '',
-      supplierId: o.supplierId,
-      orderDate: o.orderDate?.toISOString?.()?.slice(0, 10) || '',
-      desiredDate: o.desiredDate?.toISOString?.()?.slice(0, 10) || '',
-      status: o.status,
-      totalQty: o.totalQty,
-      totalAmount: o.totalAmount,
-      createdBy: o.createdBy?.name || '',
-      approvedBy: o.approvedBy?.name || '',
-      details: (o.details || []).map((d: any) => ({
-        id: d.id,
-        partId: d.partId,
-        partName: d.part?.name || '',
-        qty: d.qty,
-        receivedQty: d.receivedQty,
-        unitPrice: d.unitPrice,
-      })),
-    }));
+    const data = orders.map((o: any) => {
+      let meta: { expectedDeliveryDate?: string; comments?: { text: string; ts: string; user?: string }[] } = {};
+      try {
+        if (o.notes && o.notes.startsWith('{')) meta = JSON.parse(o.notes);
+      } catch { /* not JSON */ }
+      return {
+        id: o.id,
+        orderNo: o.orderNo,
+        supplier: o.supplier?.name || '',
+        supplierId: o.supplierId,
+        orderDate: o.orderDate?.toISOString?.()?.slice(0, 10) || '',
+        desiredDate: o.desiredDate?.toISOString?.()?.slice(0, 10) || '',
+        expectedDeliveryDate: meta.expectedDeliveryDate || '',
+        status: o.status,
+        totalQty: Number(o.totalQty),
+        totalAmount: Number(o.totalAmount),
+        notes: o.notes,
+        comments: meta.comments || [],
+        createdBy: o.createdBy?.name || '',
+        approvedBy: o.approvedBy?.name || '',
+        details: (o.details || []).map((d: any) => ({
+          id: d.id,
+          partId: d.partId,
+          partName: d.part?.name || '',
+          qty: Number(d.qty),
+          receivedQty: Number(d.receivedQty),
+          unitPrice: Number(d.unitPrice),
+          remarks: d.remarks || null,
+        })),
+      };
+    });
 
     return Response.json({
       data,
