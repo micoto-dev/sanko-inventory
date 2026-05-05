@@ -239,6 +239,27 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
 };
 
 // ========================== Parts Master ==========================
+const AddPartDropdown = ({ onNewPart, onCsvImport }: { onNewPart: () => void; onCsvImport: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+  return (
+    <div className="relative" ref={ref}>
+      <Btn icon={Plus} onClick={() => setOpen(!open)}>新規登録 <ChevronDown size={12} /></Btn>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 w-48 py-1">
+          <button onClick={() => { onNewPart(); setOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 text-black"><Plus size={14} /> 個別登録</button>
+          <button onClick={() => { onCsvImport(); setOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 text-black"><FileText size={14} /> CSV一括登録</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts: Part[]; onRefresh: () => void; toast: (msg: string) => void; openPart?: (p: Part) => void; locations?: Location[] }) => {
   const [query, setQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -324,10 +345,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
           </div>
           <Btn variant="secondary" icon={Download} onClick={handleCsvDownload}>CSVダウンロード</Btn>
-          <Btn variant="secondary" icon={FileText} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
-          <Btn icon={Plus} onClick={() => setNewPart({ code: '', name: '', maker: '', makerCode: '', category: '電気部品', supplier: '', stock: 0, reorderPoint: 10, safetyStock: 5, maxStock: 50, unit: '個', unitPrice: 0, leadTime: 14, location: '', spec: '' })}>
-            新規登録
-          </Btn>
+          <AddPartDropdown onNewPart={() => setNewPart({ code: '', name: '', maker: '', makerCode: '', category: '電気部品', supplier: '', stock: 0, reorderPoint: 10, safetyStock: 5, maxStock: 50, unit: '個', unitPrice: 0, leadTime: 14, location: '', spec: '' })} onCsvImport={() => setShowCsvImport(true)} />
         </div>
         <div className="flex items-center gap-2">
           <Filter size={12} className="text-black" />
