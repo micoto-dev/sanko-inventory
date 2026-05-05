@@ -19,16 +19,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!order) {
       return Response.json({ error: "Order not found" }, { status: 404 });
     }
-    if (order.status !== "draft" && order.status !== "pending") {
-      return Response.json({ error: "Only draft or pending orders can be approved" }, { status: 400 });
+    if (order.status !== "draft") {
+      return Response.json({ error: "未発注の発注のみ承認できます" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Update order status
+      // Update order status: draft -> awaiting
       const updated = await tx.tOrder.update({
         where: { id: numId },
         data: {
-          status: "ordered",
+          status: "awaiting",
           approvedAt: new Date(),
           approvedById,
         },

@@ -651,10 +651,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
 
   const filtered = useMemo(() => {
     if (tab === 'all') return orders;
-    if (tab === 'active') return orders.filter(o => ['awaiting', 'partial', 'pending', 'ordered'].includes(o.status));
-    if (tab === 'issue') return orders.filter(o => ['delayed', 'manufacturer_shortage'].includes(o.status));
-    if (tab === 'completed') return orders.filter(o => o.status === 'completed');
-    return orders;
+    return orders.filter(o => o.status === tab);
   }, [tab, orders]);
 
   const handleApprove = async (orderId: number) => {
@@ -747,8 +744,9 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
         <div className="flex border-b border-slate-200 px-2">
           {[
             { id: 'all', label: '全て', n: orders.length },
-            { id: 'active', label: '進行中', n: orders.filter(o => ['awaiting', 'partial', 'pending', 'ordered'].includes(o.status)).length },
-            { id: 'issue', label: '要対応', n: orders.filter(o => ['delayed', 'manufacturer_shortage'].includes(o.status)).length },
+            { id: 'draft', label: '未発注', n: orders.filter(o => o.status === 'draft').length },
+            { id: 'awaiting', label: '納品待ち', n: orders.filter(o => o.status === 'awaiting').length },
+            { id: 'manufacturer_shortage', label: 'メーカー欠品', n: orders.filter(o => o.status === 'manufacturer_shortage').length },
             { id: 'completed', label: '完納', n: orders.filter(o => o.status === 'completed').length },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} className={`px-3 py-2.5 text-sm font-medium border-b-2 ${tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-black hover:text-black'}`}>
@@ -850,10 +848,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
           )}
           <div className="flex gap-2 pt-3 border-t border-slate-100">
             <Btn variant="primary" icon={Save} onClick={handleSaveDetail}>変更を保存</Btn>
-            {(showDetail.status === 'pending' || showDetail.status === 'draft') && (
-              <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>承認 → 仕入先送付</Btn>
+            {showDetail.status === 'draft' && (
+              <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>発注確定（納品待ちへ）</Btn>
             )}
-            {['awaiting', 'partial', 'ordered'].includes(showDetail.status) && (
+            {showDetail.status === 'awaiting' && (
               <Btn variant="danger" icon={AlertCircle} onClick={() => handleMfrShortage(showDetail.id)}>メーカー欠品マーク</Btn>
             )}
             <Btn variant="secondary" icon={FileText} onClick={() => handleViewPdf(showDetail)}>発注書PDF</Btn>
@@ -1375,7 +1373,7 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
 
 // ========================== Other Screens ==========================
 const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; parts: Part[]; onRefresh: () => void; toast: (msg: string) => void }) => {
-  const pendingOrders = orders.filter(o => ['awaiting', 'partial', 'delayed'].includes(o.status));
+  const pendingOrders = orders.filter(o => o.status === 'awaiting');
   const [selectedPO, setSelectedPO] = useState<number | ''>('');
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [receiveQty, setReceiveQty] = useState<Record<string, number>>({});
