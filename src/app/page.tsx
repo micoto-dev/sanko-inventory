@@ -10,6 +10,8 @@ import {
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
   X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
   QrCode, Printer, ExternalLink, ScanLine, Menu, Camera,
+  ArrowUpRight, TrendingUp, Clock, Building2,
+  Zap, RefreshCw, Link2, XCircle, Download, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -234,7 +236,7 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
 };
 
 // ========================== Parts Master ==========================
-const MasterScreen = ({ parts, onRefresh, toast }: { parts: Part[]; onRefresh: () => void; toast: (msg: string) => void }) => {
+const MasterScreen = ({ parts, onRefresh, toast, openPart }: { parts: Part[]; onRefresh: () => void; toast: (msg: string) => void; openPart?: (p: Part) => void }) => {
   const [query, setQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [editing, setEditing] = useState<Part | null>(null);
@@ -318,7 +320,7 @@ const MasterScreen = ({ parts, onRefresh, toast }: { parts: Part[]; onRefresh: (
                 const st = getStatus(p);
                 const s = STATUS_COLOR[st];
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50">
+                  <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openPart?.(p)}>
                     <td className="px-3 py-2">
                       <div className="font-mono text-xs">{p.id}</div>
                       <div className="font-mono text-[10px] text-slate-400">{p.code}</div>
@@ -356,11 +358,34 @@ const MasterScreen = ({ parts, onRefresh, toast }: { parts: Part[]; onRefresh: (
 
 const PartFormModal = ({ part, isNew, onClose, onSave }: { part: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
   const [form, setForm] = useState(() => ({ ...part }));
+  const [ocrOpen, setOcrOpen] = useState(false);
   const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
   const num = (v: string) => Number(v) || 0;
 
+  const handleOcrApply = (fields: Record<string, any>) => {
+    setForm((prev: any) => {
+      const base = (prev && Object.keys(prev).length > 0) ? prev : part;
+      const merged = { ...base };
+      Object.entries(fields).forEach(([k, v]) => {
+        const cur = (base as any)[k];
+        if (cur === undefined || cur === null || cur === '' || cur === 0) (merged as any)[k] = v;
+      });
+      return merged;
+    });
+    setOcrOpen(false);
+  };
+
   return (
     <Modal open={!!part} onClose={onClose} title={isNew ? '部品マスタ 新規登録' : `部品マスタ編集: ${part.id}`} size="lg">
+      <div className="flex items-center gap-2 mb-3 -mt-1">
+        <button
+          onClick={() => setOcrOpen(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition"
+        >
+          <Camera size={13} /> OCR読み込み <Sparkles size={11} className="text-blue-500" />
+        </button>
+        <span className="text-[10px] text-slate-500">カメラで現品ラベル/銘板を撮影 → 入力欄を自動入力</span>
+      </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <Field label="社内品番*"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
         <Field label="メーカー品番"><input value={form.makerCode || ''} onChange={e => upd('makerCode', e.target.value)} className={inputClass} /></Field>
@@ -380,6 +405,7 @@ const PartFormModal = ({ part, isNew, onClose, onSave }: { part: any; isNew: boo
         <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.code || !form.name}>{isNew ? '登録' : '保存'}</Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
+      <PartOcrModal open={ocrOpen} onClose={() => setOcrOpen(false)} onApply={handleOcrApply} />
     </Modal>
   );
 };
@@ -391,6 +417,12 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
   const [tab, setTab] = useState('all');
   const [showNew, setShowNew] = useState(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
+  const [pdfOrder, setPdfOrder] = useState<Order | null>(null);
+
+  const lowStockParts = useMemo(() => parts.filter(p => {
+    const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
+    return eff < p.reorderPoint;
+  }), [parts]);
 
   const filtered = useMemo(() => {
     if (tab === 'all') return orders;
@@ -411,8 +443,49 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
     }
   };
 
+  const handleMfrShortage = async (orderId: number) => {
+    try {
+      await api.markManufacturerShortage(orderId);
+      toast('メーカー欠品としてマークしました。発注残から除外されました');
+      setShowDetail(null);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
+  const handleViewPdf = (o: Order) => {
+    setPdfOrder(o);
+    setShowDetail(null);
+  };
+
   return (
     <div className="p-5 space-y-3">
+      {lowStockParts.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-3.5">
+          <div className="flex items-center gap-2 mb-2.5">
+            <AlertTriangle size={15} className="text-amber-600" />
+            <h2 className="font-bold text-sm">発注点アラート</h2>
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">{lowStockParts.length}件</span>
+            <Btn className="ml-auto" size="sm" variant="primary" onClick={() => setShowNew(true)}>一括発注書作成</Btn>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {lowStockParts.slice(0, 6).map(p => {
+              const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
+              const recommend = Math.max(p.maxStock - eff, 0);
+              return (
+                <div key={p.id} className="bg-white rounded p-2 text-xs flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate">{p.name}</div>
+                    <div className="text-slate-500">在庫{p.stock} / 発注点{p.reorderPoint} → 推奨<span className="font-bold text-amber-700">{recommend}{p.unit}</span></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="flex border-b border-slate-200 px-2">
           {[
@@ -442,7 +515,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map(o => (
-                <tr key={o.id} className="hover:bg-slate-50">
+                <tr key={o.id} className={`hover:bg-slate-50 ${o.status === 'delayed' ? 'bg-orange-50/30' : ''}`}>
                   <td className="px-3 py-2 font-mono text-xs">{o.orderNo}</td>
                   <td className="px-3 py-2">{o.supplier}</td>
                   <td className="px-3 py-2 text-xs">{o.orderDate}</td>
@@ -464,17 +537,24 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
             <div><div className="text-xs text-slate-500">発注日</div><div>{showDetail.orderDate}</div></div>
             <div><div className="text-xs text-slate-500">希望納期</div><div>{showDetail.desiredDate}</div></div>
             <div><div className="text-xs text-slate-500">ステータス</div><StatusBadge statusKey={showDetail.status} statusMap={ORDER_STATUS} /></div>
+            <div><div className="text-xs text-slate-500">明細数</div><div className="font-mono">{showDetail.details?.length || 0}</div></div>
+            <div><div className="text-xs text-slate-500">発注数合計</div><div className="font-mono font-semibold">{(showDetail.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</div></div>
+            <div><div className="text-xs text-slate-500">入庫済合計</div><div className="font-mono">{(showDetail.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-slate-400 text-xs">/ {(showDetail.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
+            <div><div className="text-xs text-slate-500">合計金額</div><div className="font-mono font-bold">{yen(showDetail.totalAmount)}</div></div>
           </div>
           <div className="bg-slate-50 rounded p-3 mb-4">
+            <div className="text-xs font-semibold text-slate-600 mb-2">明細</div>
             <table className="w-full text-sm">
-              <thead className="text-xs text-slate-500"><tr><th className="text-left py-1">品名</th><th className="text-right py-1">数量</th><th className="text-right py-1">入庫済</th><th className="text-right py-1">単価</th></tr></thead>
+              <thead className="text-xs text-slate-500"><tr><th className="text-left py-1">品名</th><th className="text-right py-1">発注数</th><th className="text-right py-1">入庫済</th><th className="text-right py-1">残</th><th className="text-right py-1">単価</th><th className="text-right py-1">小計</th></tr></thead>
               <tbody>
                 {showDetail.details?.map((it, i) => (
                   <tr key={i} className="border-t border-slate-200">
                     <td className="py-1.5"><div className="text-xs font-mono text-slate-500">{it.partId}</div><div>{it.partName || it.partId}</div></td>
                     <td className="text-right py-1.5 font-mono">{it.qty}</td>
                     <td className="text-right py-1.5 font-mono text-slate-500">{it.receivedQty}</td>
+                    <td className="text-right py-1.5 font-mono font-semibold">{it.qty - it.receivedQty}</td>
                     <td className="text-right py-1.5 font-mono">{yen(it.unitPrice)}</td>
+                    <td className="text-right py-1.5 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -482,8 +562,12 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
           </div>
           <div className="flex gap-2 pt-3 border-t border-slate-100">
             {(showDetail.status === 'pending' || showDetail.status === 'draft') && (
-              <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>承認</Btn>
+              <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>承認 → 仕入先送付</Btn>
             )}
+            {['awaiting', 'partial', 'ordered'].includes(showDetail.status) && (
+              <Btn variant="danger" icon={AlertCircle} onClick={() => handleMfrShortage(showDetail.id)}>メーカー欠品マーク</Btn>
+            )}
+            <Btn variant="secondary" icon={FileText} onClick={() => handleViewPdf(showDetail)}>発注書PDF</Btn>
             <Btn variant="secondary" onClick={() => setShowDetail(null)} className="ml-auto">閉じる</Btn>
           </div>
         </Modal>
@@ -492,6 +576,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
       {showNew && (
         <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} />
       )}
+
+      {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => setPdfOrder(null)} />}
     </div>
   );
 };
@@ -503,18 +589,36 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
     const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
     return eff < p.reorderPoint && !p.shortageReason;
   });
-  const [items, setItems] = useState(() => lowStockParts.slice(0, 5).map(p => ({
-    partId: p.id, name: p.name, qty: Math.max(p.maxStock - (p.stock - p.allocated + p.onOrder), p.reorderPoint), unitPrice: p.unitPrice, supplierId: p.supplierId
+
+  const supplierOptions = useMemo(() => [...new Set(parts.map(p => p.supplier).filter(Boolean))], [parts]);
+  const [supplier, setSupplier] = useState(lowStockParts[0]?.supplier || supplierOptions[0] || '');
+  const [searchQ, setSearchQ] = useState('');
+
+  const [items, setItems] = useState(() => lowStockParts.slice(0, 10).map(p => ({
+    partId: p.id, name: p.name, qty: Math.max(p.maxStock - (p.stock - p.allocated + p.onOrder), p.reorderPoint), unitPrice: p.unitPrice, supplierId: p.supplierId, supplier: p.supplier
   })));
-  const total = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+
+  const filteredItems = items.filter(it => it.supplier === supplier);
+  const total = filteredItems.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+
+  const addPart = (p: Part) => {
+    if (items.find(i => i.partId === p.id)) return;
+    setItems(prev => [...prev, { partId: p.id, name: p.name, qty: 10, unitPrice: p.unitPrice, supplierId: p.supplierId, supplier: p.supplier }]);
+    setSearchQ('');
+  };
+
+  const searchResults = searchQ ? parts.filter(p =>
+    p.supplier === supplier && !items.find(i => i.partId === p.id) &&
+    (p.name.includes(searchQ) || p.id.includes(searchQ) || (p.code || '').includes(searchQ))
+  ).slice(0, 5) : [];
 
   const submit = async () => {
-    if (items.length === 0) return;
+    if (filteredItems.length === 0) return;
     try {
       await api.createOrder({
-        supplierId: items[0]?.supplierId || 1,
+        supplierId: filteredItems[0]?.supplierId || 1,
         desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-        details: items.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
+        details: filteredItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
       });
       toast('発注書を作成しました');
       onRefresh();
@@ -526,34 +630,212 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast }: {
 
   return (
     <Modal open onClose={onClose} title="新規発注書作成" size="lg">
-      <div className="bg-slate-50 rounded p-3 mb-3">
-        <div className="text-xs font-semibold text-slate-600 mb-2">発注明細 ({items.length} 件)</div>
-        <table className="w-full text-sm">
-          <thead className="text-xs text-slate-500"><tr><th className="text-left py-1">品名</th><th className="text-right py-1 w-20">数量</th><th className="text-right py-1 w-24">単価</th><th className="text-right py-1 w-28">小計</th><th className="w-8"></th></tr></thead>
-          <tbody>
-            {items.map(it => (
-              <tr key={it.partId} className="border-t border-slate-200">
-                <td className="py-1.5"><div className="text-xs font-mono text-slate-500">{it.partId}</div><div>{it.name}</div></td>
-                <td className="py-1.5"><input type="number" value={it.qty} onChange={e => setItems(prev => prev.map(i => i.partId === it.partId ? { ...i, qty: Number(e.target.value) || 0 } : i))} className={`${inputClass} text-right`} /></td>
-                <td className="py-1.5 text-right font-mono">{yen(it.unitPrice)}</td>
-                <td className="py-1.5 text-right font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
-                <td><button onClick={() => setItems(prev => prev.filter(i => i.partId !== it.partId))} className="text-rose-500 hover:bg-rose-50 p-1 rounded"><Trash2 size={13} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot><tr className="border-t-2 border-slate-300"><td colSpan={3} className="text-right py-2 font-semibold">合計</td><td className="text-right py-2 font-mono font-bold">{yen(total)}</td><td></td></tr></tfoot>
-        </table>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <Field label="仕入先">
+          <select value={supplier} onChange={e => setSupplier(e.target.value)} className={inputClass}>
+            {supplierOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="発注日"><input value={new Date().toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
+        <Field label="想定納期"><input value={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
       </div>
+
+      <div className="bg-slate-50 rounded p-3 mb-3">
+        <div className="text-xs font-semibold text-slate-600 mb-2">発注明細 ({filteredItems.length} 件 / {supplier})</div>
+        {filteredItems.length === 0 ? (
+          <div className="text-xs text-slate-500 py-3 text-center">この仕入先の明細はまだありません。下から部品を追加してください。</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-xs text-slate-500"><tr><th className="text-left py-1">品名</th><th className="text-right py-1 w-20">数量</th><th className="text-right py-1 w-24">単価</th><th className="text-right py-1 w-28">小計</th><th className="w-8"></th></tr></thead>
+            <tbody>
+              {filteredItems.map(it => (
+                <tr key={it.partId} className="border-t border-slate-200">
+                  <td className="py-1.5"><div className="text-xs font-mono text-slate-500">{it.partId}</div><div>{it.name}</div></td>
+                  <td className="py-1.5"><input type="number" value={it.qty} onChange={e => setItems(prev => prev.map(i => i.partId === it.partId ? { ...i, qty: Number(e.target.value) || 0 } : i))} className={`${inputClass} text-right`} /></td>
+                  <td className="py-1.5 text-right font-mono">{yen(it.unitPrice)}</td>
+                  <td className="py-1.5 text-right font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
+                  <td><button onClick={() => setItems(prev => prev.filter(i => i.partId !== it.partId))} className="text-rose-500 hover:bg-rose-50 p-1 rounded"><Trash2 size={13} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot><tr className="border-t-2 border-slate-300"><td colSpan={3} className="text-right py-2 font-semibold">合計</td><td className="text-right py-2 font-mono font-bold">{yen(total)}</td><td></td></tr></tfoot>
+          </table>
+        )}
+      </div>
+
+      <div className="mb-3">
+        <div className="text-xs font-semibold text-slate-600 mb-1">部品を追加 ({supplier})</div>
+        <input value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="品番・品名で検索..." className={inputClass} />
+        {searchResults.length > 0 && (
+          <div className="border border-slate-200 rounded mt-1 bg-white max-h-40 overflow-y-auto">
+            {searchResults.map(p => (
+              <button key={p.id} onClick={() => addPart(p)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 flex items-center justify-between">
+                <div><span className="font-mono text-xs text-slate-500">{p.id}</span> {p.name}</div>
+                <Plus size={13} className="text-blue-600" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-        <Btn variant="primary" icon={ShoppingCart} onClick={submit} disabled={items.length === 0}>発注書作成</Btn>
+        <Btn variant="primary" icon={ShoppingCart} onClick={submit} disabled={filteredItems.length === 0}>発注書作成</Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
     </Modal>
   );
 };
 
+// ========================== Order PDF Modal ==========================
+const OrderPdfModal = ({ order, parts, onClose }: {
+  order: Order; parts: Part[]; onClose: () => void;
+}) => {
+  const totalQty = (order.details || []).reduce((s, i) => s + i.qty, 0);
+  const tax = Math.round(order.totalAmount * 0.10);
+  const grandTotal = order.totalAmount + tax;
+
+  const handlePrint = () => {
+    const printNode = document.getElementById('po-printable');
+    if (!printNode) { window.print(); return; }
+    const win = window.open('', '_blank', 'width=900,height=1200');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>${order.orderNo}</title>
+      <meta charset="utf-8"/>
+      <style>
+        body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif; padding: 30px; color: #0f172a; }
+        h1 { text-align: center; letter-spacing: 0.4em; margin-bottom: 8px; font-size: 22px; }
+        .meta { display: flex; justify-content: space-between; margin: 20px 0; font-size: 13px; }
+        .meta .box { border: 1px solid #cbd5e1; padding: 8px 12px; min-width: 240px; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+        th, td { border: 1px solid #94a3b8; padding: 6px 8px; }
+        th { background: #f1f5f9; }
+        .right { text-align: right; }
+        .total { background: #f8fafc; font-weight: bold; }
+        .footer { margin-top: 30px; font-size: 11px; color: #475569; }
+        .stamp { border: 2px solid #dc2626; color: #dc2626; padding: 4px 10px; display: inline-block; border-radius: 4px; font-size: 11px; }
+        .sig { display: flex; gap: 40px; margin-top: 20px; }
+        .sig .cell { border: 1px solid #cbd5e1; width: 100px; height: 60px; text-align: center; font-size: 10px; padding: 4px; }
+      </style></head><body>${printNode.innerHTML}</body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 300);
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`発注書プレビュー: ${order.orderNo}`} size="xl">
+      <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-3 text-xs text-amber-800 flex items-center gap-2">
+        <FileText size={13} /> このプレビューを印刷またはPDFとして保存できます。実運用ではPDFを仕入先へ送付します。
+      </div>
+      <div id="po-printable" className="bg-white border-2 border-slate-300 p-6 text-sm">
+        <h1 style={{ textAlign: 'center', letterSpacing: '0.4em', fontWeight: 'bold', fontSize: 22, marginBottom: 8 }}>御 注 文 書</h1>
+        <div className="text-center text-xs text-slate-500 mb-4">PURCHASE ORDER</div>
+
+        <div className="flex justify-between mb-4 text-xs">
+          <div className="border border-slate-300 p-2 flex-1 mr-3">
+            <div className="text-slate-500">発注番号</div>
+            <div className="font-mono font-bold text-base">{order.orderNo}</div>
+            <div className="text-slate-500 mt-2">発注日</div>
+            <div>{order.orderDate}</div>
+            <div className="text-slate-500 mt-2">希望納期</div>
+            <div>{order.desiredDate}</div>
+          </div>
+          <div className="border border-slate-300 p-2 flex-1">
+            <div className="text-slate-500">発注先</div>
+            <div className="font-bold text-base">{order.supplier} 御中</div>
+            <div className="text-slate-500 mt-2">発注元</div>
+            <div className="font-bold">三工電機株式会社</div>
+            <div className="text-xs text-slate-600">船舶用分電盤製造部 / 購買グループ</div>
+            <div className="text-xs">担当: 山田 太郎</div>
+            <div className="mt-2 inline-block border border-rose-600 text-rose-600 px-2 py-0.5 text-xs rounded">承認印</div>
+          </div>
+        </div>
+
+        <div className="text-xs text-slate-700 mb-2">下記の通り発注いたしますので、納期厳守のうえご手配のほどお願い申し上げます。</div>
+
+        <table className="w-full text-xs border-collapse" style={{ borderCollapse: 'collapse' }}>
+          <thead>
+            <tr className="bg-slate-100">
+              <th className="border border-slate-400 p-1.5">No.</th>
+              <th className="border border-slate-400 p-1.5">品番</th>
+              <th className="border border-slate-400 p-1.5 text-left">品名・仕様</th>
+              <th className="border border-slate-400 p-1.5 text-right">数量</th>
+              <th className="border border-slate-400 p-1.5 text-right">単価</th>
+              <th className="border border-slate-400 p-1.5 text-right">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(order.details || []).map((it, i) => {
+              const p = parts.find(x => x.id === it.partId);
+              return (
+                <tr key={i}>
+                  <td className="border border-slate-400 p-1.5 text-center">{i + 1}</td>
+                  <td className="border border-slate-400 p-1.5 font-mono">{p?.code || it.partId}</td>
+                  <td className="border border-slate-400 p-1.5">
+                    <div>{it.partName || p?.name || '—'}</div>
+                    {p?.spec && <div className="text-slate-500 text-[10px]">{p.spec}</div>}
+                  </td>
+                  <td className="border border-slate-400 p-1.5 text-right font-mono">{it.qty.toLocaleString()} {p?.unit || ''}</td>
+                  <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(it.unitPrice)}</td>
+                  <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(it.qty * it.unitPrice)}</td>
+                </tr>
+              );
+            })}
+            {Array.from({ length: Math.max(0, 5 - (order.details || []).length) }).map((_, i) => (
+              <tr key={`empty-${i}`}>
+                <td className="border border-slate-400 p-1.5">&nbsp;</td>
+                <td className="border border-slate-400 p-1.5"></td>
+                <td className="border border-slate-400 p-1.5"></td>
+                <td className="border border-slate-400 p-1.5"></td>
+                <td className="border border-slate-400 p-1.5"></td>
+                <td className="border border-slate-400 p-1.5"></td>
+              </tr>
+            ))}
+            <tr>
+              <td colSpan={3} className="border border-slate-400 p-1.5 text-right">小計</td>
+              <td className="border border-slate-400 p-1.5 text-right font-mono">{totalQty.toLocaleString()}</td>
+              <td className="border border-slate-400 p-1.5"></td>
+              <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(order.totalAmount)}</td>
+            </tr>
+            <tr>
+              <td colSpan={5} className="border border-slate-400 p-1.5 text-right">消費税 (10%)</td>
+              <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(tax)}</td>
+            </tr>
+            <tr style={{ background: '#f8fafc' }}>
+              <td colSpan={5} className="border border-slate-400 p-1.5 text-right font-bold">合計 (税込)</td>
+              <td className="border border-slate-400 p-1.5 text-right font-mono font-bold text-base">{yen(grandTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="text-xs mt-4 space-y-1 text-slate-700">
+          <div>■ 納入場所: 三工電機株式会社 資材倉庫 (神奈川県横浜市)</div>
+          <div>■ 支払条件: 月末締め翌月末支払 / 銀行振込</div>
+          <div>■ 備考: 納期回答および出荷案内は購買担当宛にメール願います</div>
+        </div>
+
+        <div className="flex gap-6 mt-6 text-[10px]">
+          <div><div>承認</div><div className="border border-slate-300 w-20 h-12"></div></div>
+          <div><div>確認</div><div className="border border-slate-300 w-20 h-12"></div></div>
+          <div><div>担当</div><div className="border border-slate-300 w-20 h-12"></div></div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <Btn variant="primary" icon={Printer} onClick={handlePrint}>印刷 / PDF保存</Btn>
+        <Btn variant="secondary" icon={Download} onClick={() => {
+          const blob = new Blob(['発注書: ' + order.orderNo + '\n' + JSON.stringify(order, null, 2)], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${order.orderNo}.txt`; a.click();
+          URL.revokeObjectURL(url);
+        }}>テキスト出力</Btn>
+        <Btn variant="secondary" onClick={onClose} className="ml-auto">閉じる</Btn>
+      </div>
+    </Modal>
+  );
+};
+
 // ========================== Inventory ==========================
-const InventoryScreen = ({ parts, locations }: { parts: Part[]; locations: Location[] }) => {
+const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locations: Location[]; openPart?: (p: Part) => void }) => {
   const [warehouse, setWarehouse] = useState('all');
   const warehouses = useMemo(() => ['all', ...new Set(locations.map(l => l.warehouse))], [locations]);
 
@@ -604,7 +886,7 @@ const InventoryScreen = ({ parts, locations }: { parts: Part[]; locations: Locat
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {g.items.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
+                  <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openPart?.(p)}>
                     <td className="px-3 py-1.5 font-mono text-xs">{p.id}</td>
                     <td className="px-3 py-1.5">{p.name}</td>
                     <td className="px-3 py-1.5 text-right font-mono font-semibold">{p.stock} {p.unit}</td>
@@ -804,39 +1086,147 @@ const ReceiveScreen = ({ orders, onRefresh, toast }: { orders: Order[]; onRefres
   );
 };
 
-const ProductionScreen = ({ prodOrders }: { prodOrders: ProdOrder[] }) => (
-  <div className="p-5 space-y-3">
-    <div className="bg-white rounded-lg border border-slate-200">
-      <div className="px-4 py-3 border-b border-slate-200"><h2 className="font-bold text-sm">製造指図一覧</h2></div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-            <tr>
-              <th className="text-left px-3 py-2 font-medium">指図番号</th>
-              <th className="text-left px-3 py-2 font-medium">製品</th>
-              <th className="text-right px-3 py-2 font-medium">数量</th>
-              <th className="text-left px-3 py-2 font-medium">顧客</th>
-              <th className="text-left px-3 py-2 font-medium">納期</th>
-              <th className="text-left px-3 py-2 font-medium">ステータス</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {prodOrders.map(m => (
-              <tr key={m.id} className="hover:bg-slate-50">
-                <td className="px-3 py-2 font-mono text-xs">{m.prodNo}</td>
-                <td className="px-3 py-2 font-semibold">{m.productName || m.productCode}</td>
-                <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
-                <td className="px-3 py-2 text-xs">{m.customer}</td>
-                <td className="px-3 py-2 text-xs">{m.dueDate}</td>
-                <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
+const ProductionScreen = ({ prodOrders, toast }: { prodOrders: ProdOrder[]; toast: (msg: string) => void }) => {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [bomDetail, setBomDetail] = useState<any>(null);
+  const [bomLoading, setBomLoading] = useState(false);
+
+  const handleToggle = async (mo: ProdOrder) => {
+    if (expandedId === mo.id) {
+      setExpandedId(null);
+      setBomDetail(null);
+      return;
+    }
+    setExpandedId(mo.id);
+    setBomLoading(true);
+    try {
+      const detail = await api.getProductionOrder(mo.id);
+      setBomDetail(detail);
+    } catch {
+      toast('BOM詳細の取得に失敗しました');
+      setBomDetail(null);
+    } finally {
+      setBomLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-4 py-3 border-b border-slate-200"><h2 className="font-bold text-sm">製造指図一覧</h2></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+              <tr>
+                <th className="px-3 py-2 w-8"></th>
+                <th className="text-left px-3 py-2 font-medium">指図番号</th>
+                <th className="text-left px-3 py-2 font-medium">製品</th>
+                <th className="text-right px-3 py-2 font-medium">数量</th>
+                <th className="text-left px-3 py-2 font-medium">顧客</th>
+                <th className="text-left px-3 py-2 font-medium">納期</th>
+                <th className="text-left px-3 py-2 font-medium">ステータス</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {prodOrders.map(m => (
+                <React.Fragment key={m.id}>
+                  <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => handleToggle(m)}>
+                    <td className="px-3 py-2 text-slate-400">
+                      {expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs">{m.prodNo}</td>
+                    <td className="px-3 py-2 font-semibold">{m.productName || m.productCode}</td>
+                    <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
+                    <td className="px-3 py-2 text-xs">{m.customer}</td>
+                    <td className="px-3 py-2 text-xs">{m.dueDate}</td>
+                    <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
+                  </tr>
+                  {expandedId === m.id && (
+                    <tr>
+                      <td colSpan={7} className="bg-slate-50 px-4 py-3">
+                        {bomLoading ? (
+                          <div className="flex items-center gap-2 text-sm text-slate-500 py-4 justify-center">
+                            <Loader2 size={16} className="animate-spin" /> BOM情報を読み込み中...
+                          </div>
+                        ) : bomDetail ? (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-4 gap-3 text-xs">
+                              <div><span className="text-slate-500">製品:</span> <span className="font-semibold">{bomDetail.productName || bomDetail.productCode}</span></div>
+                              <div><span className="text-slate-500">数量:</span> <span className="font-mono">{bomDetail.qty}</span></div>
+                              <div><span className="text-slate-500">開始日:</span> {bomDetail.startDate || m.startDate || '-'}</div>
+                              <div><span className="text-slate-500">納期:</span> {bomDetail.dueDate || m.dueDate || '-'}</div>
+                            </div>
+
+                            {bomDetail.bomSnapshot && bomDetail.bomSnapshot.length > 0 ? (
+                              <div className="bg-white rounded border border-slate-200 overflow-hidden">
+                                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 flex items-center gap-2">
+                                  <Package size={12} /> BOM展開 ({bomDetail.bomSnapshot.length}部品)
+                                </div>
+                                <table className="w-full text-xs">
+                                  <thead className="bg-white text-slate-500 border-b border-slate-100">
+                                    <tr>
+                                      <th className="text-left px-3 py-1.5 font-medium">品番</th>
+                                      <th className="text-left px-3 py-1.5 font-medium">品名</th>
+                                      <th className="text-left px-3 py-1.5 font-medium">取付位置</th>
+                                      <th className="text-right px-3 py-1.5 font-medium">必要数</th>
+                                      <th className="text-right px-3 py-1.5 font-medium">ピッキング済</th>
+                                      <th className="text-left px-3 py-1.5 font-medium">引当状況</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {bomDetail.bomSnapshot.map((bs: any, idx: number) => {
+                                      const need = bs.qty * (bomDetail.qty || m.qty || 1);
+                                      const picked = bs.pickedQty || 0;
+                                      const allocated = need;
+                                      const pctPicked = need > 0 ? Math.round((picked / need) * 100) : 0;
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                          <td className="px-3 py-1.5 font-mono">{bs.partId}</td>
+                                          <td className="px-3 py-1.5">{bs.part?.name || bs.partName || bs.partId}</td>
+                                          <td className="px-3 py-1.5 text-slate-500">{bs.position || '-'}</td>
+                                          <td className="px-3 py-1.5 text-right font-mono font-semibold">{need}</td>
+                                          <td className="px-3 py-1.5 text-right">
+                                            <span className="font-mono">{picked}</span>
+                                            {need > 0 && (
+                                              <div className="w-16 h-1.5 bg-slate-200 rounded-full mt-0.5 inline-block ml-1.5 align-middle">
+                                                <div className={`h-full rounded-full ${pctPicked >= 100 ? 'bg-emerald-500' : pctPicked > 0 ? 'bg-blue-500' : 'bg-slate-300'}`} style={{ width: `${Math.min(pctPicked, 100)}%` }} />
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-1.5">
+                                            {picked >= need ? (
+                                              <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">完了</span>
+                                            ) : picked > 0 ? (
+                                              <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[10px]">一部ピック</span>
+                                            ) : (
+                                              <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">引当済</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-slate-500 text-center py-3">BOM情報がありません</div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500 text-center py-3">詳細を取得できませんでした</div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]; onRefresh: () => void; toast: (msg: string) => void }) => {
   const activeOrders = prodOrders.filter(m => ['allocated', 'picking'].includes(m.status));
@@ -1017,25 +1407,182 @@ const ProductsScreen = () => {
   );
 };
 
-const StocktakeScreen = () => (
-  <div className="p-5">
-    <div className="bg-white rounded-lg border border-slate-200 p-6 text-center">
-      <ClipboardCheck size={48} className="mx-auto text-slate-300 mb-3" />
-      <h2 className="font-bold text-lg text-slate-700 mb-1">棚卸し管理</h2>
-      <p className="text-sm text-slate-500">月次・期末棚卸しを管理します</p>
+const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void }) => {
+  const [selected, setSelected] = useState<Location | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [confirmedDiffs, setConfirmedDiffs] = useState<Record<string, boolean>>({});
+  const partsByLoc = useMemo(() => {
+    const m: Record<string, Part[]> = {};
+    parts.forEach(p => { if (p.location) { if (!m[p.location]) m[p.location] = []; m[p.location].push(p); } });
+    return m;
+  }, [parts]);
+  const targetLocations = useMemo(() => locations.filter(l => l.shelf === 'A' || l.shelf === 'B'), [locations]);
+  const getLocStatus = (locId: string) => {
+    const partsInLoc = partsByLoc[locId] || [];
+    const allCounted = partsInLoc.length > 0 && partsInLoc.every(p => counts[p.id] !== undefined);
+    if (!allCounted) return 'pending';
+    const hasDiff = partsInLoc.some(p => counts[p.id] !== p.stock);
+    if (hasDiff && !confirmedDiffs[locId]) return 'diff';
+    return 'done';
+  };
+  const total = targetLocations.length;
+  const doneCount = targetLocations.filter(l => getLocStatus(l.id) === 'done').length;
+  const diffCount = targetLocations.filter(l => getLocStatus(l.id) === 'diff').length;
+  const pendingCount = targetLocations.filter(l => getLocStatus(l.id) === 'pending').length;
+  const startCount = (loc: Location) => {
+    setSelected(loc);
+    const pLoc = partsByLoc[loc.id] || [];
+    setCounts(c => {
+      const n = { ...c };
+      pLoc.forEach(p => { if (n[p.id] === undefined) n[p.id] = p.stock; });
+      return n;
+    });
+  };
+  const updateCount = (partId: string, value: string) => {
+    setCounts(c => ({ ...c, [partId]: Math.max(0, Number(value) || 0) }));
+  };
+  const approveDiff = (loc: Location) => {
+    setConfirmedDiffs(c => ({ ...c, [loc.id]: true }));
+    toast(loc.id + ' \u306E\u5DEE\u7570\u3092\u627F\u8A8D\u3057\u307E\u3057\u305F');
+    setSelected(null);
+  };
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-xs text-slate-500">{'\u68DA\u5378\u8A08\u753B #ST-2026-04'}</div>
+            <h2 className="text-base font-bold">{'\u6708\u6B21\u68DA\u5378\u3057\uFF08A\u68DA\u301CB\u68DA\uFF09'}</h2>
+            <div className="text-xs text-slate-600">{'\u5BFE\u8C61\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3: A\u68DA\u30FBB\u68DA'}</div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="secondary" icon={FileText} onClick={() => toast('Excel\u53D6\u8FBC\u6A5F\u80FD\u306F\u6E96\u5099\u4E2D\u3067\u3059')}>{'Excel\u53D6\u8FBC'}</Btn>
+            <Btn icon={QrCode} onClick={() => toast('QR\u8AAD\u53D6\u3067\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3\u3092\u9078\u629E\u3057\u307E\u3059')}>{'QR\u8AAD\u53D6\u3067\u958B\u59CB'}</Btn>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2.5">
+          {[
+            { l: '\u9032\u6357', v: total > 0 ? Math.round(doneCount / total * 100) + '%' : '0%', c: 'text-slate-900' },
+            { l: '\u5B8C\u4E86', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
+            { l: '\u5DEE\u7570\u3042\u308A', v: String(diffCount), c: 'text-amber-600' },
+            { l: '\u672A\u7740\u624B', v: String(pendingCount), c: 'text-slate-400' },
+          ].map((k, i) => (
+            <div key={i} className="bg-white rounded p-2.5">
+              <div className="text-[10px] text-slate-500">{k.l}</div>
+              <div className={`text-xl font-bold ${k.c}`}>{k.v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="font-bold text-sm">{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3\u5225 \u68DA\u5378\u72B6\u6CC1'}</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr>
+              <th className="text-left px-4 py-2 font-medium">{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3'}</th>
+              <th className="text-right px-4 py-2 font-medium">{'\u54C1\u76EE\u6570'}</th>
+              <th className="text-right px-4 py-2 font-medium">{'\u5E33\u7C3F\u5408\u8A08'}</th>
+              <th className="text-right px-4 py-2 font-medium">{'\u5B9F\u6570\u5408\u8A08'}</th>
+              <th className="text-right px-4 py-2 font-medium">{'\u5DEE\u7570'}</th>
+              <th className="text-left px-4 py-2 font-medium">{'\u72B6\u614B'}</th>
+              <th className="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {targetLocations.map(l => {
+              const partsInLoc = partsByLoc[l.id] || [];
+              const bookTotal = partsInLoc.reduce((s, p) => s + p.stock, 0);
+              const actualTotal = partsInLoc.reduce((s, p) => s + (counts[p.id] !== undefined ? counts[p.id] : 0), 0);
+              const hasCount = partsInLoc.some(p => counts[p.id] !== undefined);
+              const diffTotal = hasCount ? actualTotal - bookTotal : 0;
+              const st = getLocStatus(l.id);
+              const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500';
+              const lbl = st === 'done' ? '\u5B8C\u4E86' : st === 'diff' ? '\u5DEE\u7570\u3042\u308A' : '\u672A\u7740\u624B';
+              return (
+                <tr key={l.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-2"><span className="font-mono inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded text-xs"><MapPin size={10} />{l.id}</span></td>
+                  <td className="px-4 py-2 text-right">{partsInLoc.length}</td>
+                  <td className="px-4 py-2 text-right font-mono">{bookTotal}</td>
+                  <td className="px-4 py-2 text-right font-mono">{hasCount ? actualTotal : '\u2014'}</td>
+                  <td className="px-4 py-2 text-right font-mono">{hasCount && diffTotal !== 0 ? <span className={diffTotal > 0 ? 'text-blue-600' : 'text-rose-600'}>{diffTotal > 0 ? '+' : ''}{diffTotal}</span> : '\u2014'}</td>
+                  <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{lbl}</span></td>
+                  <td className="px-4 py-2 text-right">
+                    {partsInLoc.length === 0 ? <span className="text-xs text-slate-400">{'\u90E8\u54C1\u306A\u3057'}</span>
+                      : <Btn variant="ghost" size="sm" onClick={() => startCount(l)}>{st === 'pending' ? '\u5B9F\u67FB\u958B\u59CB' : '\u5B9F\u67FB\u7D50\u679C'}</Btn>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {selected && (
+        <Modal open onClose={() => setSelected(null)} title={'\u68DA\u5378\u5B9F\u67FB: ' + selected.id + ' - ' + selected.name} size="lg">
+          <div className="bg-blue-50 border border-blue-200 rounded p-2.5 mb-3 text-xs text-blue-800 flex items-center gap-2">
+            <QrCode size={14} /> {'\u5B9F\u6A5F\u3067\u306FQR\u30B3\u30FC\u30C9\u3092\u8AAD\u307F\u53D6\u3063\u3066\u5B9F\u6570\u3092\u5165\u529B\u3057\u307E\u3059\u3002\u3053\u3053\u3067\u306F\u624B\u5165\u529B\u3067\u52D5\u4F5C\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002'}
+          </div>
+          <table className="w-full text-sm">
+            <thead className="text-xs text-slate-500 border-b border-slate-200">
+              <tr><th className="text-left py-2">{'\u54C1\u756A'}</th><th className="text-left py-2">{'\u54C1\u540D'}</th><th className="text-right py-2">{'\u5E33\u7C3F\u6570'}</th><th className="text-right py-2">{'\u5B9F\u6570'}</th><th className="text-right py-2">{'\u5DEE\u7570'}</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {(partsByLoc[selected.id] || []).map(p => {
+                const actual = counts[p.id];
+                const dif = actual !== undefined ? actual - p.stock : 0;
+                return (
+                  <tr key={p.id}>
+                    <td className="py-2 font-mono text-xs">{p.id}</td>
+                    <td className="py-2">{p.name}</td>
+                    <td className="py-2 text-right font-mono">{p.stock}</td>
+                    <td className="py-2 text-right">
+                      <input type="number" value={actual === undefined ? '' : actual} onChange={e => updateCount(p.id, e.target.value)} className="w-20 border border-slate-200 rounded px-2 py-1 text-right font-mono" />
+                    </td>
+                    <td className="py-2 text-right font-mono">
+                      {actual !== undefined && dif !== 0 ? <span className={dif > 0 ? 'text-blue-600' : 'text-rose-600 font-bold'}>{dif > 0 ? '+' : ''}{dif}</span> : '\u2014'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
+            <Btn variant="success" icon={CheckCircle2} onClick={() => approveDiff(selected)}>{'\u5DEE\u7570\u3092\u627F\u8A8D\u30FB\u5728\u5EAB\u66F4\u65B0'}</Btn>
+            <Btn variant="secondary" onClick={() => setSelected(null)}>{'\u623B\u308B'}</Btn>
+          </div>
+        </Modal>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
-const ReportsScreen = () => (
-  <div className="p-5">
-    <div className="bg-white rounded-lg border border-slate-200 p-6 text-center">
-      <BarChart3 size={48} className="mx-auto text-slate-300 mb-3" />
-      <h2 className="font-bold text-lg text-slate-700 mb-1">レポート</h2>
-      <p className="text-sm text-slate-500">在庫推移・発注分析等のレポート機能は準備中です</p>
+const ReportsScreen = () => {
+  const reports = [
+    { name: '\u5728\u5EAB\u4E00\u89A7\u8868', icon: Package },
+    { name: '\u6EDE\u7559\u5728\u5EAB\u30EC\u30DD\u30FC\u30C8', icon: Clock },
+    { name: 'ABC\u5206\u6790', icon: BarChart3 },
+    { name: '\u56DE\u8EE2\u7387\u30EC\u30DD\u30FC\u30C8', icon: TrendingUp },
+    { name: '\u767A\u6CE8\u4E88\u5B9A\u984D', icon: ShoppingCart },
+    { name: '\u30E1\u30FC\u30AB\u30FC\u6B20\u54C1\u5F71\u97FF', icon: AlertCircle },
+    { name: '\u6708\u6B21\u4ED5\u5165\u96C6\u8A08', icon: Building2 },
+    { name: '\u68DA\u5378\u7D50\u679C\u5831\u544A\u66F8', icon: ClipboardCheck },
+  ];
+  return (
+    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      {reports.map(r => {
+        const Icon = r.icon;
+        return (
+          <div key={r.name} className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition cursor-pointer">
+            <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-md flex items-center justify-center mb-2"><Icon size={16} /></div>
+            <div className="font-bold text-sm">{r.name}</div>
+            <button className="mt-2 text-xs text-blue-600 font-semibold flex items-center gap-1">{'\u51FA\u529B'} <ArrowUpRight size={11} /></button>
+          </div>
+        );
+      })}
     </div>
-  </div>
-);
+  );
+};
 
 const LogsScreen = ({ logs }: { logs: Log[] }) => {
   const [catFilter, setCatFilter] = useState('all');
@@ -2375,6 +2922,473 @@ const FloatingChatWidget = () => {
   );
 };
 
+// ========================== QRPattern (decorative) ==========================
+const QRPattern = ({ id, size = 100 }: { id: string; size?: number }) => {
+  const grid = useMemo(() => {
+    const seed = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const N = 11;
+    const cells: boolean[] = [];
+    for (let i = 0; i < N * N; i++) {
+      const x = (i * 9301 + seed * 49297) % 233280;
+      cells.push((x / 233280) > 0.5);
+    }
+    const setSquare = (cx: number, cy: number) => {
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const xx = cx + dx, yy = cy + dy;
+        if (xx < 0 || xx >= N || yy < 0 || yy >= N) continue;
+        const ad = Math.max(Math.abs(dx), Math.abs(dy));
+        if (ad === 3 || ad <= 1) cells[yy * N + xx] = true;
+        if (ad === 2) cells[yy * N + xx] = false;
+      }
+    };
+    setSquare(2, 2); setSquare(N - 3, 2); setSquare(2, N - 3);
+    return cells;
+  }, [id]);
+  return (
+    <div className="inline-block bg-white p-2 rounded border border-slate-200" style={{ width: size, height: size }}>
+      <div className="grid w-full h-full" style={{ gridTemplateColumns: 'repeat(11, 1fr)' }}>
+        {grid.map((on, i) => <div key={i} style={{ background: on ? '#0f172a' : 'transparent' }} />)}
+      </div>
+    </div>
+  );
+};
+
+// ========================== PartDetailModal helpers ==========================
+const DetailRow = ({ label, value, mono }: { label: string; value: any; mono?: boolean }) => (
+  <div className="flex justify-between"><span className="text-slate-500">{label}</span><span className={`font-medium ${mono ? 'font-mono' : ''}`}>{value}</span></div>
+);
+const StockBox = ({ label, value, unit, primary, accent, danger }: { label: string; value: number; unit: string; primary?: boolean; accent?: boolean; danger?: boolean }) => {
+  const cls = primary ? 'bg-blue-50 border-blue-200 text-blue-900' :
+    accent ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+    danger ? 'bg-rose-50 border-rose-200 text-rose-900' :
+    'bg-slate-50 border-slate-200 text-slate-700';
+  return <div className={`rounded-lg border p-2 ${cls}`}>
+    <div className="text-[10px] uppercase opacity-70">{label}</div>
+    <div className="text-xl font-bold">{value}</div>
+    <div className="text-[10px] opacity-60">{unit}</div>
+  </div>;
+};
+
+// ========================== PartDetailModal ==========================
+const PartDetailModal = ({ part, onClose, parts }: { part: Part | null; onClose: () => void; parts: Part[] }) => {
+  if (!part) return null;
+  const fresh = parts.find(p => p.id === part.id) || part;
+  const eff = fresh.stock - fresh.allocated + (fresh.shortageReason ? 0 : fresh.onOrder);
+  const isLow = eff < fresh.reorderPoint;
+  return (
+    <Modal open onClose={onClose} title={fresh.name} size="lg">
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <div className="text-center"><QRPattern id={fresh.id} size={130} />
+            <div className="text-[10px] font-mono text-slate-500 mt-2">{fresh.id}</div>
+          </div>
+          <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1.5 mt-3">
+            <DetailRow label="社内品番" value={fresh.code} mono />
+            <DetailRow label="メーカー品番" value={fresh.makerCode} mono />
+            <DetailRow label="メーカー" value={fresh.maker} />
+            <DetailRow label="主仕入先" value={fresh.supplier} />
+            <DetailRow label="単価" value={yen(fresh.unitPrice)} />
+            <DetailRow label="L/T" value={`${fresh.leadTime}日`} />
+          </div>
+        </div>
+        <div className="col-span-2">
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            <StockBox label="現品在庫" value={fresh.stock} unit={fresh.unit} primary />
+            <StockBox label="引当中" value={fresh.allocated} unit={fresh.unit} />
+            <StockBox label="発注残" value={fresh.onOrder} unit={fresh.unit} />
+            <StockBox label="有効在庫" value={eff} unit={fresh.unit} accent={!isLow} danger={isLow} />
+          </div>
+          <div className="bg-slate-50 rounded p-3 mb-3">
+            <div className="text-xs text-slate-500 mb-1.5 flex justify-between"><span>在庫レベル</span><span>最大 {fresh.maxStock}</span></div>
+            <div className="relative h-3 bg-white rounded-full overflow-hidden border border-slate-200">
+              <div className="absolute h-full bg-emerald-400" style={{ width: `${Math.min(100, fresh.stock / fresh.maxStock * 100)}%` }} />
+              <div className="absolute h-full w-px bg-amber-500" style={{ left: `${fresh.reorderPoint / fresh.maxStock * 100}%` }} />
+              <div className="absolute h-full w-px bg-rose-500" style={{ left: `${fresh.safetyStock / fresh.maxStock * 100}%` }} />
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>0</span><span className="text-rose-600">安全{fresh.safetyStock}</span><span className="text-amber-600">発注点{fresh.reorderPoint}</span><span>{fresh.maxStock}</span>
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded p-3 text-xs flex items-center gap-2">
+            <MapPin size={14} className="text-blue-500" />
+            <div className="font-mono font-bold">{fresh.location}</div>
+          </div>
+          {fresh.shortageReason && (
+            <div className="bg-rose-50 border border-rose-200 rounded p-3 mt-3 flex gap-2">
+              <AlertCircle size={14} className="text-rose-600 mt-0.5" />
+              <div className="text-xs text-rose-700">
+                <div className="font-bold">メーカー欠品中</div>
+                {fresh.shortageReason}
+              </div>
+            </div>
+          )}
+          <div className="bg-slate-50 rounded p-3 mt-3 text-xs">
+            <DetailRow label="在庫金額" value={yen(fresh.stock * fresh.unitPrice)} mono />
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ========================== OCR読み込み (部品マスタ用) ==========================
+const PART_OCR_SAMPLES = [
+  {
+    rawText: '富士電機機器制御\nPFW-30 AC600V 30A\n筒形ヒューズ\nMADE IN JAPAN\nLOT 240312',
+    fields: { code: 'FU-PFW-30', name: 'ヒューズ PFW 30A', maker: '富士電機機器制御', makerCode: 'PFW-30', spec: 'AC600V 30A 筒形ヒューズ', unit: '個', category: '電気部品 / ヒューズ', leadTime: 14, unitPrice: 0 },
+    confidence: 96,
+  },
+  {
+    rawText: '春日電機 KASUGA\nAS-3D-100A\n切替スイッチ\nAC600V 3φ 100A',
+    fields: { code: 'SW-AS3D-100', name: '切替スイッチ AS-3D 100A', maker: '春日電機', makerCode: 'AS-3D-100A', spec: 'AC600V 3φ 100A 切替操作用', unit: '個', category: '電気部品 / 操作スイッチ', leadTime: 21, unitPrice: 0 },
+    confidence: 91,
+  },
+  {
+    rawText: 'MITSUBISHI ELECTRIC\nSF-PR 3.7kW 4P 200V\n全閉外扇形\n三相誘導電動機\nIE3',
+    fields: { code: 'MTR-SFPR-3.7-4P', name: '三相モータ SF-PR 3.7kW 4P', maker: '三菱電機', makerCode: 'SF-PR 3.7kW 4P', spec: '200V 3.7kW 4P 全閉外扇 IE3', unit: '台', category: '電気部品 / モータ', leadTime: 30, unitPrice: 0 },
+    confidence: 89,
+  },
+];
+
+const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () => void; onApply: (fields: Record<string, any>) => void }) => {
+  const [phase, setPhase] = useState<'viewfinder' | 'scanning' | 'result'>('viewfinder');
+  const [sampleIdx, setSampleIdx] = useState(0);
+  const sample = PART_OCR_SAMPLES[sampleIdx % PART_OCR_SAMPLES.length];
+
+  useEffect(() => { if (!open) { setPhase('viewfinder'); setSampleIdx(0); } }, [open]);
+
+  const handleCapture = () => { setPhase('scanning'); setTimeout(() => setPhase('result'), 1500); };
+  const handleRetry = () => { setSampleIdx(i => i + 1); setPhase('viewfinder'); };
+  const handleApplyOcr = () => { onApply(sample.fields); };
+
+  if (!open) return null;
+
+  const labelEntries: [string, string][] = [
+    ['社内品番', sample.fields.code],
+    ['メーカー品番', sample.fields.makerCode],
+    ['品名', sample.fields.name],
+    ['メーカー', sample.fields.maker],
+    ['分類', sample.fields.category],
+    ['仕様', sample.fields.spec],
+    ['単位', sample.fields.unit],
+    ['リードタイム', `${sample.fields.leadTime}日`],
+  ];
+
+  return (
+    <Modal open={open} onClose={onClose} title="OCR読み込み — 現品ラベル/銘板から自動入力" size="lg">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-slate-900 rounded-lg overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
+          <div className="absolute inset-0 flex items-center justify-center text-white">
+            {phase === 'viewfinder' && (
+              <div className="text-center">
+                <Camera size={48} className="mx-auto mb-2 opacity-60" />
+                <div className="text-xs opacity-70">部品ラベル/銘板を枠内に収めて撮影</div>
+                <div className="text-[10px] opacity-50 mt-1">プロトタイプ表示</div>
+              </div>
+            )}
+            {phase === 'scanning' && (
+              <div className="text-center">
+                <Loader2 size={48} className="mx-auto mb-2 animate-spin text-blue-400" />
+                <div className="text-xs">OCR認識中...</div>
+                <div className="text-[10px] opacity-60 mt-1">文字領域検出 → 構造化</div>
+              </div>
+            )}
+            {phase === 'result' && (
+              <div className="p-4 text-left text-xs font-mono leading-relaxed text-emerald-300 whitespace-pre-line">
+                {sample.rawText}
+              </div>
+            )}
+          </div>
+          {phase !== 'result' && (
+            <>
+              <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/60"></div>
+              <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/60"></div>
+              <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-white/60"></div>
+              <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/60"></div>
+            </>
+          )}
+          {phase === 'scanning' && (
+            <div className="absolute inset-x-0 h-0.5 bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.8)]"
+                 style={{ animation: 'ocrScanY 1.5s ease-in-out infinite' }}></div>
+          )}
+        </div>
+
+        <div>
+          <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+            <Sparkles size={12} /> 認識結果
+          </div>
+          {phase === 'viewfinder' && (
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-6 text-center text-xs text-slate-500">
+              撮影前
+            </div>
+          )}
+          {phase === 'scanning' && (
+            <div className="space-y-2">
+              {[1,2,3,4,5,6].map(i => <div key={i} className="h-3 bg-slate-100 animate-pulse rounded" style={{ width: `${50+i*7}%`, animationDelay: `${i*80}ms` }}></div>)}
+            </div>
+          )}
+          {phase === 'result' && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded text-xs">
+                <CheckCircle2 size={12} className="text-emerald-600" />
+                <span className="font-semibold text-emerald-700">信頼度 {sample.confidence}%</span>
+                <span className="text-slate-500 ml-auto">{labelEntries.length}項目検出</span>
+              </div>
+              {labelEntries.map(([k, v]) => (
+                <div key={k} className="flex items-baseline gap-2 py-1 border-b border-slate-100">
+                  <span className="text-[10px] text-slate-500 w-20 shrink-0">{k}</span>
+                  <span className="text-xs flex-1">{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        {phase === 'viewfinder' && <Btn variant="primary" icon={Camera} onClick={handleCapture}>撮影</Btn>}
+        {phase === 'scanning' && <Btn variant="secondary" disabled>認識中...</Btn>}
+        {phase === 'result' && (
+          <>
+            <Btn variant="primary" icon={Zap} onClick={handleApplyOcr}>この内容で入力欄に反映</Btn>
+            <Btn variant="secondary" icon={RefreshCw} onClick={handleRetry}>別の部品を撮影</Btn>
+          </>
+        )}
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+        <div className="ml-auto text-[10px] text-slate-400 self-center">実装時: WebRTC + Vision API / 自社OCR</div>
+      </div>
+      <style>{`@keyframes ocrScanY { 0%,100% { top: 5%; } 50% { top: 95%; } }`}</style>
+    </Modal>
+  );
+};
+
+// ========================== OCR読み込み (BOM用) ==========================
+const BOM_OCR_SAMPLES = [
+  {
+    title: '部品表 — 制御盤 CDB-2型',
+    items: [
+      { rawCode: 'CB-MCB-3P-30A-001', rawName: '配線用遮断器 NF63-CV', qty: 1, position: 'G1' },
+      { rawCode: 'MC-S-N18-AC100', rawName: '電磁接触器 S-N18', qty: 2, position: 'G2' },
+      { rawCode: 'TR-TH-N12-9A', rawName: 'サーマルリレー TH-N12', qty: 2, position: 'G2' },
+      { rawCode: 'PB-AH22-R-10', rawName: '押ボタンSW φ22 赤', qty: 4, position: 'ドア面' },
+      { rawCode: 'PL-LED-G-AC100', rawName: 'LED表示灯 緑 AC100V', qty: 6, position: 'ドア面' },
+      { rawCode: 'TB-BNH-30A-12P', rawName: '組端子台 30A 12極', qty: 2, position: '下部' },
+      { rawCode: 'DR-DIN-1M', rawName: 'DINレール 35mm', qty: 3, position: '内部' },
+      { rawCode: 'WL-IV-2.0-BK', rawName: 'IV線 2.0SQ 黒', qty: 25, position: '配線' },
+      { rawCode: 'TM-R-2-4', rawName: '丸型圧着端子 R2-4', qty: 80, position: '配線' },
+      { rawCode: 'SZ-A20', rawName: '補助接点 SZ-A20', qty: 2, position: 'G2' },
+    ],
+  },
+  {
+    title: '部品表 — 分電盤 LDB-6回路',
+    items: [
+      { rawCode: 'CB-ELCB-3P-30A-30mA', rawName: '漏電遮断器 NV63-CV', qty: 1, position: '主幹' },
+      { rawCode: 'CB-MCB-3P-30A-001', rawName: '配線用遮断器 30A', qty: 6, position: '分岐' },
+      { rawCode: 'DR-DIN-1M', rawName: 'DINレール 35mm', qty: 2, position: '内部' },
+      { rawCode: 'DT-WD-40-60', rawName: '配線ダクト 40×60', qty: 1, position: '内部' },
+      { rawCode: 'WL-IV-2.0-BK', rawName: 'IV線 2.0SQ 黒', qty: 12, position: '配線' },
+      { rawCode: 'TM-R-2-4', rawName: '丸型圧着端子 R2-4', qty: 32, position: '配線' },
+      { rawCode: 'SCR-M4-15-SUS', rawName: 'ねじ M4×15 SUS', qty: 24, position: '取付' },
+      { rawCode: 'PB-3-PLUG', rawName: 'プラグインベース PB-3', qty: 6, position: '分岐' },
+    ],
+  },
+  {
+    title: '部品表 — 計器盤 IPN-A',
+    items: [
+      { rawCode: 'AM-DC-100A-DR', rawName: '直流電流計 0-100A', qty: 2, position: '前面' },
+      { rawCode: 'CT-LCT-100-5', rawName: '貫通形変流器 100/5A', qty: 4, position: '内部' },
+      { rawCode: 'PL-LED-Y-AC200', rawName: 'LED表示灯 黄 AC200V', qty: 4, position: '前面' },
+      { rawCode: 'DR-DIN-1M', rawName: 'DINレール 35mm', qty: 1, position: '内部' },
+      { rawCode: 'TM-R-2-4', rawName: '丸型圧着端子 R2-4', qty: 40, position: '配線' },
+    ],
+  },
+];
+
+interface BomAddition { partId: string; qty: number; position: string; note: string }
+
+const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
+  open: boolean; onClose: () => void; parts: Part[];
+  existingBom?: { partId: string }[];
+  onApply: (additions: BomAddition[]) => void;
+}) => {
+  const [phase, setPhase] = useState<'preview' | 'scanning' | 'result'>('preview');
+  const [sampleIdx, setSampleIdx] = useState(0);
+  const sample = BOM_OCR_SAMPLES[sampleIdx % BOM_OCR_SAMPLES.length];
+
+  useEffect(() => { if (!open) { setPhase('preview'); setSampleIdx(0); } }, [open]);
+
+  const matched = sample.items.map(it => {
+    const m = parts.find(p => p.code === it.rawCode)
+      || parts.find(p => p.makerCode === it.rawCode)
+      || parts.find(p => p.id === it.rawCode)
+      || parts.find(p => p.name && it.rawName && (p.name.includes(it.rawName.split(' ')[0]) || it.rawName.includes(p.name.split(' ')[0])));
+    const alreadyInBom = !!(m && (existingBom || []).find(b => b.partId === m.id));
+    return { ...it, match: m || null, alreadyInBom };
+  });
+
+  const matchedNew = matched.filter(m => m.match && !m.alreadyInBom);
+  const matchedExisting = matched.filter(m => m.match && m.alreadyInBom);
+  const unmatched = matched.filter(m => !m.match);
+
+  const handleScan = () => { setPhase('scanning'); setTimeout(() => setPhase('result'), 1800); };
+  const handleRetry = () => { setSampleIdx(i => i + 1); setPhase('preview'); };
+  const handleApplyBom = () => {
+    const additions: BomAddition[] = matchedNew.map(m => ({ partId: m.match!.id, qty: m.qty, position: m.position || '', note: 'OCR読込' }));
+    onApply(additions);
+  };
+
+  if (!open) return null;
+
+  return (
+    <Modal open={open} onClose={onClose} title="OCR読み込み — 部品表/図面の構成部品をBOMに反映" size="xl">
+      <div className="grid grid-cols-5 gap-4">
+        <div className="col-span-2">
+          <div className="bg-slate-900 rounded-lg overflow-hidden relative" style={{ aspectRatio: '3/4' }}>
+            <div className="absolute inset-3 bg-slate-100 rounded p-2 text-[8px] leading-tight text-slate-700 overflow-hidden">
+              <div className="font-bold text-center pb-1 border-b border-slate-400">{sample.title}</div>
+              <div className="grid mt-1 text-[7px]" style={{ gridTemplateColumns: '24px 1fr 24px 36px', gap: '2px 4px' }}>
+                <div className="font-bold border-b border-slate-300">No</div>
+                <div className="font-bold border-b border-slate-300">品名 / 型式</div>
+                <div className="font-bold border-b border-slate-300 text-right">数量</div>
+                <div className="font-bold border-b border-slate-300 text-right">位置</div>
+                {sample.items.map((it, i) => (
+                  <React.Fragment key={i}>
+                    <div className="text-slate-500">{i+1}</div>
+                    <div className="truncate"><div>{it.rawName}</div><div className="text-[6px] text-slate-500 font-mono">{it.rawCode}</div></div>
+                    <div className="text-right">{it.qty}</div>
+                    <div className="text-right">{it.position}</div>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+            {phase === 'scanning' && (
+              <div className="absolute inset-3 pointer-events-none">
+                <div className="absolute inset-0 bg-blue-500/10 rounded animate-pulse"></div>
+                <div className="absolute inset-x-0 h-0.5 bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.8)]"
+                     style={{ animation: 'ocrScanY 1.8s linear infinite' }}></div>
+              </div>
+            )}
+            {phase === 'preview' && (
+              <div className="absolute bottom-2 inset-x-3 bg-black/70 text-white text-center text-[10px] py-1 rounded flex items-center justify-center gap-1">
+                <Camera size={11} /> 撮影済み画像 (プレビュー)
+              </div>
+            )}
+            {phase === 'result' && (
+              <div className="absolute bottom-2 inset-x-3 bg-emerald-600/90 text-white text-center text-[10px] py-1 rounded flex items-center justify-center gap-1">
+                <CheckCircle2 size={11} /> 認識完了
+              </div>
+            )}
+          </div>
+          <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1">
+            <ScanLine size={11} /> 部品表・参考図・既存BOM印刷物を OCR
+          </div>
+        </div>
+
+        <div className="col-span-3">
+          <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+            <Sparkles size={12} /> 認識結果 ({sample.items.length}行)
+          </div>
+          {phase === 'preview' && (
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-8 text-center text-xs text-slate-500">
+              「OCRを実行」を押して認識を開始
+            </div>
+          )}
+          {phase === 'scanning' && (
+            <div className="space-y-1.5">
+              {sample.items.map((_, i) => (
+                <div key={i} className="h-7 bg-slate-100 animate-pulse rounded" style={{ animationDelay: `${i*60}ms` }}></div>
+              ))}
+            </div>
+          )}
+          {phase === 'result' && (
+            <>
+              <div className="grid grid-cols-3 gap-2 mb-2 text-[10px]">
+                <div className="bg-emerald-50 border border-emerald-200 rounded p-1.5 flex items-center gap-1.5">
+                  <Link2 size={12} className="text-emerald-600" />
+                  <span><span className="font-bold text-emerald-700">{matchedNew.length}</span>件 マスタ照合OK</span>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded p-1.5 flex items-center gap-1.5">
+                  <AlertCircle size={12} className="text-amber-600" />
+                  <span><span className="font-bold text-amber-700">{matchedExisting.length}</span>件 既登録</span>
+                </div>
+                <div className="bg-rose-50 border border-rose-200 rounded p-1.5 flex items-center gap-1.5">
+                  <XCircle size={12} className="text-rose-600" />
+                  <span><span className="font-bold text-rose-700">{unmatched.length}</span>件 未登録</span>
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto border border-slate-200 rounded">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 sticky top-0">
+                    <tr>
+                      <th className="text-left px-2 py-1.5">OCR読取</th>
+                      <th className="text-left px-2 py-1.5">マスタ照合</th>
+                      <th className="text-right px-2 py-1.5 w-12">数量</th>
+                      <th className="text-left px-2 py-1.5 w-20">位置</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {matched.map((it, i) => (
+                      <tr key={i} className={it.match ? (it.alreadyInBom ? 'bg-amber-50/50' : 'bg-emerald-50/40') : 'bg-rose-50/40'}>
+                        <td className="px-2 py-1.5">
+                          <div className="font-mono text-[10px] text-slate-500">{it.rawCode}</div>
+                          <div className="text-[11px]">{it.rawName}</div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {it.match ? (
+                            <div className="flex items-start gap-1">
+                              {it.alreadyInBom
+                                ? <AlertCircle size={11} className="text-amber-600 mt-0.5 shrink-0" />
+                                : <Link2 size={11} className="text-emerald-600 mt-0.5 shrink-0" />}
+                              <div>
+                                <div className="font-mono text-[10px] text-slate-500">{it.match.id}</div>
+                                <div className="text-[11px]">{it.match.name}</div>
+                                {it.alreadyInBom && <div className="text-[9px] text-amber-700">既にBOMに登録済</div>}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-rose-700">
+                              <XCircle size={11} />
+                              <span className="text-[11px]">未登録（要マスタ追加）</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-mono">{it.qty}</td>
+                        <td className="px-2 py-1.5 text-[10px]">{it.position}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {unmatched.length > 0 && (
+                <div className="mt-2 text-[10px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1.5 flex items-start gap-1">
+                  <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                  <span>未登録 {unmatched.length}件 は反映対象外。先に部品マスタへ登録が必要です。</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        {phase === 'preview' && <Btn variant="primary" icon={ScanLine} onClick={handleScan}>OCRを実行</Btn>}
+        {phase === 'scanning' && <Btn variant="secondary" disabled>認識中...</Btn>}
+        {phase === 'result' && (
+          <>
+            <Btn variant="primary" icon={Zap} onClick={handleApplyBom} disabled={matchedNew.length === 0}>
+              BOMに反映 ({matchedNew.length}件)
+            </Btn>
+            <Btn variant="secondary" icon={RefreshCw} onClick={handleRetry}>別の部品表を取込</Btn>
+          </>
+        )}
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+        <div className="ml-auto text-[10px] text-slate-400 self-center">実装時: 撮影/PDF取込 → Vision API → 品番・数量・位置を抽出 → マスタ照合</div>
+      </div>
+      <style>{`@keyframes ocrScanY { 0%,100% { top: 5%; } 50% { top: 95%; } }`}</style>
+    </Modal>
+  );
+};
+
 // ========================== View Titles ==========================
 const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: 'ダッシュボード', subtitle: '在庫状況の概要' },
@@ -2407,6 +3421,7 @@ export default function AppPage() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [chatWidgetEnabled, setChatWidgetEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('chatWidgetEnabled');
@@ -2467,15 +3482,15 @@ export default function AppPage() {
         <TopBar title={vt.title} subtitle={vt.subtitle} onMenuOpen={() => setMobileMenuOpen(true)} />
         <div className="flex-1 overflow-y-auto">
           {view === 'dashboard' && <Dashboard parts={parts} orders={orders} prodOrders={prodOrders} setView={setView} />}
-          {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} />}
+          {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} openPart={setSelectedPart} />}
           {view === 'products' && <ProductsScreen />}
-          {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} />}
+          {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} openPart={setSelectedPart} />}
           {view === 'locations' && <LocationsScreen locations={locations} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} />}
           {view === 'receive' && <ReceiveScreen orders={orders} onRefresh={fetchAll} toast={toast} />}
-          {view === 'production' && <ProductionScreen prodOrders={prodOrders} />}
+          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
-          {view === 'stocktake' && <StocktakeScreen />}
+          {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} />}
           {view === 'reports' && <ReportsScreen />}
           {view === 'logs' && <LogsScreen logs={logs} />}
           {view === 'chat' && <ChatScreen toast={toast} />}
@@ -2488,6 +3503,7 @@ export default function AppPage() {
       </main>
       <Toast msg={toastMsg} />
       {chatWidgetEnabled && view !== 'chat' && <FloatingChatWidget />}
+      <PartDetailModal part={selectedPart} parts={parts} onClose={() => setSelectedPart(null)} />
     </div>
   );
 }

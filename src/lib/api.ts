@@ -38,6 +38,7 @@ export const api = {
   },
   createOrder: (data: any) => request<any>('/orders', { method: 'POST', body: JSON.stringify(data) }),
   approveOrder: (id: number) => request<any>(`/orders/${id}/approve`, { method: 'POST' }),
+  markManufacturerShortage: (id: number) => request<any>(`/orders/${id}/manufacturer-shortage`, { method: 'POST' }),
 
   // Receives
   createReceive: (data: any) => request<any>('/receives', { method: 'POST', body: JSON.stringify(data) }),
