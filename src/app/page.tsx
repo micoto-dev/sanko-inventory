@@ -624,8 +624,8 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any;
 };
 
 // ========================== Orders ==========================
-const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
-  parts: Part[]; orders: Order[]; onRefresh: () => void; toast: (msg: string) => void;
+const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
+  parts: Part[]; orders: Order[]; onRefresh: () => void; toast: (msg: string) => void; userName?: string;
 }) => {
   const [tab, setTab] = useState('all');
   const [showNew, setShowNew] = useState(false);
@@ -712,7 +712,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
       if (editStatus !== showDetail.status) data.status = editStatus;
       if (editExpDate !== (showDetail.expectedDeliveryDate || '')) data.expectedDeliveryDate = editExpDate || null;
       if (editComment.trim()) {
-        const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: '操作ユーザー' };
+        const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
         data.newComment = newComment;
         setCommentHistory(prev => [newComment, ...prev]);
         setEditComment('');
@@ -4646,7 +4646,7 @@ export default function AppPage() {
           {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} openPart={setSelectedPart} />}
           {view === 'locations' && <LocationsScreen locations={locations} onRefresh={fetchAll} toast={toast} />}
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
-          {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} />}
+          {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
