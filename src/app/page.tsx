@@ -2338,11 +2338,11 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
           ) : conversations.length === 0 ? (
             <div className="text-center text-xs text-black py-4">会話履歴はありません</div>
           ) : conversations.map((conv: any) => (
-            <button key={conv.id} onClick={() => loadConversation(conv.id)}
-              className={`w-full text-left px-2.5 py-2 rounded text-xs mb-0.5 transition ${conv.id === sessionId ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-black hover:bg-slate-50'}`}>
+            <button key={conv.sessionId} onClick={() => loadConversation(conv.sessionId)}
+              className={`w-full text-left px-2.5 py-2 rounded text-xs mb-0.5 transition ${conv.sessionId === sessionId ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-black hover:bg-slate-50'}`}>
               <div className="truncate">{conv.title || '無題の会話'}</div>
               <div className="text-[11px] text-black mt-0.5 truncate">
-                {conv.updatedAt ? new Date(conv.updatedAt).toLocaleDateString('ja-JP') : ''}
+                {conv.createdAt ? new Date(conv.createdAt).toLocaleDateString('ja-JP') : ''}
               </div>
             </button>
           ))}
