@@ -3662,17 +3662,46 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
 const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
   toast: (msg: string) => void; chatWidgetEnabled: boolean; setChatWidgetEnabled: (v: boolean) => void;
 }) => {
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
+  const [userId, setUserId] = useState<number>(1);
+
+  useEffect(() => {
+    api.getUsers().then((res: any) => {
+      // For now, use first active user as "me" - in production, use session
+      const users = res.data || [];
+      if (users.length > 0) {
+        const me = users[0];
+        setProfileName(me.name);
+        setProfileEmail(me.email);
+        setUserId(me.id);
+      }
+      setProfileLoading(false);
+    }).catch(() => setProfileLoading(false));
+  }, []);
+
+  const handleSaveProfile = async () => {
+    if (!profileName.trim()) { toast('名前を入力してください'); return; }
+    setProfileSaving(true);
+    try {
+      await api.updateUser(userId, { name: profileName.trim() });
+      toast('プロフィールを更新しました');
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+    setProfileSaving(false);
+  };
 
   const handleChangePassword = async () => {
     if (newPw.length < 6) { toast('パスワードは6文字以上で入力してください'); return; }
     if (newPw !== confirmPw) { toast('新しいパスワードが一致しません'); return; }
     setPwLoading(true);
     try {
-      await api.updateUser(1, { password: newPw }); // TODO: use current user ID
+      await api.updateUser(userId, { password: newPw });
       toast('パスワードを変更しました');
       setCurrentPw(''); setNewPw(''); setConfirmPw('');
     } catch (e: any) { toast(`エラー: ${e.message}`); }
@@ -3681,6 +3710,21 @@ const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
 
   return (
     <div className="p-5 space-y-6 max-w-2xl">
+      <div className="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><Users size={16} /> プロフィール</h2>
+        {profileLoading ? (
+          <div className="text-center py-4"><Loader2 size={16} className="animate-spin mx-auto" /></div>
+        ) : (
+          <div className="space-y-3">
+            <Field label="表示名"><input value={profileName} onChange={e => setProfileName(e.target.value)} className={inputClass} /></Field>
+            <Field label="メールアドレス"><input value={profileEmail} disabled className={`${inputClass} bg-slate-50`} /></Field>
+            <Btn variant="primary" icon={Save} onClick={handleSaveProfile} disabled={profileSaving || !profileName.trim()}>
+              {profileSaving ? '保存中...' : '保存'}
+            </Btn>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-lg border border-slate-200 p-5">
         <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><KeyRound size={16} /> パスワード変更</h2>
         <div className="space-y-3">
