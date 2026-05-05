@@ -354,12 +354,13 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
             {Object.entries(STATUS_COLOR).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <span className="ml-auto flex items-center gap-2 text-xs text-black">
+            <span>表示件数</span>
             <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1 text-xs text-black">
               <option value={20}>20件</option>
               <option value={50}>50件</option>
               <option value={100}>100件</option>
             </select>
-            <span>/ 全 <span className="font-semibold">{filtered.length}</span></span>
+            <span>全 <span className="font-semibold">{filtered.length}</span>件</span>
           </span>
         </div>
       </div>
