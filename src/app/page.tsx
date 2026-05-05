@@ -2573,20 +2573,38 @@ const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
 
   const startCamera = async () => {
     setError('');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('このブラウザはカメラに対応していません。Chrome/Safariをお試しください。');
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+      // Try rear camera first, fall back to any camera
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
         await videoRef.current.play();
         setCameraActive(true);
         scanningRef.current = true;
-        scanLoop();
+        requestAnimationFrame(() => scanLoop());
       }
-    } catch (err) {
-      setError('カメラにアクセスできません。ブラウザの権限設定を確認してください。');
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError') {
+        setError('カメラの使用が許可されていません。ブラウザの設定でカメラを許可してください。');
+      } else if (err?.name === 'NotFoundError') {
+        setError('カメラが見つかりません。');
+      } else {
+        setError(`カメラエラー: ${err?.message || 'アクセスできません'}`);
+      }
     }
   };
 
@@ -2643,7 +2661,8 @@ const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
         </div>
       ) : (
         <div className="bg-slate-900 rounded-xl aspect-video relative overflow-hidden">
-          <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute inset-12 border-2 border-cyan-400 rounded-lg" />
             {/* Scan line animation */}
