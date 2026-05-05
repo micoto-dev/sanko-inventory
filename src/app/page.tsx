@@ -872,9 +872,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast }: {
             {showDetail.status === 'draft' && (
               <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>発注確定（納品待ちへ）</Btn>
             )}
-            {showDetail.status === 'awaiting' && (
-              <Btn variant="danger" icon={AlertCircle} onClick={() => handleMfrShortage(showDetail.id)}>メーカー欠品マーク</Btn>
-            )}
             <Btn variant="secondary" icon={FileText} onClick={() => handleViewPdf(showDetail)}>発注書PDF</Btn>
             <Btn variant="secondary" onClick={() => setShowDetail(null)} className="ml-auto">閉じる</Btn>
           </div>
