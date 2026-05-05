@@ -830,28 +830,38 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
           <div className="bg-slate-50 rounded p-3 mb-4">
             <div className="text-xs font-semibold text-black mb-2">明細</div>
             <table className="w-full text-sm">
-              <thead className="text-xs text-black"><tr><th className="text-left py-1">品名</th><th className="text-right py-1">発注数</th><th className="text-right py-1">入庫済</th><th className="text-right py-1">残</th><th className="text-right py-1">単価</th><th className="text-right py-1">小計</th><th className="py-1 w-16"></th></tr></thead>
+              <thead className="text-xs text-black">
+                <tr>
+                  <th className="text-left py-2 px-3">品名</th>
+                  <th className="text-right py-2 px-3 w-20">発注数</th>
+                  <th className="text-right py-2 px-3 w-20">入庫済</th>
+                  <th className="text-right py-2 px-3 w-16">残</th>
+                  <th className="text-right py-2 px-3 w-24">単価</th>
+                  <th className="text-right py-2 px-3 w-28">小計</th>
+                  <th className="py-2 px-3 w-24 text-center">操作</th>
+                </tr>
+              </thead>
               <tbody>
                 {showDetail.details?.map((it, i) => (
                   <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' ? 'bg-rose-50' : ''}`}>
-                    <td className="py-1.5">
+                    <td className="py-2 px-3">
                       <div className="text-xs font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
                       {it.remarks === 'manufacturer_shortage' && <span className="text-[10px] text-rose-600 font-semibold">欠品</span>}
                       {(it as any).replacementPartName && <div className="text-[10px] text-blue-600 mt-0.5">→ 代替品: {(it as any).replacementPartName}</div>}
                     </td>
-                    <td className="text-right py-1.5 font-mono">{it.qty}</td>
-                    <td className="text-right py-1.5 font-mono text-black">{it.receivedQty}</td>
-                    <td className="text-right py-1.5 font-mono font-semibold">{it.qty - it.receivedQty}</td>
-                    <td className="text-right py-1.5 font-mono">{yen(it.unitPrice)}</td>
-                    <td className="text-right py-1.5 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
-                    <td className="py-1.5">
-                      <div className="flex flex-col gap-1 items-center">
+                    <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
+                    <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
+                    <td className="text-right py-2 px-3 font-mono font-semibold">{it.qty - it.receivedQty}</td>
+                    <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
+                    <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
+                    <td className="py-2 px-3">
+                      <div className="flex gap-1.5 justify-center">
                         {it.id && it.remarks === 'manufacturer_shortage' ? (<>
-                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 w-full">取消</button>
-                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 w-full">代替品</button>
+                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">取消</button>
+                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[10px] px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">代替品</button>
                         </>) : it.id && it.qty - it.receivedQty > 0 ? (
-                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 w-full">欠品</button>
+                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-2 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200">欠品</button>
                         ) : null}
                       </div>
                     </td>
@@ -4540,8 +4550,8 @@ const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
                 <th className="text-left px-3 py-2 font-medium">コード</th>
                 <th className="text-left px-3 py-2 font-medium">仕入先名</th>
                 <th className="text-left px-3 py-2 font-medium">電話番号</th>
-                <th className="text-left px-3 py-2 font-medium">メール</th>
                 <th className="text-left px-3 py-2 font-medium">担当者</th>
+                <th className="text-left px-3 py-2 font-medium">支払条件</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -4549,10 +4559,13 @@ const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
               {suppliers.map((s: any) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-mono text-xs">{s.code}</td>
-                  <td className="px-3 py-2 font-semibold">{s.name}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-semibold">{s.name}</div>
+                    {s.email && <div className="text-xs text-black">{s.email}</div>}
+                  </td>
                   <td className="px-3 py-2 text-xs">{s.tel || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{s.email || '-'}</td>
                   <td className="px-3 py-2 text-xs">{s.contactPerson || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{s.paymentTerms || '-'}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditSupplier(s)}>編集</Btn>
@@ -4583,14 +4596,21 @@ const SupplierFormModal = ({ supplier, isNew, onClose, onSave }: { supplier: any
   const [form, setForm] = useState(() => ({ ...supplier }));
   const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
   return (
-    <Modal open onClose={onClose} title={isNew ? '仕入先 新規登録' : `仕入先編集: ${supplier.code}`} size="md">
+    <Modal open onClose={onClose} title={isNew ? '仕入先 新規登録' : `仕入先編集: ${supplier.code}`} size="lg">
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <Field label="仕入先コード*"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
+        <Field label="仕入先コード*"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} placeholder="例: SUP006" /></Field>
         <Field label="仕入先名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
-        <Field label="電話番号"><input value={form.tel || ''} onChange={e => upd('tel', e.target.value)} className={inputClass} /></Field>
-        <Field label="メール"><input value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+        <Field label="郵便番号"><input value={form.postalCode || ''} onChange={e => upd('postalCode', e.target.value)} className={inputClass} placeholder="例: 123-4567" /></Field>
         <Field label="担当者"><input value={form.contactPerson || ''} onChange={e => upd('contactPerson', e.target.value)} className={inputClass} /></Field>
-        <Field label="住所" full><input value={form.address || ''} onChange={e => upd('address', e.target.value)} className={inputClass} /></Field>
+        <Field label="住所" full><input value={form.address || ''} onChange={e => upd('address', e.target.value)} className={inputClass} placeholder="都道府県から入力" /></Field>
+        <Field label="電話番号"><input value={form.tel || ''} onChange={e => upd('tel', e.target.value)} className={inputClass} placeholder="例: 03-1234-5678" /></Field>
+        <Field label="FAX"><input value={form.fax || ''} onChange={e => upd('fax', e.target.value)} className={inputClass} placeholder="例: 03-1234-5679" /></Field>
+        <Field label="メール"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+        <Field label="支払条件"><input value={form.paymentTerms || ''} onChange={e => upd('paymentTerms', e.target.value)} className={inputClass} placeholder="例: 月末締翌月末払い" /></Field>
+        <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-16`} placeholder="納入条件、特記事項など" /></Field>
+      </div>
+      <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-800">
+        ここで登録した情報は発注書PDFに自動反映されます（住所・TEL・FAX・支払条件）
       </div>
       <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
         <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.code || !form.name}>{isNew ? '登録' : '保存'}</Btn>
