@@ -59,6 +59,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           action: "manufacturer_shortage",
           targetType: "TOrder",
           targetId: id,
+          userId: 1,
           description: `Marked order ${order.orderNo} as manufacturer shortage`,
         },
       });

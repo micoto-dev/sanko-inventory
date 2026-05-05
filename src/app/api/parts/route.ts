@@ -136,6 +136,7 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "MPart",
           targetId: id,
+          userId: 1,
           description: `Created part ${code} - ${name}`,
           afterData: part as object,
         },

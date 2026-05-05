@@ -52,6 +52,7 @@ export async function POST(request: Request) {
           action: "bulk_import",
           targetType: "MPart",
           description: `Bulk imported ${created.length} parts`,
+          userId: 1,
         },
       });
 

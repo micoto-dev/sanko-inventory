@@ -133,8 +133,8 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "TOrder",
           targetId: String(order.id),
+          userId: 1,
           description: `Created order ${orderNo}`,
-          userId: createdById,
         },
       });
 

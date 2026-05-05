@@ -74,6 +74,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           action: "update",
           targetType: "TOrder",
           targetId: id,
+          userId: 1,
           description: `Updated order ${order.orderNo}`,
           beforeData: existing as object,
           afterData: order as object,

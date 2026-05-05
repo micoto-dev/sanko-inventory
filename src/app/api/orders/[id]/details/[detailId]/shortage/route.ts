@@ -56,6 +56,7 @@ export async function POST(
           action: "item_shortage",
           targetType: "TOrderDetail",
           targetId: String(detId),
+          userId: 1,
           description: `Marked order detail #${detId} (part ${detail.partId}) as manufacturer shortage on order ${detail.order.orderNo}`,
         },
       });
@@ -116,6 +117,7 @@ export async function DELETE(
           action: "item_shortage_cancel",
           targetType: "TOrderDetail",
           targetId: String(detId),
+          userId: 1,
           description: `欠品取消: 発注明細 #${detId} (部品 ${detail.partId}) / 発注 ${detail.order.orderNo}`,
         },
       });

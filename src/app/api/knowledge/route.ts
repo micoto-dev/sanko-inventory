@@ -85,8 +85,8 @@ export async function POST(request: Request) {
         action: "upload_knowledge",
         targetType: "TKnowledgeDoc",
         targetId: String(doc.id),
-        description: `ナレッジドキュメント「${fileName}」をアップロード (${chunks.length}チャンク)`,
         userId: 1,
+        description: `ナレッジドキュメント「${fileName}」をアップロード (${chunks.length}チャンク)`,
       },
     });
 

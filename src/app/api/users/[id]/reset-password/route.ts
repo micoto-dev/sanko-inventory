@@ -26,6 +26,7 @@ export async function POST(
         action: "password_reset",
         targetType: "user",
         targetId: id,
+          userId: 1,
         description: `User ${id} password was reset by admin`,
       },
     });

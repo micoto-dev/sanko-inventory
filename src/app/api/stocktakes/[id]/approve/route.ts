@@ -58,8 +58,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           action: "approve",
           targetType: "TStocktake",
           targetId: id,
+          userId: 1,
           description: `Approved stocktake ${stocktake.stocktakeNo}, adjusted ${stocktake.details.filter((d) => d.diffQty != null).length} items`,
-          userId: approvedById,
         },
       });
 

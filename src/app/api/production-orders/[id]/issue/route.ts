@@ -67,8 +67,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             action: "issue",
             targetType: "TIssue",
             targetId: String(issue.id),
+          userId: 1,
             description: `Issued ${item.qty} of part ${item.partId} for production order ${prodOrder.prodNo}`,
-            userId: issuedById,
           },
         });
       }

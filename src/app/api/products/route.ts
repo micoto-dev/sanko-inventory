@@ -95,6 +95,7 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "MProduct",
           targetId: String(product.id),
+          userId: 1,
           description: `Created product ${code} - ${name}`,
         },
       });

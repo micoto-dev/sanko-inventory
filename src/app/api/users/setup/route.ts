@@ -41,8 +41,8 @@ export async function POST(request: Request) {
         action: "password_setup",
         targetType: "user",
         targetId: String(user.id),
+          userId: 1,
         description: `ユーザー ${user.name} が初回パスワードを設定`,
-        userId: user.id,
       },
     });
 

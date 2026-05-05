@@ -61,6 +61,7 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "MSupplier",
           targetId: String(supplier.id),
+          userId: 1,
           description: `Created supplier ${code} - ${name}`,
         },
       });

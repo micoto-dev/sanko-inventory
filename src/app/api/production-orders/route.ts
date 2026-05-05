@@ -140,8 +140,8 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "TProdOrder",
           targetId: String(prodOrder.id),
+          userId: 1,
           description: `Created production order ${prodNo} for ${qty} units`,
-          userId: createdById,
         },
       });
 

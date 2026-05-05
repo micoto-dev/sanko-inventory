@@ -71,8 +71,8 @@ export async function POST(request: Request) {
           action: "approve",
           targetType: "TStocktake",
           targetId: String(stocktake.id),
-          description: `棚卸し ${stocktakeNo} (${locationId || warehouse || '全体'}) ${items?.length || 0}品目の実査結果を承認・在庫更新`,
           userId: 1,
+          description: `棚卸し ${stocktakeNo} (${locationId || warehouse || '全体'}) ${items?.length || 0}品目の実査結果を承認・在庫更新`,
         },
       });
 

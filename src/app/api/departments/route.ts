@@ -56,6 +56,7 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "MDepartment",
           targetId: String(dept.id),
+          userId: 1,
           description: `Created department ${name}`,
           afterData: dept as object,
         },

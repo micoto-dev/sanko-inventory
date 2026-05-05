@@ -68,6 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           action: "update",
           targetType: "MPart",
           targetId: id,
+          userId: 1,
           description: `Updated part ${part.code}`,
           beforeData: existing as object,
           afterData: part as object,
@@ -105,6 +106,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
           action: "delete",
           targetType: "MPart",
           targetId: id,
+          userId: 1,
           description: `Deleted part ${existing.code} - ${existing.name}`,
         },
       });

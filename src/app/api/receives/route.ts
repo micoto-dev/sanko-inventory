@@ -72,8 +72,8 @@ export async function POST(request: Request) {
             action: "receive",
             targetType: "TReceive",
             targetId: String(receive.id),
+          userId: 1,
             description: `Received ${item.qty} of part ${item.partId} at ${item.locationId}`,
-            userId: receivedById,
           },
         });
       }

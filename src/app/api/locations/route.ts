@@ -53,6 +53,7 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "MLocation",
           targetId: id,
+          userId: 1,
           description: `Created location ${name} (${id})`,
         },
       });

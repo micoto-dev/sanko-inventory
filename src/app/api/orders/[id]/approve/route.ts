@@ -65,8 +65,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           action: "approve",
           targetType: "TOrder",
           targetId: id,
+          userId: 1,
           description: `Approved order ${order.orderNo}`,
-          userId: approvedById,
         },
       });
 

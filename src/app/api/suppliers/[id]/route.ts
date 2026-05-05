@@ -51,6 +51,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           action: "update",
           targetType: "MSupplier",
           targetId: id,
+          userId: 1,
           description: `Updated supplier ${supplier.code}`,
           beforeData: existing as object,
           afterData: supplier as object,
@@ -89,6 +90,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
           action: "delete",
           targetType: "MSupplier",
           targetId: id,
+          userId: 1,
           description: `Deleted supplier ${existing.code} - ${existing.name}`,
         },
       });

@@ -93,6 +93,7 @@ export async function POST(request: Request) {
           action: "invite",
           targetType: "MUser",
           targetId: String(user.id),
+          userId: 1,
           description: `ユーザー招待: ${name} (${email})`,
           afterData: { id: user.id, email, name, role: user.role } as object,
         },

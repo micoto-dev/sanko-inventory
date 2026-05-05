@@ -75,6 +75,7 @@ export async function POST(request: Request) {
           action: "create",
           targetType: "MEntity",
           targetId: String(entity.id),
+          userId: 1,
           description: `Created entity ${entityType}: ${name}`,
           afterData: entity as object,
         },

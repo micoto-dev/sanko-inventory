@@ -32,6 +32,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           action: "update",
           targetType: "MLocation",
           targetId: id,
+          userId: 1,
           description: `Updated location ${location.name} (${id})`,
         },
       });
@@ -67,6 +68,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
           action: "delete",
           targetType: "MLocation",
           targetId: id,
+          userId: 1,
           description: `Deleted location ${existing.name} (${id})`,
         },
       });
