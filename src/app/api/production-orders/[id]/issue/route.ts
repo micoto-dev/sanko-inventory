@@ -73,6 +73,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         });
       }
 
+      // Update production order status
+      const snapshots = await tx.tProdOrderBomSnapshot.findMany({ where: { prodOrderId: numId } });
+      const allPicked = snapshots.every(s => Number(s.pickedQty) >= Number(s.totalQty));
+      const anyPicked = snapshots.some(s => Number(s.pickedQty) > 0);
+      if (allPicked) {
+        await tx.tProdOrder.update({ where: { id: numId }, data: { status: 'completed', completedAt: new Date() } });
+      } else if (anyPicked) {
+        await tx.tProdOrder.update({ where: { id: numId }, data: { status: 'picking' } });
+      }
+
       return issues;
     });
 

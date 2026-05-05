@@ -1684,11 +1684,12 @@ const ProductionScreen = ({ prodOrders, toast }: { prodOrders: ProdOrder[]; toas
 };
 
 const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]; onRefresh: () => void; toast: (msg: string) => void }) => {
-  const activeOrders = prodOrders.filter(m => ['allocated', 'picking'].includes(m.status));
+  const activeOrders = prodOrders.filter(m => ['allocated', 'picking', 'in_progress'].includes(m.status));
   const [selectedMo, setSelectedMo] = useState<number | ''>('');
   const [moDetail, setMoDetail] = useState<any>(null);
   const [pickQty, setPickQty] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   const mo = prodOrders.find(m => m.id === selectedMo) || null;
 
@@ -1700,8 +1701,8 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
           setMoDetail(detail);
           const q: Record<string, number> = {};
           (detail.bomSnapshot || []).forEach((bs: any) => {
-            const need = bs.qty * (detail.qty || 1);
-            const already = bs.pickedQty || 0;
+            const need = Number(bs.totalQty) || (Number(bs.requiredQty) * Number(detail.qty || 1));
+            const already = Number(bs.pickedQty) || 0;
             const remaining = Math.max(0, need - already);
             q[bs.partId] = remaining;
           });
@@ -1726,7 +1727,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
     if (items.length === 0) { toast('ピッキング数を入力してください'); return; }
     try {
       await api.issueProductionOrder(Number(selectedMo), { items, issuedById: 1 });
-      toast('出庫処理が完了しました');
+      toast(`出庫処理が完了しました（${items.length}部品）`);
       setSelectedMo('');
       onRefresh();
     } catch (e: any) {
@@ -1741,10 +1742,32 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
         <p className="text-xs text-black mb-4">引当済み・ピッキング中の製造指図からピッキングリストを表示します</p>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100">
-            <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
-            <div className="text-sm font-bold text-blue-900">指図QRを読取</div>
-            <div className="text-xs text-blue-600 mt-1">ピッキングリストの指図番号QR</div>
+          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100"
+            onClick={() => setShowQrScanner(true)}>
+            {showQrScanner ? (
+              <div>
+                <QrCameraScanner onScan={(text) => {
+                  setShowQrScanner(false);
+                  try {
+                    const data = JSON.parse(text);
+                    const found = activeOrders.find(o => o.prodNo === (data.id || text) || o.id === Number(data.id || text));
+                    if (found) { setSelectedMo(found.id); toast(`指図 ${found.prodNo} を読み取りました`); }
+                    else toast('該当するアクティブな製造指図が見つかりません');
+                  } catch {
+                    const found = activeOrders.find(o => o.prodNo === text);
+                    if (found) { setSelectedMo(found.id); toast(`指図 ${found.prodNo} を読み取りました`); }
+                    else toast('該当するアクティブな製造指図が見つかりません');
+                  }
+                }} />
+                <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-xs text-blue-600 hover:underline">キャンセル</button>
+              </div>
+            ) : (
+              <>
+                <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
+                <div className="text-sm font-bold text-blue-900">指図QRを読取</div>
+                <div className="text-xs text-blue-600 mt-1">ピッキングリストの指図番号QR</div>
+              </>
+            )}
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
             <div className="text-xs text-black mb-2">アクティブな製造指図</div>
@@ -1785,12 +1808,12 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(moDetail.bomSnapshot || []).map((bs: any) => {
-                    const need = bs.qty * mo.qty;
-                    const already = bs.pickedQty || 0;
+                    const need = Number(bs.totalQty) || (Number(bs.requiredQty) * Number(mo.qty));
+                    const already = Number(bs.pickedQty) || 0;
                     const remaining = need - already;
                     return (
                       <tr key={bs.partId} className={remaining <= 0 ? 'bg-emerald-50/30' : ''}>
-                        <td className="px-3 py-1.5 font-mono text-xs"><MapPin size={10} className="inline mr-0.5" />{bs.part?.location || '-'}</td>
+                        <td className="px-3 py-1.5 font-mono text-xs"><MapPin size={10} className="inline mr-0.5" />{bs.part?.defaultLocId || '-'}</td>
                         <td className="px-3 py-1.5">
                           <div className="font-mono text-xs text-black">{bs.partId}</div>
                           <div className="font-semibold">{bs.part?.name || '-'}</div>
@@ -1814,6 +1837,11 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
             <div className="flex gap-2">
               <Btn variant="success" icon={CheckCircle2} onClick={handleComplete}>ピッキング確定（在庫減算）</Btn>
               <Btn variant="secondary" onClick={() => setSelectedMo('')}>キャンセル</Btn>
+            </div>
+
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 flex items-start gap-2">
+              <AlertCircle size={13} className="mt-0.5" />
+              <div>確定すると、ピック数が在庫から減算され、引当が解除されます。全部品のピッキングが完了すると指図ステータスが「完了」になります。</div>
             </div>
           </>
         )}
