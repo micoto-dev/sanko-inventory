@@ -60,7 +60,9 @@ model MPart {
   safetyStock   Int       @default(0) @map("safety_stock")
   maxStock      Int       @default(0) @map("max_stock")
   defaultLocId  String?   @map("default_loc_id") @db.VarChar(32)
-  shortageReason String?  @map("shortage_reason") @db.Text
+  shortageReason  String?  @map("shortage_reason") @db.Text
+  replacementId   String?  @map("replacement_id") @db.VarChar(20)  // 代替品/後継品のpart ID
+  isDiscontinued  Boolean  @default(false) @map("is_discontinued")  // 廃盤フラグ
   isActive      Boolean   @default(true) @map("is_active")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()

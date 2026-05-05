@@ -627,6 +627,9 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any;
 const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
   parts: Part[]; orders: Order[]; onRefresh: () => void; toast: (msg: string) => void; userName?: string;
 }) => {
+  const [replacementModal, setReplacementModal] = useState<{ orderId: number; detailId: number; partId: string; partName: string } | null>(null);
+  const [replacementPartId, setReplacementPartId] = useState('');
+  const [replacementSearch, setReplacementSearch] = useState('');
   const [tab, setTab] = useState('all');
   const [showNew, setShowNew] = useState(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
@@ -831,18 +834,26 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               <tbody>
                 {showDetail.details?.map((it, i) => (
                   <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' ? 'bg-rose-50' : ''}`}>
-                    <td className="py-1.5"><div className="text-xs font-mono text-black">{it.partId}</div><div>{it.partName || it.partId}</div>{it.remarks === 'manufacturer_shortage' && <span className="text-[10px] text-rose-600 font-semibold">欠品</span>}</td>
+                    <td className="py-1.5">
+                      <div className="text-xs font-mono text-black">{it.partId}</div>
+                      <div>{it.partName || it.partId}</div>
+                      {it.remarks === 'manufacturer_shortage' && <span className="text-[10px] text-rose-600 font-semibold">欠品</span>}
+                      {(it as any).replacementPartName && <div className="text-[10px] text-blue-600 mt-0.5">→ 代替品: {(it as any).replacementPartName}</div>}
+                    </td>
                     <td className="text-right py-1.5 font-mono">{it.qty}</td>
                     <td className="text-right py-1.5 font-mono text-black">{it.receivedQty}</td>
                     <td className="text-right py-1.5 font-mono font-semibold">{it.qty - it.receivedQty}</td>
                     <td className="text-right py-1.5 font-mono">{yen(it.unitPrice)}</td>
                     <td className="text-right py-1.5 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
-                    <td className="py-1.5 text-center">
-                      {it.id && it.remarks === 'manufacturer_shortage' ? (
-                        <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200" title="欠品を取り消す">取消</button>
-                      ) : it.id && it.qty - it.receivedQty > 0 ? (
-                        <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200" title="この明細を欠品マーク">欠品</button>
-                      ) : null}
+                    <td className="py-1.5">
+                      <div className="flex flex-col gap-1 items-center">
+                        {it.id && it.remarks === 'manufacturer_shortage' ? (<>
+                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 w-full">取消</button>
+                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 w-full">代替品</button>
+                        </>) : it.id && it.qty - it.receivedQty > 0 ? (
+                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 w-full">欠品</button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -883,6 +894,55 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       )}
 
       {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => setPdfOrder(null)} />}
+
+      {replacementModal && (
+        <Modal open onClose={() => { setReplacementModal(null); setReplacementPartId(''); setReplacementSearch(''); }} title={`代替品を設定: ${replacementModal.partName}`} size="md">
+          <div className="space-y-3 text-sm">
+            <div className="bg-rose-50 border border-rose-200 rounded p-3">
+              <div className="text-xs text-rose-700 font-bold">欠品中の部品</div>
+              <div className="font-mono text-xs mt-1">{replacementModal.partId}</div>
+              <div className="font-bold">{replacementModal.partName}</div>
+            </div>
+            <Field label="代替品を検索">
+              <input value={replacementSearch} onChange={e => setReplacementSearch(e.target.value)} placeholder="品番・品名で検索..." className={inputClass} />
+            </Field>
+            {replacementSearch && (
+              <div className="border border-slate-200 rounded max-h-40 overflow-y-auto">
+                {parts.filter(p => p.id !== replacementModal.partId && (p.id.toLowerCase().includes(replacementSearch.toLowerCase()) || p.name.toLowerCase().includes(replacementSearch.toLowerCase()) || p.code.toLowerCase().includes(replacementSearch.toLowerCase()))).slice(0, 10).map(p => (
+                  <button key={p.id} onClick={() => { setReplacementPartId(p.id); setReplacementSearch(p.name); }}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 ${replacementPartId === p.id ? 'bg-blue-50' : ''}`}>
+                    <span className="font-mono text-black">{p.id}</span> <span className="font-bold">{p.name}</span> <span className="text-black">/ {p.maker}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {replacementPartId && (
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <div className="text-xs text-blue-700 font-bold">代替品として設定</div>
+                <div className="font-mono text-xs mt-1">{replacementPartId}</div>
+                <div className="font-bold">{parts.find(p => p.id === replacementPartId)?.name}</div>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Btn variant="primary" icon={Save} disabled={!replacementPartId} onClick={async () => {
+                try {
+                  await api.updatePart(replacementModal.partId, { replacementId: replacementPartId, isDiscontinued: true, shortageReason: `廃盤 → 代替品: ${replacementPartId}` });
+                  // Update the detail's display
+                  const repPart = parts.find(p => p.id === replacementPartId);
+                  setShowDetail((prev: any) => prev ? {
+                    ...prev,
+                    details: prev.details.map((d: any) => d.id === replacementModal.detailId ? { ...d, replacementPartName: repPart?.name || replacementPartId } : d),
+                  } : prev);
+                  toast(`代替品「${repPart?.name}」を設定しました。元部品を廃盤マークしました`);
+                  setReplacementModal(null); setReplacementPartId(''); setReplacementSearch('');
+                  onRefresh();
+                } catch (e: any) { toast(`エラー: ${e.message}`); }
+              }}>代替品を設定（元部品を廃盤）</Btn>
+              <Btn variant="secondary" onClick={() => { setReplacementModal(null); setReplacementPartId(''); setReplacementSearch(''); }}>キャンセル</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

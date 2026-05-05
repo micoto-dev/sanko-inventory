@@ -36,6 +36,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       code, name, spec, category, maker, makerCode,
       supplierId, unit, unitPrice, leadTimeDays, reorderPoint,
       safetyStock, maxStock, defaultLocId, shortageReason, isActive,
+      replacementId, isDiscontinued,
     } = body;
 
     const data: Record<string, unknown> = {};
@@ -55,6 +56,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (defaultLocId !== undefined) data.defaultLocId = defaultLocId;
     if (shortageReason !== undefined) data.shortageReason = shortageReason;
     if (isActive !== undefined) data.isActive = isActive;
+    if (replacementId !== undefined) data.replacementId = replacementId;
+    if (isDiscontinued !== undefined) data.isDiscontinued = isDiscontinued;
 
     const updated = await prisma.$transaction(async (tx) => {
       const part = await tx.mPart.update({ where: { id }, data });
