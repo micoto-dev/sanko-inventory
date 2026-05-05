@@ -335,7 +335,14 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
             <option value="all">全ステータス</option>
             {Object.entries(STATUS_COLOR).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <span className="ml-auto text-xs text-black"><span className="font-semibold">{filtered.length}</span> / 全 {parts.length}</span>
+          <span className="ml-auto flex items-center gap-2 text-xs text-black">
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1 text-xs text-black">
+              <option value={20}>20件</option>
+              <option value={50}>50件</option>
+              <option value={100}>100件</option>
+            </select>
+            <span>/ 全 <span className="font-semibold">{filtered.length}</span></span>
+          </span>
         </div>
       </div>
 
@@ -391,21 +398,13 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
             </tbody>
           </table>
         </div>
-        <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-2 text-xs text-black">
-            <span>表示件数:</span>
-            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1 text-xs">
-              <option value={20}>20件</option>
-              <option value={50}>50件</option>
-              <option value={100}>100件</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-black">{filtered.length > 0 ? (safePage - 1) * pageSize + 1 : 0}-{Math.min(safePage * pageSize, filtered.length)} / {filtered.length}件</span>
+        {totalPages > 1 && (
+          <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-end gap-2 bg-slate-50 text-xs">
+            <span className="text-black">{(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filtered.length)} / {filtered.length}件</span>
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage <= 1} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed">前へ</button>
             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed">次へ</button>
           </div>
-        </div>
+        )}
       </div>
 
       {deleteTarget && (
