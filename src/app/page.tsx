@@ -1962,10 +1962,33 @@ const ProductsScreen = ({ toast, parts }: { toast: (msg: string) => void; parts:
   );
 };
 
+// Excel取込ドロップダウン
+const ExcelImportDropdown = ({ onDownload, onImport }: { onDownload: () => void; onImport: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+  return (
+    <div className="relative" ref={ref}>
+      <Btn variant="secondary" icon={FileText} onClick={() => setOpen(!open)}>Excel取込 <ChevronDown size={12} /></Btn>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 w-56 py-1">
+          <button onClick={() => { onDownload(); setOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 text-black"><Download size={14} /> テンプレートダウンロード</button>
+          <button onClick={() => { onImport(); setOpen(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 text-black"><FileText size={14} /> ファイルを取込</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void }) => {
   const [selected, setSelected] = useState<Location | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [confirmedDiffs, setConfirmedDiffs] = useState<Record<string, boolean>>({});
+  const [showQrScanner, setShowQrScanner] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const partsByLoc = useMemo(() => {
     const m: Record<string, Part[]> = {};
@@ -2059,12 +2082,10 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
             <div className="text-xs text-black">{'\u5BFE\u8C61\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3: A\u68DA\u30FBB\u68DA'}</div>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Btn variant="secondary" icon={Printer} onClick={handlePrint}>{'\u68DA\u5378\u8868\u5370\u5237'}</Btn>
-            <Btn variant="secondary" icon={Download} onClick={downloadExcelTemplate}>{'Excel\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9'}</Btn>
-            <Btn variant="secondary" icon={FileText} onClick={() => excelInputRef.current?.click()}>{'Excel\u53D6\u8FBC'}</Btn>
+            <Btn variant="secondary" icon={Printer} onClick={handlePrint}>棚卸表印刷</Btn>
+            <ExcelImportDropdown onDownload={downloadExcelTemplate} onImport={() => excelInputRef.current?.click()} />
             <input ref={excelInputRef} type="file" accept=".csv,.xlsx" onChange={handleExcelImport} className="hidden" />
-            <Btn variant="secondary" icon={ScanLine} onClick={() => toast('QR\u30B9\u30AD\u30E3\u30CA\u30FC\u3068\u9023\u52D5\u3057\u307E\u3059')}>{'QR\u8AAD\u53D6'}</Btn>
-            <Btn icon={QrCode} onClick={() => toast('QR\u8AAD\u53D6\u3067\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3\u3092\u9078\u629E\u3057\u307E\u3059')}>{'QR\u8AAD\u53D6\u3067\u958B\u59CB'}</Btn>
+            <Btn icon={QrCode} onClick={() => setShowQrScanner(true)}>QR読取で開始</Btn>
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2.5">
@@ -2158,8 +2179,35 @@ const StocktakeScreen = ({ parts, locations, toast }: { parts: Part[]; locations
         ))}
       </div>
 
+      {showQrScanner && (
+        <Modal open onClose={() => setShowQrScanner(false)} title="QR読取でロケーション選択" size="md">
+          <QrCameraScanner autoStart onScan={(text) => {
+            setShowQrScanner(false);
+            try {
+              const data = JSON.parse(text);
+              if (data.type === 'location') {
+                const loc = targetLocations.find(l => l.id === data.id);
+                if (loc) { setSelected(loc); toast(`ロケーション ${loc.id} を読み取りました`); }
+                else toast('対象外のロケーションです');
+              } else {
+                const loc = targetLocations.find(l => l.id === text);
+                if (loc) { setSelected(loc); toast(`ロケーション ${loc.id} を読み取りました`); }
+                else toast('該当するロケーションが見つかりません');
+              }
+            } catch {
+              const loc = targetLocations.find(l => l.id === text);
+              if (loc) { setSelected(loc); toast(`ロケーション ${loc.id} を読み取りました`); }
+              else toast('該当するロケーションが見つかりません');
+            }
+          }} />
+          <div className="mt-3 text-center">
+            <Btn variant="secondary" onClick={() => setShowQrScanner(false)}>キャンセル</Btn>
+          </div>
+        </Modal>
+      )}
+
       {selected && (
-        <Modal open onClose={() => setSelected(null)} title={'\u68DA\u5378\u5B9F\u67FB: ' + selected.id + ' - ' + selected.name} size="lg">
+        <Modal open onClose={() => setSelected(null)} title={'棚卸実査: ' + selected.id + ' - ' + selected.name} size="lg">
           <div className="bg-blue-50 border border-blue-200 rounded p-2.5 mb-3 text-xs text-blue-800 flex items-center gap-2">
             <QrCode size={14} /> {'\u5B9F\u6A5F\u3067\u306FQR\u30B3\u30FC\u30C9\u3092\u8AAD\u307F\u53D6\u3063\u3066\u5B9F\u6570\u3092\u5165\u529B\u3057\u307E\u3059\u3002\u3053\u3053\u3067\u306F\u624B\u5165\u529B\u3067\u52D5\u4F5C\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002'}
           </div>
