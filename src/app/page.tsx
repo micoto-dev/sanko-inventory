@@ -808,7 +808,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       </div>
 
       {showDetail && (
-        <Modal open onClose={() => setShowDetail(null)} title={`発注詳細: ${showDetail.orderNo}`} size="lg">
+        <Modal open onClose={() => setShowDetail(null)} title={`発注詳細: ${showDetail.orderNo}`} size="xl">
           <div className="grid grid-cols-4 gap-3 mb-4 text-sm">
             <div><div className="text-xs text-black">仕入先</div><div className="font-semibold">{showDetail.supplier}</div></div>
             <div><div className="text-xs text-black">発注日</div><div>{showDetail.orderDate}</div></div>
