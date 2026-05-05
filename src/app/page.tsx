@@ -2562,6 +2562,114 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
 };
 
 // ========================== Settings ==========================
+// ========================== QR Camera Scanner ==========================
+const QrCameraScanner = ({ onScan }: { onScan: (text: string) => void }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [error, setError] = useState('');
+  const scanningRef = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startCamera = async () => {
+    setError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setCameraActive(true);
+        scanningRef.current = true;
+        scanLoop();
+      }
+    } catch (err) {
+      setError('カメラにアクセスできません。ブラウザの権限設定を確認してください。');
+    }
+  };
+
+  const stopCamera = () => {
+    scanningRef.current = false;
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+  };
+
+  const scanLoop = async () => {
+    if (!scanningRef.current || !videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      requestAnimationFrame(scanLoop);
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    try {
+      const jsQR = (await import('jsqr')).default;
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code?.data) {
+        onScan(code.data);
+        stopCamera();
+        return;
+      }
+    } catch {
+      // No QR found in this frame, continue scanning
+    }
+
+    if (scanningRef.current) {
+      setTimeout(scanLoop, 300); // scan every 300ms
+    }
+  };
+
+  useEffect(() => { return () => { stopCamera(); }; }, []);
+
+  return (
+    <div className="relative">
+      {!cameraActive ? (
+        <div className="bg-slate-900 rounded-xl aspect-video flex flex-col items-center justify-center relative overflow-hidden cursor-pointer" onClick={startCamera}>
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-purple-900/40" />
+          <div className="absolute inset-12 border-2 border-cyan-400/50 rounded-lg" />
+          <Camera size={56} className="text-white/40 mb-3 relative z-10" />
+          <div className="text-white/70 text-sm font-medium relative z-10">タップしてカメラを起動</div>
+          <div className="text-cyan-300/60 text-xs mt-1 relative z-10">QRコードを読み取ります</div>
+          {error && <div className="absolute bottom-4 left-4 right-4 bg-red-500/80 rounded px-3 py-2 text-xs text-white">{error}</div>}
+        </div>
+      ) : (
+        <div className="bg-slate-900 rounded-xl aspect-video relative overflow-hidden">
+          <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-12 border-2 border-cyan-400 rounded-lg" />
+            {/* Scan line animation */}
+            <div className="absolute left-12 right-12 h-0.5 bg-cyan-400"
+              style={{ boxShadow: '0 0 12px #22d3ee', animation: 'qrScanLine 2s ease-in-out infinite' }} />
+            {/* Corner markers */}
+            <div className="absolute top-10 left-10 w-6 h-6 border-t-3 border-l-3 border-cyan-400" />
+            <div className="absolute top-10 right-10 w-6 h-6 border-t-3 border-r-3 border-cyan-400" />
+            <div className="absolute bottom-10 left-10 w-6 h-6 border-b-3 border-l-3 border-cyan-400" />
+            <div className="absolute bottom-10 right-10 w-6 h-6 border-b-3 border-r-3 border-cyan-400" />
+          </div>
+          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+            <div className="bg-black/60 rounded px-3 py-2 text-xs text-cyan-200 flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              スキャン中...
+            </div>
+            <button onClick={stopCamera} className="bg-black/60 hover:bg-black/80 text-white rounded px-3 py-2 text-xs">停止</button>
+          </div>
+          <style>{`@keyframes qrScanLine { 0%,100% { top: 12%; } 50% { top: 85%; } }`}</style>
+        </div>
+      )}
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
+  );
+};
+
 // ========================== QR Code ==========================
 const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void }) => {
   const [tab, setTab] = useState<'parts' | 'locations' | 'scan'>('parts');
@@ -2584,26 +2692,29 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
     window.open(`/api/qr/batch?type=${type}`, '_blank');
   };
 
-  const handleScan = () => {
+  const handleScanText = (text: string) => {
     try {
-      const data = JSON.parse(scanInput);
+      const data = JSON.parse(text);
       if (data.type === 'part') {
         const part = parts.find(p => p.id === data.id);
         setScanResult(part ? { type: 'part', data: part } : { type: 'error', message: '部品が見つかりません' });
+        if (part) toast(`部品を検出: ${part.name}`);
       } else if (data.type === 'location') {
         const loc = locations.find(l => l.id === data.id);
         const locParts = parts.filter(p => p.location === data.id);
         setScanResult(loc ? { type: 'location', data: loc, parts: locParts } : { type: 'error', message: 'ロケーションが見つかりません' });
+        if (loc) toast(`ロケーションを検出: ${loc.id}`);
       }
     } catch {
-      // Try as plain ID
-      const part = parts.find(p => p.id === scanInput || p.code === scanInput);
-      if (part) { setScanResult({ type: 'part', data: part }); return; }
-      const loc = locations.find(l => l.id === scanInput);
-      if (loc) { setScanResult({ type: 'location', data: loc, parts: parts.filter(p => p.location === loc.id) }); return; }
+      const part = parts.find(p => p.id === text || p.code === text);
+      if (part) { setScanResult({ type: 'part', data: part }); toast(`部品を検出: ${part.name}`); return; }
+      const loc = locations.find(l => l.id === text);
+      if (loc) { setScanResult({ type: 'location', data: loc, parts: parts.filter(p => p.location === loc.id) }); toast(`ロケーションを検出: ${loc.id}`); return; }
       setScanResult({ type: 'error', message: '該当するデータが見つかりません' });
     }
   };
+
+  const handleScan = () => handleScanText(scanInput);
 
   return (
     <div className="p-5 space-y-3">
@@ -2700,16 +2811,11 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
         {tab === 'scan' && (
           <div className="p-5">
             <div className="max-w-2xl mx-auto space-y-4">
-              {/* Camera viewfinder mock */}
-              <div className="bg-slate-900 rounded-xl p-8 aspect-video flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-purple-900/40" />
-                <div className="absolute inset-12 border-2 border-cyan-400 rounded-lg" />
-                <div className="absolute top-1/2 left-12 right-12 h-px bg-cyan-400 animate-pulse" style={{ boxShadow: '0 0 10px #22d3ee' }} />
-                <Camera size={56} className="text-white/30" />
-                <div className="absolute bottom-4 left-4 right-4 bg-black/50 rounded px-3 py-2 text-xs text-cyan-200">QRコードをカメラに向けてください...</div>
-              </div>
+              {/* Live camera QR scanner */}
+              <QrCameraScanner onScan={(text) => { setScanInput(text); handleScanText(text); }} />
 
               {/* Manual input fallback */}
+              <div className="text-xs text-slate-500 text-center">または手入力で検索</div>
               <div className="flex gap-2">
                 <input value={scanInput} onChange={e => setScanInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleScan()}
