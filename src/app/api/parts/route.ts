@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     const {
       code, name, spec, category, maker, makerCode,
       supplierId, unit, unitPrice, leadTimeDays, leadTime, reorderPoint,
-      safetyStock, maxStock, defaultLocId, shortageReason,
+      safetyStock, maxStock, defaultLocId, shortageReason, stock,
     } = body;
 
     if (!code || !name) {
@@ -123,10 +123,10 @@ export async function POST(request: Request) {
         },
       });
 
-      let stock = null;
+      let stockRecord = null;
       if (defaultLocId) {
-        stock = await tx.tStock.create({
-          data: { partId: id, locationId: defaultLocId, qty: 0, allocated: 0, onOrder: 0 },
+        stockRecord = await tx.tStock.create({
+          data: { partId: id, locationId: defaultLocId, qty: Number(stock) || 0, allocated: 0, onOrder: 0 },
         });
       }
 
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
         },
       });
 
-      return { part, stock };
+      return { part, stock: stockRecord };
     });
 
     return Response.json(result, { status: 201 });

@@ -319,11 +319,33 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
 
   const handleSave = async (form: any, isNew: boolean) => {
     try {
+      // Map frontend form fields to API fields
+      const payload: any = {
+        code: form.code,
+        name: form.name,
+        spec: form.spec,
+        category: form.category,
+        maker: form.maker,
+        makerCode: form.makerCode,
+        unit: form.unit,
+        unitPrice: Number(form.unitPrice) || 0,
+        leadTimeDays: Number(form.leadTime) || 14,
+        reorderPoint: Number(form.reorderPoint) || 0,
+        safetyStock: Number(form.safetyStock) || 0,
+        maxStock: Number(form.maxStock) || 0,
+        defaultLocId: form.defaultLocId || form.location || null,
+        stock: form.stock !== undefined ? Number(form.stock) : (form.initialStock !== undefined ? Number(form.initialStock) : undefined),
+      };
+      // Resolve supplier name to supplierId
+      if (form.supplier) {
+        const matchedSupplier = parts.find(p => p.supplier === form.supplier);
+        if (matchedSupplier?.supplierId) payload.supplierId = matchedSupplier.supplierId;
+      }
       if (isNew) {
-        await api.createPart(form);
+        await api.createPart(payload);
         toast(`部品マスタ「${form.name}」を登録しました`);
       } else {
-        await api.updatePart(form.id, form);
+        await api.updatePart(form.id, payload);
         toast(`部品マスタ「${form.name}」を更新しました`);
       }
       setEditing(null);
