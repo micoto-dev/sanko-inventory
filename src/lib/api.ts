@@ -83,6 +83,9 @@ export const api = {
   createStocktake: (data: any) => request<any>('/stocktakes', { method: 'POST', body: JSON.stringify(data) }),
   approveStocktake: (id: number) => request<any>(`/stocktakes/${id}/approve`, { method: 'POST' }),
 
+  // Auth
+  getMe: () => request<any>('/auth/me'),
+
   // Users
   getUsers: () => request<any>('/users'),
   createUser: (data: any) => request<any>('/users', { method: 'POST', body: JSON.stringify(data) }),

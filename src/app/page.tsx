@@ -4096,14 +4096,11 @@ const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
   const [userId, setUserId] = useState<number>(1);
 
   useEffect(() => {
-    api.getUsers().then((res: any) => {
-      // For now, use first active user as "me" - in production, use session
-      const users = res.data || [];
-      if (users.length > 0) {
-        const me = users[0];
-        setProfileName(me.name);
-        setProfileEmail(me.email);
-        setUserId(me.id);
+    api.getMe().then((res: any) => {
+      if (res.data) {
+        setProfileName(res.data.name);
+        setProfileEmail(res.data.email);
+        setUserId(res.data.id);
       }
       setProfileLoading(false);
     }).catch(() => setProfileLoading(false));
@@ -5046,6 +5043,7 @@ export default function AppPage() {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUserName, setCurrentUserName] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<number>(1);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [chatWidgetEnabled, setChatWidgetEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -5078,11 +5076,13 @@ export default function AppPage() {
       setProdOrders(prodRes.data || []);
       setLocations(locRes.data || []);
       setLogs(logsRes.data || []);
-      // Get current user name
+      // Get current logged-in user
       try {
-        const usersRes = await api.getUsers();
-        const users = usersRes.data || [];
-        if (users.length > 0 && !currentUserName) setCurrentUserName(users[0].name);
+        const meRes = await api.getMe();
+        if (meRes.data) {
+          setCurrentUserName(meRes.data.name);
+          setCurrentUserId(meRes.data.id);
+        }
       } catch { /* ignore */ }
     } catch (e) {
       console.error('Failed to load data:', e);
