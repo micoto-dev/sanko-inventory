@@ -4107,14 +4107,14 @@ const PART_OCR_SAMPLES = [
 ];
 
 const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () => void; onApply: (fields: Record<string, any>) => void }) => {
-  const [phase, setPhase] = useState<'viewfinder' | 'scanning' | 'result'>('viewfinder');
+  const [phase, setPhase] = useState<'camera' | 'scanning' | 'result'>('camera');
   const [sampleIdx, setSampleIdx] = useState(0);
   const sample = PART_OCR_SAMPLES[sampleIdx % PART_OCR_SAMPLES.length];
 
-  useEffect(() => { if (!open) { setPhase('viewfinder'); setSampleIdx(0); } }, [open]);
+  useEffect(() => { if (!open) { setPhase('camera'); setSampleIdx(0); } }, [open]);
 
   const handleCapture = () => { setPhase('scanning'); setTimeout(() => setPhase('result'), 1500); };
-  const handleRetry = () => { setSampleIdx(i => i + 1); setPhase('viewfinder'); };
+  const handleRetry = () => { setSampleIdx(i => i + 1); setPhase('camera'); };
   const handleApplyOcr = () => { onApply(sample.fields); };
 
   if (!open) return null;
@@ -4133,39 +4133,33 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
   return (
     <Modal open={open} onClose={onClose} title="OCR読み込み — 現品ラベル/銘板から自動入力" size="lg">
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-slate-900 rounded-lg overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
-          <div className="absolute inset-0 flex items-center justify-center text-white">
-            {phase === 'viewfinder' && (
-              <div className="text-center">
-                <Camera size={48} className="mx-auto mb-2 opacity-60" />
-                <div className="text-xs opacity-70">部品ラベル/銘板を枠内に収めて撮影</div>
-                <div className="text-[11px] opacity-50 mt-1">プロトタイプ表示</div>
+        <div>
+          {phase === 'camera' && (
+            <div>
+              <QrCameraScanner onScan={(text) => {
+                // Camera captured something - trigger OCR simulation
+                handleCapture();
+              }} />
+              <div className="mt-2 text-center">
+                <button onClick={handleCapture} className="text-xs text-blue-600 hover:underline">カメラなしでサンプルOCRを実行</button>
               </div>
-            )}
-            {phase === 'scanning' && (
-              <div className="text-center">
+            </div>
+          )}
+          {phase === 'scanning' && (
+            <div className="bg-slate-900 rounded-lg flex items-center justify-center" style={{ minHeight: '240px' }}>
+              <div className="text-center text-white">
                 <Loader2 size={48} className="mx-auto mb-2 animate-spin text-blue-400" />
                 <div className="text-xs">OCR認識中...</div>
                 <div className="text-[11px] opacity-60 mt-1">文字領域検出 → 構造化</div>
               </div>
-            )}
-            {phase === 'result' && (
-              <div className="p-4 text-left text-xs font-mono leading-relaxed text-emerald-300 whitespace-pre-line">
+            </div>
+          )}
+          {phase === 'result' && (
+            <div className="bg-slate-900 rounded-lg p-4" style={{ minHeight: '240px' }}>
+              <div className="text-xs font-mono leading-relaxed text-emerald-300 whitespace-pre-line">
                 {sample.rawText}
               </div>
-            )}
-          </div>
-          {phase !== 'result' && (
-            <>
-              <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/60"></div>
-              <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/60"></div>
-              <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-white/60"></div>
-              <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/60"></div>
-            </>
-          )}
-          {phase === 'scanning' && (
-            <div className="absolute inset-x-0 h-0.5 bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.8)]"
-                 style={{ animation: 'ocrScanY 1.5s ease-in-out infinite' }}></div>
+            </div>
           )}
         </div>
 
@@ -4202,7 +4196,7 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
       </div>
 
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-        {phase === 'viewfinder' && <Btn variant="primary" icon={Camera} onClick={handleCapture}>撮影</Btn>}
+        {phase === 'camera' && <Btn variant="primary" icon={Camera} onClick={handleCapture}>撮影して認識</Btn>}
         {phase === 'scanning' && <Btn variant="secondary" disabled>認識中...</Btn>}
         {phase === 'result' && (
           <>
