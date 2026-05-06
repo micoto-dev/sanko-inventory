@@ -4475,11 +4475,13 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
   const [partSearch, setPartSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const bomPartIds = useMemo(() => new Set(boms.map((b: any) => b.partId)), [boms]);
   const filteredParts = useMemo(() => {
-    if (!partSearch) return parts.slice(0, 20);
+    const available = parts.filter(p => !bomPartIds.has(p.id));
+    if (!partSearch) return available.slice(0, 30);
     const q = partSearch.toLowerCase();
-    return parts.filter(p => p.id.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 20);
-  }, [parts, partSearch]);
+    return available.filter(p => p.id.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 30);
+  }, [parts, partSearch, bomPartIds]);
 
   return (
     <div>
@@ -4730,7 +4732,7 @@ export default function AppPage() {
   const fetchAll = useCallback(async () => {
     try {
       const [partsRes, ordersRes, prodRes, locRes, logsRes] = await Promise.all([
-        api.getParts(),
+        api.getParts({ limit: '1000' }),
         api.getOrders(),
         api.getProductionOrders(),
         api.getLocations(),
