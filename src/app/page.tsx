@@ -843,8 +843,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                     <td className="py-2 px-3">
                       <div className="text-xs font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
-                      {it.remarks === 'manufacturer_shortage' && <span className="text-[10px] text-rose-600 font-semibold">欠品</span>}
-                      {(it as any).replacementPartName && <div className="text-[10px] text-blue-600 mt-0.5">→ 代替品: {(it as any).replacementPartName}</div>}
+                      {it.remarks === 'manufacturer_shortage' && !((it as any).replacementPartName) && <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
+                      {(it as any).replacementPartName && <div className="mt-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs"><span className="text-blue-700 font-semibold">代替品決定:</span> <span className="font-bold">{(it as any).replacementPartName}</span></div>}
                     </td>
                     <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
                     <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
@@ -870,6 +870,20 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
             <Field label="コメント" full>
               <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-16`} />
             </Field>
+            {editComment.trim() && (
+              <div className="flex justify-end mt-2">
+                <Btn variant="primary" size="sm" icon={Send} onClick={async () => {
+                  if (!editComment.trim() || !showDetail) return;
+                  const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
+                  try {
+                    await api.updateOrder(showDetail.id, { newComment });
+                    setCommentHistory(prev => [newComment, ...prev]);
+                    setEditComment('');
+                    toast('コメントを投稿しました');
+                  } catch (e: any) { toast(`エラー: ${e.message}`); }
+                }}>コメント登録</Btn>
+              </div>
+            )}
           </div>
           {commentHistory.length > 0 && (
             <div className="mb-4 bg-slate-50 rounded p-3">
@@ -1808,6 +1822,31 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh }: { prodOrders: ProdOr
           </table>
         </div>
       </div>
+
+      {(showNew || editMo) && (
+        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '製造指図 新規登録' : `製造指図編集: ${editMo?.prodNo}`} size="md">
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
+            try {
+              if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('製造指図を作成しました'); }
+              else { await api.updateProductionOrder(form.id, form); toast('製造指図を更新しました'); }
+              setShowNew(false); setEditMo(null); onRefresh();
+            } catch (e: any) { toast(`エラー: ${e.message}`); }
+          }} />
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="製造指図の削除確認" size="sm">
+          <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3 mb-4">
+            <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
+            <div><p className="font-bold text-rose-800">「{deleteTarget.prodNo}」を削除しますか？</p><p className="text-rose-700 mt-1">{deleteTarget.productName} x {deleteTarget.qty} の指図が削除され、引当中の在庫が解除されます。</p></div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="danger" icon={Trash2} onClick={async () => { try { await api.deleteProductionOrder(deleteTarget.id); toast(`削除しました`); setDeleteTarget(null); onRefresh(); } catch (e: any) { toast(`エラー: ${e.message}`); } }}>削除する</Btn>
+            <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -1975,46 +2014,6 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
           </>
         )}
       </div>
-
-      {/* New production order modal */}
-      {(showNew || editMo) && (
-        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '製造指図 新規登録' : `製造指図編集: ${editMo?.prodNo}`} size="md">
-          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form, isNew) => {
-            try {
-              if (isNew) {
-                await api.createProductionOrder({ ...form, createdById: 1 });
-                toast('製造指図を作成しました');
-              } else {
-                await api.updateProductionOrder(form.id, form);
-                toast('製造指図を更新しました');
-              }
-              setShowNew(false); setEditMo(null); onRefresh();
-            } catch (e: any) { toast(`エラー: ${e.message}`); }
-          }} />
-        </Modal>
-      )}
-
-      {/* Delete confirmation */}
-      {deleteTarget && (
-        <Modal open onClose={() => setDeleteTarget(null)} title="製造指図の削除確認" size="sm">
-          <div className="text-sm mb-4">
-            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
-              <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-rose-800">「{deleteTarget.prodNo}」を削除しますか？</p>
-                <p className="text-rose-700 mt-1">{deleteTarget.productName} x {deleteTarget.qty} の指図が削除され、引当中の在庫が解除されます。</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Btn variant="danger" icon={Trash2} onClick={async () => {
-              try { await api.deleteProductionOrder(deleteTarget.id); toast(`製造指図「${deleteTarget.prodNo}」を削除しました`); setDeleteTarget(null); onRefresh(); }
-              catch (e: any) { toast(`エラー: ${e.message}`); }
-            }}>削除する</Btn>
-            <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 };
