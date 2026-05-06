@@ -630,6 +630,16 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
   const [replacementModal, setReplacementModal] = useState<{ orderId: number; detailId: number; partId: string; partName: string } | null>(null);
   const [replacementPartId, setReplacementPartId] = useState('');
   const [replacementSearch, setReplacementSearch] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const hasChanges = () => {
+    if (!showDetail) return false;
+    return editStatus !== showDetail.status || editExpDate !== (showDetail.expectedDeliveryDate || '') || editComment.trim() !== '';
+  };
+
+  const handleClose = () => {
+    if (hasChanges()) { setConfirmClose(true); } else { setShowDetail(null); }
+  };
   const [tab, setTab] = useState('all');
   const [showNew, setShowNew] = useState(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
@@ -804,7 +814,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       </div>
 
       {showDetail && (
-        <Modal open onClose={() => setShowDetail(null)} title={`発注詳細: ${showDetail.orderNo}`} size="xl">
+        <Modal open onClose={handleClose} title={`発注詳細: ${showDetail.orderNo}`} size="xl">
           <div className="grid grid-cols-4 gap-3 mb-4 text-sm">
             <div><div className="text-xs text-black">仕入先</div><div className="font-semibold">{showDetail.supplier}</div></div>
             <div><div className="text-xs text-black">発注日</div><div>{showDetail.orderDate}</div></div>
@@ -857,10 +867,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                     <td className="py-2 px-3">
                       <div className="flex gap-1.5 justify-center whitespace-nowrap">
                         {it.id && it.remarks === 'manufacturer_shortage' ? (<>
-                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">取消</button>
-                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[11px] px-2.5 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 whitespace-nowrap">代替品</button>
+                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">欠品取消</button>
+                          <button onClick={() => setReplacementModal({ orderId: showDetail.id, detailId: it.id!, partId: it.partId, partName: it.partName || it.partId })} className="text-[11px] px-2.5 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 whitespace-nowrap">代替品登録</button>
                         </>) : it.id && it.qty - it.receivedQty > 0 ? (
-                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 whitespace-nowrap">欠品</button>
+                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 whitespace-nowrap">欠品登録</button>
                         ) : null}
                       </div>
                     </td>
@@ -870,20 +880,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
             </table>
           </div>
           <div className="mb-4">
-            <Field label="コメント" full>
-              <div className="flex gap-2">
-                <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12 flex-1`} />
-                <Btn variant="primary" icon={Send} disabled={!editComment.trim()} onClick={async () => {
-                  if (!editComment.trim() || !showDetail) return;
-                  const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
-                  try {
-                    await api.updateOrder(showDetail.id, { newComment });
-                    setCommentHistory(prev => [newComment, ...prev]);
-                    setEditComment('');
-                    toast('コメントを投稿しました');
-                  } catch (e: any) { toast(`エラー: ${e.message}`); }
-                }}>投稿</Btn>
-              </div>
+            <Field label="コメント（保存時に投稿されます）" full>
+              <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12`} />
             </Field>
           </div>
           {commentHistory.length > 0 && (
@@ -905,7 +903,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>発注確定（納品待ちへ）</Btn>
             )}
             <Btn variant="secondary" icon={FileText} onClick={() => handleViewPdf(showDetail)}>発注書PDF</Btn>
-            <Btn variant="secondary" onClick={() => setShowDetail(null)} className="ml-auto">閉じる</Btn>
+            <Btn variant="secondary" onClick={handleClose} className="ml-auto">閉じる</Btn>
           </div>
         </Modal>
       )}
@@ -915,6 +913,22 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       )}
 
       {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => setPdfOrder(null)} />}
+
+      {confirmClose && (
+        <Modal open onClose={() => setConfirmClose(false)} title="変更の破棄" size="sm">
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+            <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-800">変更が保存されていません</p>
+              <p className="text-amber-700 mt-1">変更内容を破棄して閉じますか？</p>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Btn variant="secondary" onClick={() => setConfirmClose(false)}>戻る</Btn>
+            <Btn variant="danger" onClick={() => { setConfirmClose(false); setShowDetail(null); }}>破棄して閉じる</Btn>
+          </div>
+        </Modal>
+      )}
 
       {replacementModal && (
         <Modal open onClose={() => { setReplacementModal(null); setReplacementPartId(''); setReplacementSearch(''); }} title={`代替品を設定: ${replacementModal.partName}`} size="md">
