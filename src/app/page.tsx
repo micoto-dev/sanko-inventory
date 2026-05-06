@@ -1553,6 +1553,9 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [receiveQty, setReceiveQty] = useState<Record<string, number>>({});
   const [inspection, setInspection] = useState<Record<string, string>>({});
+  const [recvReplacementModal, setRecvReplacementModal] = useState<{ orderId: number; detailId: number; partId: string; partName: string } | null>(null);
+  const [recvRepPartId, setRecvRepPartId] = useState('');
+  const [recvRepSearch, setRecvRepSearch] = useState('');
 
   const order = pendingOrders.find(o => o.id === selectedPO) || null;
 
@@ -1602,7 +1605,8 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
     }
   };
 
-  const remainingDetails = order?.details?.filter(d => d.qty - d.receivedQty > 0) || [];
+  const allDetails = order?.details || [];
+  const remainingDetails = allDetails.filter(d => d.qty - d.receivedQty > 0);
 
   return (
     <div className="p-5 max-w-5xl">
@@ -1668,6 +1672,7 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">品番</th>
                     <th className="text-left px-3 py-2 font-medium">品名</th>
+                    <th className="text-left px-3 py-2 font-medium">状態</th>
                     <th className="text-right px-3 py-2 font-medium">発注</th>
                     <th className="text-right px-3 py-2 font-medium">入庫済</th>
                     <th className="text-right px-3 py-2 font-medium">今回入庫</th>
@@ -1675,23 +1680,44 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {remainingDetails.map(d => {
+                  {allDetails.map(d => {
                     const remaining = d.qty - d.receivedQty;
+                    const isShortage = d.remarks === 'manufacturer_shortage';
+                    const isReplacement = d.remarks?.startsWith('replacement:');
+                    const repName = isReplacement ? d.remarks!.split(':')[2] : '';
                     return (
-                      <tr key={d.partId}>
+                      <tr key={d.partId} className={isShortage || isReplacement ? 'bg-rose-50/50' : remaining <= 0 ? 'bg-emerald-50/30' : ''}>
                         <td className="px-3 py-2 font-mono text-xs">{d.partId}</td>
                         <td className="px-3 py-2">{d.partName || d.partId}</td>
+                        <td className="px-3 py-2">
+                          {isShortage && <span className="text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
+                          {isReplacement && <div className="text-xs"><span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-semibold">代替品: {repName}</span></div>}
+                          {!isShortage && !isReplacement && remaining <= 0 && <span className="text-xs text-emerald-600 font-semibold">入庫済</span>}
+                          {!isShortage && !isReplacement && remaining > 0 && <span className="text-xs text-black">未入庫</span>}
+                          {isShortage && (
+                            <button onClick={() => setRecvReplacementModal({ orderId: order!.id, detailId: d.id!, partId: d.partId, partName: d.partName || d.partId })}
+                              className="block mt-1 text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">代替品登録</button>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-right">{d.qty}</td>
                         <td className="px-3 py-2 text-right">{d.receivedQty}</td>
                         <td className="px-3 py-2 text-right">
-                          <input type="number" value={receiveQty[d.partId] || 0} max={remaining}
-                            onChange={e => setReceiveQty(s => ({ ...s, [d.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
-                            className="w-20 border border-slate-300 rounded px-2 py-1 text-right" />
+                          {remaining > 0 && !isShortage ? (
+                            <input type="number" value={receiveQty[d.partId] || 0} max={remaining}
+                              onChange={e => setReceiveQty(s => ({ ...s, [d.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
+                              className="w-20 border border-slate-300 rounded px-2 py-1 text-right" />
+                          ) : isReplacement ? (
+                            <input type="number" value={receiveQty[d.partId] || 0} max={d.qty}
+                              onChange={e => setReceiveQty(s => ({ ...s, [d.partId]: Math.min(Number(e.target.value) || 0, d.qty) }))}
+                              className="w-20 border border-slate-300 rounded px-2 py-1 text-right" placeholder="代替品" />
+                          ) : <span className="text-xs text-black">-</span>}
                         </td>
                         <td className="px-3 py-2">
-                          <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-300 rounded px-2 py-1">
-                            <option>合格</option><option>条件付合格</option><option>不合格</option>
-                          </select>
+                          {(remaining > 0 && !isShortage) || isReplacement ? (
+                            <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-300 rounded px-2 py-1">
+                              <option>合格</option><option>条件付合格</option><option>不合格</option>
+                            </select>
+                          ) : <span className="text-xs text-black">-</span>}
                         </td>
                       </tr>
                     );
@@ -1712,6 +1738,43 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
           </>
         )}
       </div>
+
+      {recvReplacementModal && (
+        <Modal open onClose={() => { setRecvReplacementModal(null); setRecvRepPartId(''); setRecvRepSearch(''); }} title={`代替品を登録: ${recvReplacementModal.partName}`} size="md">
+          <div className="space-y-3 text-sm">
+            <div className="bg-rose-50 border border-rose-200 rounded p-3">
+              <div className="text-xs text-rose-700 font-bold">欠品中の部品</div>
+              <div className="font-mono text-xs mt-1">{recvReplacementModal.partId}</div>
+              <div className="font-bold">{recvReplacementModal.partName}</div>
+            </div>
+            <Field label="代替品を検索（入力で絞り込み）">
+              <input value={recvRepSearch} onChange={e => setRecvRepSearch(e.target.value)} placeholder="品番・品名で検索..." className={inputClass} />
+            </Field>
+            <div className="border border-slate-200 rounded max-h-48 overflow-y-auto">
+              {parts.filter(p => p.id !== recvReplacementModal.partId && (!recvRepSearch || p.id.toLowerCase().includes(recvRepSearch.toLowerCase()) || p.name.toLowerCase().includes(recvRepSearch.toLowerCase()))).slice(0, 20).map(p => (
+                <button key={p.id} onClick={() => { setRecvRepPartId(p.id); setRecvRepSearch(p.name); }}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 flex items-center gap-3 ${recvRepPartId === p.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''}`}>
+                  <div className="flex-1"><span className="font-mono">{p.id}</span> <span className="font-bold">{p.name}</span></div>
+                  <div className="text-right"><span className="font-mono">{p.stock} {p.unit}</span></div>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Btn variant="primary" icon={Save} disabled={!recvRepPartId} onClick={async () => {
+                try {
+                  const repPart = parts.find(p => p.id === recvRepPartId);
+                  await api.updatePart(recvReplacementModal.partId, { replacementId: recvRepPartId, isDiscontinued: true, shortageReason: `廃盤 → 代替品: ${repPart?.name || recvRepPartId}` });
+                  await api.updateOrder(recvReplacementModal.orderId, { detailUpdate: { detailId: recvReplacementModal.detailId, remarks: `replacement:${recvRepPartId}:${repPart?.name || ''}` } });
+                  toast(`代替品「${repPart?.name}」を登録しました`);
+                  setRecvReplacementModal(null); setRecvRepPartId(''); setRecvRepSearch('');
+                  onRefresh();
+                } catch (e: any) { toast(`エラー: ${e.message}`); }
+              }}>代替品を登録</Btn>
+              <Btn variant="secondary" onClick={() => { setRecvReplacementModal(null); setRecvRepPartId(''); setRecvRepSearch(''); }}>キャンセル</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
