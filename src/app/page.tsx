@@ -1040,7 +1040,11 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
     return eff < p.reorderPoint && !p.shortageReason;
   });
 
-  const supplierOptions = useMemo(() => [...new Set(parts.map(p => p.supplier).filter(Boolean))], [parts]);
+  const supplierOptions = useMemo(() => {
+    const named = [...new Set(parts.map(p => p.supplier).filter(Boolean))];
+    const hasUnset = items.some(it => !it.supplier);
+    return hasUnset ? [...named, '（未設定）'] : named;
+  }, [parts, items]);
   const [supplier, setSupplier] = useState(bulk && lowStockParts[0]?.supplier ? lowStockParts[0].supplier : supplierOptions[0] || '');
   const [searchQ, setSearchQ] = useState('');
 
@@ -1053,7 +1057,11 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
     return [];
   });
 
-  const filteredItems = items.filter(it => !supplier || it.supplier === supplier || !it.supplier);
+  const filteredItems = items.filter(it => {
+    if (!supplier) return true;
+    if (supplier === '（未設定）') return !it.supplier;
+    return it.supplier === supplier;
+  });
   const total = filteredItems.reduce((s, i) => s + i.qty * i.unitPrice, 0);
 
   const addPart = (p: Part) => {
