@@ -4468,6 +4468,7 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
   const [addPosition, setAddPosition] = useState('');
   const [partSearch, setPartSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showBomOcr, setShowBomOcr] = useState(false);
 
   const bomPartIds = useMemo(() => new Set(boms.map((b: any) => b.partId)), [boms]);
   const filteredParts = useMemo(() => {
@@ -4479,6 +4480,48 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
 
   return (
     <div>
+      <div className="flex items-center gap-2 mb-3">
+        <button onClick={() => setShowBomOcr(true)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition">
+          <Camera size={13} /> 部品表OCR読み込み <Sparkles size={11} className="text-blue-500" />
+        </button>
+        <span className="text-[11px] text-black">カメラで部品表を撮影 → BOMに一括追加</span>
+      </div>
+
+      {showBomOcr && (
+        <Modal open onClose={() => setShowBomOcr(false)} title="BOM OCR読み込み — 部品表から一括追加" size="lg">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <QrCameraScanner onScan={() => {
+                // Camera captured - simulate OCR with sample data
+                setShowBomOcr(false);
+                const sampleBomParts = parts.filter(p => !bomPartIds.has(p.id)).slice(0, 5);
+                sampleBomParts.forEach(p => onAdd(p.id, Math.floor(Math.random() * 5) + 1, ''));
+              }} />
+              <div className="mt-2 text-center">
+                <button onClick={() => {
+                  setShowBomOcr(false);
+                  const sampleBomParts = parts.filter(p => !bomPartIds.has(p.id)).slice(0, 3);
+                  sampleBomParts.forEach(p => onAdd(p.id, Math.floor(Math.random() * 5) + 1, ''));
+                }} className="text-xs text-blue-600 hover:underline">サンプルデータで一括追加（デモ）</button>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-black mb-2 flex items-center gap-1"><Sparkles size={12} /> OCR認識手順</div>
+              <div className="space-y-2 text-xs text-black">
+                <div className="bg-slate-50 rounded p-2">1. 部品表・図面・既存BOMを撮影</div>
+                <div className="bg-slate-50 rounded p-2">2. 品番・品名・数量をOCR認識</div>
+                <div className="bg-slate-50 rounded p-2">3. 部品マスタと照合</div>
+                <div className="bg-slate-50 rounded p-2">4. マッチした部品をBOMに一括追加</div>
+              </div>
+              <div className="mt-3 text-[11px] text-black">本番環境ではCloud Vision / Document AIで高精度認識します</div>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+            <Btn variant="secondary" onClick={() => setShowBomOcr(false)}>閉じる</Btn>
+          </div>
+        </Modal>
+      )}
+
       <table className="w-full text-sm mb-4">
         <thead className="bg-slate-50 text-xs text-black border-b border-slate-200">
           <tr>
