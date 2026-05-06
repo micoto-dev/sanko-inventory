@@ -1654,10 +1654,16 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
   );
 };
 
-const ProductionScreen = ({ prodOrders, toast }: { prodOrders: ProdOrder[]; toast: (msg: string) => void }) => {
+const ProductionScreen = ({ prodOrders, toast, onRefresh }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void }) => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [bomDetail, setBomDetail] = useState<any>(null);
   const [bomLoading, setBomLoading] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [editMo, setEditMo] = useState<ProdOrder | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProdOrder | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
+
+  useEffect(() => { api.getProducts().then(res => setProducts(res.data || [])).catch(() => {}); }, []);
 
   const handleToggle = async (mo: ProdOrder) => {
     if (expandedId === mo.id) {
@@ -1681,7 +1687,10 @@ const ProductionScreen = ({ prodOrders, toast }: { prodOrders: ProdOrder[]; toas
   return (
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200"><h2 className="font-bold text-sm">製造指図一覧</h2></div>
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="font-bold text-sm">製造指図一覧</h2>
+          <Btn icon={Plus} onClick={() => setShowNew(true)}>新規指図</Btn>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-black uppercase">
@@ -1693,6 +1702,7 @@ const ProductionScreen = ({ prodOrders, toast }: { prodOrders: ProdOrder[]; toas
                 <th className="text-left px-3 py-2 font-medium">顧客</th>
                 <th className="text-left px-3 py-2 font-medium">納期</th>
                 <th className="text-left px-3 py-2 font-medium">ステータス</th>
+                <th className="px-3 py-2 font-medium">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1708,10 +1718,16 @@ const ProductionScreen = ({ prodOrders, toast }: { prodOrders: ProdOrder[]; toas
                     <td className="px-3 py-2 text-xs">{m.customer}</td>
                     <td className="px-3 py-2 text-xs">{m.dueDate}</td>
                     <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
+                    <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMo(m)}>編集</Btn>
+                        <button onClick={() => setDeleteTarget(m)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
                   </tr>
                   {expandedId === m.id && (
                     <tr>
-                      <td colSpan={7} className="bg-slate-50 px-4 py-3">
+                      <td colSpan={8} className="bg-slate-50 px-4 py-3">
                         {bomLoading ? (
                           <div className="flex items-center gap-2 text-sm text-black py-4 justify-center">
                             <Loader2 size={16} className="animate-spin" /> BOM情報を読み込み中...
@@ -1958,6 +1974,73 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
             </div>
           </>
         )}
+      </div>
+
+      {/* New production order modal */}
+      {(showNew || editMo) && (
+        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '製造指図 新規登録' : `製造指図編集: ${editMo?.prodNo}`} size="md">
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form, isNew) => {
+            try {
+              if (isNew) {
+                await api.createProductionOrder({ ...form, createdById: 1 });
+                toast('製造指図を作成しました');
+              } else {
+                await api.updateProductionOrder(form.id, form);
+                toast('製造指図を更新しました');
+              }
+              setShowNew(false); setEditMo(null); onRefresh();
+            } catch (e: any) { toast(`エラー: ${e.message}`); }
+          }} />
+        </Modal>
+      )}
+
+      {/* Delete confirmation */}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="製造指図の削除確認" size="sm">
+          <div className="text-sm mb-4">
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
+              <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-800">「{deleteTarget.prodNo}」を削除しますか？</p>
+                <p className="text-rose-700 mt-1">{deleteTarget.productName} x {deleteTarget.qty} の指図が削除され、引当中の在庫が解除されます。</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="danger" icon={Trash2} onClick={async () => {
+              try { await api.deleteProductionOrder(deleteTarget.id); toast(`製造指図「${deleteTarget.prodNo}」を削除しました`); setDeleteTarget(null); onRefresh(); }
+              catch (e: any) { toast(`エラー: ${e.message}`); }
+            }}>削除する</Btn>
+            <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const ProdOrderForm = ({ prodOrder, isNew, products, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => prodOrder || { productId: products[0]?.id || '', qty: 1, startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', notes: '' });
+  const upd = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+  return (
+    <div className="space-y-3 text-sm">
+      <Field label="製品*">
+        <select value={form.productId || ''} onChange={e => upd('productId', Number(e.target.value))} className={inputClass} disabled={!isNew}>
+          <option value="">-- 製品を選択 --</option>
+          {products.map((p: any) => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
+        </select>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="数量*"><input type="number" value={form.qty || 1} onChange={e => upd('qty', Number(e.target.value) || 1)} min={1} className={`${inputClass} text-right font-mono`} /></Field>
+        <Field label="顧客"><input value={form.customer || ''} onChange={e => upd('customer', e.target.value)} className={inputClass} placeholder="例: ○○造船" /></Field>
+        <Field label="開始日"><input type="date" value={form.startDate || ''} onChange={e => upd('startDate', e.target.value)} className={inputClass} /></Field>
+        <Field label="納期"><input type="date" value={form.dueDate || ''} onChange={e => upd('dueDate', e.target.value)} className={inputClass} /></Field>
+      </div>
+      <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-16`} /></Field>
+      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-800">登録すると、製品のBOMから必要部品が自動展開され、在庫が引当されます。</div>}
+      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.productId || !form.qty}>{isNew ? '指図発行' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
     </div>
   );
@@ -4839,7 +4922,7 @@ export default function AppPage() {
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
-          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} />}
+          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}
           {view === 'reports' && <ReportsScreen toast={toast} />}

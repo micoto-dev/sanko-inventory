@@ -57,6 +57,8 @@ export const api = {
   getProductionOrder: (id: number) => request<any>(`/production-orders/${id}`),
   createProductionOrder: (data: any) => request<any>('/production-orders', { method: 'POST', body: JSON.stringify(data) }),
   issueProductionOrder: (id: number, data: any) => request<any>(`/production-orders/${id}/issue`, { method: 'POST', body: JSON.stringify(data) }),
+  updateProductionOrder: (id: number, data: any) => request<any>(`/production-orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProductionOrder: (id: number) => request<any>(`/production-orders/${id}`, { method: 'DELETE' }),
 
   // Locations
   getLocations: () => request<any>('/locations'),

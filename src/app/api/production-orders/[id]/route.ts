@@ -45,3 +45,61 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return Response.json({ error: "Failed to fetch production order" }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { qty, status, startDate, dueDate, customer, notes } = body;
+    const data: Record<string, unknown> = {};
+    if (qty !== undefined) data.qty = qty;
+    if (status !== undefined) data.status = status;
+    if (startDate !== undefined) data.startDate = new Date(startDate);
+    if (dueDate !== undefined) data.dueDate = new Date(dueDate);
+    if (customer !== undefined) data.customer = customer;
+    if (notes !== undefined) data.notes = notes;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const order = await tx.tProdOrder.update({ where: { id: Number(id) }, data });
+      await tx.tLog.create({ data: { category: "production", action: "update", targetType: "TProdOrder", targetId: id, userId: 1, description: `製造指図 ${order.prodNo} を更新` } });
+      return order;
+    });
+    return Response.json(updated);
+  } catch (e) {
+    console.error(e);
+    return Response.json({ error: "Failed to update production order" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const numId = Number(id);
+    const order = await prisma.tProdOrder.findUnique({ where: { id: numId } });
+    if (!order) return Response.json({ error: "Not found" }, { status: 404 });
+
+    await prisma.$transaction(async (tx) => {
+      // Release allocated stock
+      const snapshots = await tx.tProdOrderBomSnapshot.findMany({ where: { prodOrderId: numId } });
+      for (const snap of snapshots) {
+        const allocated = Math.ceil(Number(snap.totalQty)) - Math.ceil(Number(snap.pickedQty));
+        if (allocated > 0) {
+          const part = await tx.mPart.findUnique({ where: { id: snap.partId }, select: { defaultLocId: true } });
+          if (part?.defaultLocId) {
+            const stock = await tx.tStock.findUnique({ where: { partId_locationId: { partId: snap.partId, locationId: part.defaultLocId } } });
+            if (stock) {
+              await tx.tStock.update({ where: { partId_locationId: { partId: snap.partId, locationId: part.defaultLocId } }, data: { allocated: { decrement: Math.min(allocated, stock.allocated) } } });
+            }
+          }
+        }
+      }
+      await tx.tProdOrderBomSnapshot.deleteMany({ where: { prodOrderId: numId } });
+      await tx.tProdOrder.delete({ where: { id: numId } });
+      await tx.tLog.create({ data: { category: "production", action: "delete", targetType: "TProdOrder", targetId: id, userId: 1, description: `製造指図 ${order.prodNo} を削除（引当解除）` } });
+    });
+    return Response.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return Response.json({ error: "Failed to delete production order" }, { status: 500 });
+  }
+}
