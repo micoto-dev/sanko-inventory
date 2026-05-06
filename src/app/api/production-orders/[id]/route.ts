@@ -50,7 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const body = await request.json();
-    const { qty, status, startDate, dueDate, customer, notes } = body;
+    const { qty, status, startDate, dueDate, customer, notes, bomItems } = body;
     const data: Record<string, unknown> = {};
     if (qty !== undefined) data.qty = qty;
     if (status !== undefined) data.status = status;
@@ -61,6 +61,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const updated = await prisma.$transaction(async (tx) => {
       const order = await tx.tProdOrder.update({ where: { id: Number(id) }, data });
+
+      if (bomItems && Array.isArray(bomItems)) {
+        await tx.tProdOrderBomSnapshot.deleteMany({ where: { prodOrderId: Number(id) } });
+        for (const item of bomItems) {
+          await tx.tProdOrderBomSnapshot.create({ data: {
+            prodOrderId: Number(id),
+            partId: item.partId,
+            requiredQty: item.qty,
+            totalQty: item.qty,
+            pickedQty: 0,
+            position: item.position || '',
+            unitPriceAtIssue: 0,
+          }});
+        }
+      }
+
       await tx.tLog.create({ data: { category: "production", action: "update", targetType: "TProdOrder", targetId: id, userId: 1, description: `製造指図 ${order.prodNo} を更新` } });
       return order;
     });

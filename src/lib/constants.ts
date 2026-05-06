@@ -30,6 +30,10 @@ export const LOG_CATEGORY: Record<string, { label: string; color: string }> = {
   production: { label: '製造指図', color: 'bg-indigo-100 text-indigo-700' },
   stocktake: { label: '棚卸し', color: 'bg-rose-100 text-rose-700' },
   auth: { label: '認証', color: 'bg-slate-200 text-slate-900' },
+  part: { label: '部品マスタ', color: 'bg-slate-100 text-slate-900' },
+  department: { label: '部署', color: 'bg-cyan-100 text-cyan-700' },
+  supplier: { label: '仕入先', color: 'bg-indigo-100 text-indigo-700' },
+  user: { label: 'ユーザー', color: 'bg-purple-100 text-purple-700' },
 };
 
 export const yen = (n: number) => '¥' + (n || 0).toLocaleString('ja-JP');

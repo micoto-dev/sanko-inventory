@@ -128,6 +128,9 @@ export async function POST(request: Request) {
         stockRecord = await tx.tStock.create({
           data: { partId: id, locationId: defaultLocId, qty: Number(stock) || 0, allocated: 0, onOrder: 0 },
         });
+      } else if (Number(stock) > 0) {
+        // Skip stock creation silently when no location is set - stock cannot exist without a location
+        console.warn(`Part ${code} has initial stock ${stock} but no defaultLocId - skipping stock record creation`);
       }
 
       await tx.tLog.create({

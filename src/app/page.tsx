@@ -3,14 +3,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   LayoutDashboard, Search, Package, ShoppingCart, ClipboardCheck,
-  Bell, AlertTriangle, AlertCircle, Boxes, Truck, Filter,
+  Bell, AlertTriangle, AlertCircle, Truck, Filter,
   CheckCircle2, MapPin, Plus, Edit, BarChart3, Package2, Anchor,
   Factory, Warehouse, Trash2, Save, Send, MessageSquare, Users,
   History, Cpu, Loader2, Building, Database, Shield, UserPlus,
   ChevronRight, ToggleLeft, ToggleRight, Copy, Sparkles, FileText,
   X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
-  QrCode, Printer, ExternalLink, ScanLine, Menu, Camera,
-  ArrowUpRight, TrendingUp, Clock, Building2,
+  QrCode, Printer, ScanLine, Menu, Camera,
+  TrendingUp, Clock, Building2,
   Zap, RefreshCw, Link2, XCircle, Download, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
@@ -157,7 +157,7 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
     return eff < p.reorderPoint && !p.shortageReason;
   });
   const mfrShortage = parts.filter(p => p.shortageReason).length;
-  const activeOrders = orders.filter(o => ['awaiting', 'partial', 'delayed', 'pending'].includes(o.status));
+  const activeOrders = orders.filter(o => ['awaiting'].includes(o.status));
   const onOrderTotal = activeOrders.reduce((s, o) => s + o.totalAmount, 0);
 
   return (
@@ -336,11 +336,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
         defaultLocId: form.defaultLocId || form.location || null,
         stock: form.stock !== undefined ? Number(form.stock) : (form.initialStock !== undefined ? Number(form.initialStock) : undefined),
       };
-      // Resolve supplier name to supplierId
-      if (form.supplier) {
-        const matchedSupplier = parts.find(p => p.supplier === form.supplier);
-        if (matchedSupplier?.supplierId) payload.supplierId = matchedSupplier.supplierId;
-      }
+      if (form.supplierId) payload.supplierId = Number(form.supplierId);
       if (isNew) {
         await api.createPart(payload);
         toast(`部品マスタ「${form.name}」を登録しました`);
@@ -5028,7 +5024,7 @@ const LocationFormModal = ({ location, isNew, onClose, onSave }: { location: any
         <Field label="最大容量"><input type="number" value={form.maxQty ?? 100} onChange={e => upd('maxQty', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="タイプ">
           <select value={form.locType || '棚'} onChange={e => upd('locType', e.target.value)} className={inputClass}>
-            <option value="棚">棚</option><option value="床置">床置</option><option value="冷蔵">冷蔵</option><option value="危険物">危険物</option><option value="外部倉庫">外部倉庫</option>
+            <option value="通常棚">通常棚</option><option value="計器棚">計器棚</option><option value="小物棚">小物棚</option><option value="長尺棚">長尺棚</option><option value="リール棚">リール棚</option><option value="パレット">パレット</option>
           </select>
         </Field>
       </div>
@@ -5297,7 +5293,6 @@ export default function AppPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [prodOrders, setProdOrders] = useState<ProdOrder[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUserName, setCurrentUserName] = useState('');
@@ -5322,18 +5317,16 @@ export default function AppPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [partsRes, ordersRes, prodRes, locRes, logsRes] = await Promise.all([
+      const [partsRes, ordersRes, prodRes, locRes] = await Promise.all([
         api.getParts({ limit: '1000' }),
         api.getOrders(),
         api.getProductionOrders(),
         api.getLocations(),
-        api.getLogs({ limit: '50' }),
       ]);
       setParts(partsRes.data || []);
       setOrders(ordersRes.data || []);
       setProdOrders(prodRes.data || []);
       setLocations(locRes.data || []);
-      setLogs(logsRes.data || []);
       // Get current logged-in user
       try {
         const meRes = await api.getMe();
@@ -5373,7 +5366,6 @@ export default function AppPage() {
           {view === 'dashboard' && <Dashboard parts={parts} orders={orders} prodOrders={prodOrders} setView={setView} />}
           {view === 'master' && <MasterScreen parts={parts} onRefresh={fetchAll} toast={toast} openPart={setSelectedPart} locations={locations} />}
           {view === 'products' && <ProductsScreen toast={toast} parts={parts} />}
-          {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} openPart={setSelectedPart} />}
           {view === 'locations' && <LocationsScreen locations={locations} onRefresh={fetchAll} toast={toast} />}
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
