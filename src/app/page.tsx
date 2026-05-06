@@ -593,7 +593,7 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
         <Field label="メーカー">
           <input list="maker-list" value={form.maker || ''} onChange={e => upd('maker', e.target.value)} className={inputClass} placeholder="選択または入力" />
           <datalist id="maker-list">
-            {[...new Set(parts.map((p: any) => p.maker).filter(Boolean))].map(m => <option key={m as string} value={m as string} />)}
+            {[...new Set((parts || []).map((p: any) => p.maker).filter(Boolean))].map(m => <option key={m as string} value={m as string} />)}
           </datalist>
         </Field>
         <Field label="仕入先">
