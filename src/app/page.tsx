@@ -909,26 +909,43 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               <div className="font-mono text-xs mt-1">{replacementModal.partId}</div>
               <div className="font-bold">{replacementModal.partName}</div>
             </div>
-            <Field label="代替品を検索">
-              <input value={replacementSearch} onChange={e => setReplacementSearch(e.target.value)} placeholder="品番・品名で検索..." className={inputClass} />
+            <Field label="代替品を検索（入力で絞り込み）">
+              <input value={replacementSearch} onChange={e => setReplacementSearch(e.target.value)} placeholder="品番・品名・メーカーで検索..." className={inputClass} />
             </Field>
-            {replacementSearch && (
-              <div className="border border-slate-200 rounded max-h-40 overflow-y-auto">
-                {parts.filter(p => p.id !== replacementModal.partId && (p.id.toLowerCase().includes(replacementSearch.toLowerCase()) || p.name.toLowerCase().includes(replacementSearch.toLowerCase()) || p.code.toLowerCase().includes(replacementSearch.toLowerCase()))).slice(0, 10).map(p => (
-                  <button key={p.id} onClick={() => { setReplacementPartId(p.id); setReplacementSearch(p.name); }}
-                    className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 ${replacementPartId === p.id ? 'bg-blue-50' : ''}`}>
-                    <span className="font-mono text-black">{p.id}</span> <span className="font-bold">{p.name}</span> <span className="text-black">/ {p.maker}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {replacementPartId && (
-              <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                <div className="text-xs text-blue-700 font-bold">代替品として設定</div>
-                <div className="font-mono text-xs mt-1">{replacementPartId}</div>
-                <div className="font-bold">{parts.find(p => p.id === replacementPartId)?.name}</div>
-              </div>
-            )}
+            <div className="border border-slate-200 rounded max-h-60 overflow-y-auto">
+              {parts.filter(p => {
+                if (p.id === replacementModal.partId) return false;
+                if (!replacementSearch) return true;
+                const q = replacementSearch.toLowerCase();
+                return p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || (p.maker || '').toLowerCase().includes(q);
+              }).slice(0, 30).map(p => (
+                <button key={p.id} onClick={() => { setReplacementPartId(p.id); setReplacementSearch(p.name); }}
+                  className={`w-full text-left px-3 py-2.5 text-xs hover:bg-blue-50 border-b border-slate-100 flex items-center gap-3 ${replacementPartId === p.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''}`}>
+                  <div className="flex-1 min-w-0">
+                    <div><span className="font-mono text-black">{p.id}</span> <span className="font-bold">{p.name}</span></div>
+                    <div className="text-black">{p.maker || '-'} / {p.code}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-mono font-bold">{p.stock}<span className="font-normal text-black"> {p.unit}</span></div>
+                    <div className="text-black">{yen(p.unitPrice)}</div>
+                  </div>
+                </button>
+              ))}
+              {parts.filter(p => p.id !== replacementModal.partId).length === 0 && (
+                <div className="px-3 py-4 text-center text-xs text-black">部品が登録されていません</div>
+              )}
+            </div>
+            {replacementPartId && (() => {
+              const rp = parts.find(p => p.id === replacementPartId);
+              return (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <div className="text-xs text-blue-700 font-bold">代替品として設定</div>
+                  <div className="font-mono text-xs mt-1">{replacementPartId}</div>
+                  <div className="font-bold">{rp?.name}</div>
+                  <div className="text-xs text-black mt-1">在庫: {rp?.stock} {rp?.unit} / 単価: {yen(rp?.unitPrice || 0)}</div>
+                </div>
+              );
+            })()}
             <div className="flex gap-2 pt-2">
               <Btn variant="primary" icon={Save} disabled={!replacementPartId} onClick={async () => {
                 try {
