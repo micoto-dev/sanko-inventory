@@ -1725,12 +1725,21 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
         const detail = order.details.find(d => d.partId === partId);
         const insp = inspection[partId] || '合格';
         const receiveQtyFinal = insp === '不合格' ? 0 : qty;
+
+        // 代替品の場合、代替品IDで在庫加算する
+        let stockPartId = partId;
+        if (detail?.remarks?.startsWith('replacement:')) {
+          const repId = detail.remarks.split(':')[1];
+          if (repId) stockPartId = repId;
+        }
+
         return {
-          partId,
+          partId: stockPartId, // 在庫加算は代替品IDで
+          originalPartId: partId, // 元の部品ID（発注明細更新用）
           qty: receiveQtyFinal,
           orderDetailId: detail?.id,
           orderId: order.id,
-          locationId: (detail as any)?.locationId || parts.find(p => p.id === partId)?.location || 'A-03-2-L',
+          locationId: parts.find(p => p.id === stockPartId)?.location || parts.find(p => p.id === partId)?.location || 'A-03-2-L',
           result: insp === '不合格' ? 'reject' : 'ok',
           rejectReason: insp === '不合格' ? '検査不合格' : insp === '条件付合格' ? '条件付合格' : undefined,
         };

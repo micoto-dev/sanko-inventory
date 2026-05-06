@@ -40,7 +40,11 @@ export async function POST(request: Request) {
         });
         receives.push(receive);
 
-        // Update stock: increase qty, decrease on_order
+        // Update stock: increase qty, decrease on_order (prevent negative on_order)
+        const existingStock = await tx.tStock.findUnique({
+          where: { partId_locationId: { partId: item.partId, locationId: item.locationId } },
+        });
+        const onOrderDecrement = existingStock ? Math.min(item.qty, existingStock.onOrder) : 0;
         await tx.tStock.upsert({
           where: { partId_locationId: { partId: item.partId, locationId: item.locationId } },
           create: {
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
           },
           update: {
             qty: { increment: item.qty },
-            onOrder: { decrement: item.qty },
+            onOrder: { decrement: onOrderDecrement },
             lastInoutAt: new Date(),
           },
         });

@@ -43,12 +43,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         });
         issues.push(issue);
 
-        // Reduce stock qty and allocated
+        // Reduce stock qty and allocated (prevent negative)
+        const currentStock = await tx.tStock.findUnique({
+          where: { partId_locationId: { partId: item.partId, locationId: item.locationId } },
+        });
+        if (!currentStock) {
+          throw new Error(`在庫レコードが見つかりません: ${item.partId} @ ${item.locationId}`);
+        }
+        if (currentStock.qty < item.qty) {
+          throw new Error(`在庫不足: ${item.partId} (在庫${currentStock.qty} < 出庫${item.qty})`);
+        }
         await tx.tStock.update({
           where: { partId_locationId: { partId: item.partId, locationId: item.locationId } },
           data: {
             qty: { decrement: item.qty },
-            allocated: { decrement: item.qty },
+            allocated: { decrement: Math.min(item.qty, currentStock.allocated) },
             lastInoutAt: new Date(),
           },
         });
