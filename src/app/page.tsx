@@ -1315,76 +1315,86 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
 const OrderPdfModal = ({ order, parts, onClose }: {
   order: Order; parts: Part[]; onClose: () => void;
 }) => {
-  const totalQty = (order.details || []).reduce((s, i) => s + i.qty, 0);
-  const tax = Math.round(order.totalAmount * 0.10);
-  const grandTotal = order.totalAmount + tax;
+  const totalAmount = (order.details || []).reduce((s, i) => s + i.qty * i.unitPrice, 0);
+  const orderDate = order.orderDate || new Date().toISOString().slice(0, 10);
+  const dateFormatted = orderDate.replace(/-/g, '/').replace(/^(\d{4})\/(\d{2})\/(\d{2})$/, '$1 年 $2 月 $3 日');
+  const dateShort = orderDate.replace(/-/g, '.').slice(2); // '26.04.16
 
   const handlePrint = () => {
     const printNode = document.getElementById('po-printable');
     if (!printNode) { window.print(); return; }
-    const win = window.open('', '_blank', 'width=900,height=1200');
+    const win = window.open('', '_blank', 'width=800,height=1130');
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>${order.orderNo}</title>
+    win.document.write(`<!DOCTYPE html><html><head><title>注文書 ${order.orderNo}</title>
       <meta charset="utf-8"/>
       <style>
-        body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif; padding: 30px; color: #0f172a; }
-        h1 { text-align: center; letter-spacing: 0.4em; margin-bottom: 8px; font-size: 22px; }
-        .meta { display: flex; justify-content: space-between; margin: 20px 0; font-size: 13px; }
-        .meta .box { border: 1px solid #cbd5e1; padding: 8px 12px; min-width: 240px; }
-        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-        th, td { border: 1px solid #94a3b8; padding: 6px 8px; }
-        th { background: #f1f5f9; }
+        @page { size: A4; margin: 15mm; }
+        body { font-family: "Yu Gothic", "Meiryo", "Hiragino Sans", sans-serif; color: #000; font-size: 11px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #000; padding: 3px 6px; }
         .right { text-align: right; }
-        .total { background: #f8fafc; font-weight: bold; }
-        .footer { margin-top: 30px; font-size: 11px; color: #475569; }
-        .stamp { border: 2px solid #dc2626; color: #dc2626; padding: 4px 10px; display: inline-block; border-radius: 4px; font-size: 11px; }
-        .sig { display: flex; gap: 40px; margin-top: 20px; }
-        .sig .cell { border: 1px solid #cbd5e1; width: 100px; height: 60px; text-align: center; font-size: 10px; padding: 4px; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .title { font-size: 22px; font-weight: bold; letter-spacing: 0.5em; text-align: center; margin: 10px 0; }
+        .no-border td, .no-border th { border: none; }
       </style></head><body>${printNode.innerHTML}</body></html>`);
     win.document.close();
     setTimeout(() => { win.print(); }, 300);
   };
 
   return (
-    <Modal open onClose={onClose} title={`発注書プレビュー: ${order.orderNo}`} size="xl">
+    <Modal open onClose={onClose} title={`注文書プレビュー: ${order.orderNo}`} size="xl">
       <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-3 text-xs text-amber-900 flex items-center gap-2">
-        <FileText size={13} /> このプレビューを印刷またはPDFとして保存できます。実運用ではPDFを仕入先へ送付します。
+        <FileText size={13} /> 三工電機の正式注文書様式です。印刷またはPDFとして保存できます。
       </div>
-      <div id="po-printable" className="bg-white border-2 border-slate-300 p-6 text-sm">
-        <h1 style={{ textAlign: 'center', letterSpacing: '0.4em', fontWeight: 'bold', fontSize: 22, marginBottom: 8 }}>御 注 文 書</h1>
-        <div className="text-center text-xs text-black mb-4">PURCHASE ORDER</div>
+      <div id="po-printable" className="bg-white border border-slate-400 p-6" style={{ fontFamily: '"Yu Gothic", "Meiryo", sans-serif', fontSize: '11px', color: '#000', maxWidth: '210mm' }}>
 
-        <div className="flex justify-between mb-4 text-xs">
-          <div className="border border-slate-300 p-2 flex-1 mr-3">
-            <div className="text-black">発注番号</div>
-            <div className="font-mono font-bold text-base">{order.orderNo}</div>
-            <div className="text-black mt-2">発注日</div>
-            <div>{order.orderDate}</div>
-            <div className="text-black mt-2">希望納期</div>
-            <div>{order.desiredDate}</div>
+        {/* Header row: コードNO + 注文書タイトル + 金額 + 日付 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+          <div>
+            <span style={{ fontSize: '9px' }}>コードＮＯ.</span>
+            <div style={{ border: '1px solid #000', padding: '2px 8px', fontSize: '10px', fontFamily: 'monospace', display: 'inline-block', marginLeft: '4px' }}>{order.orderNo}</div>
           </div>
-          <div className="border border-slate-300 p-2 flex-1">
-            <div className="text-black">発注先</div>
-            <div className="font-bold text-base">{order.supplier} 御中</div>
-            <div className="text-black mt-2">発注元</div>
-            <div className="font-bold">三工電機株式会社</div>
-            <div className="text-xs text-black">船舶用分電盤製造部 / 購買グループ</div>
-            <div className="text-xs">担当: 山田 太郎</div>
-            <div className="mt-2 inline-block border border-rose-600 text-rose-600 px-2 py-0.5 text-xs rounded">承認印</div>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: '22px', fontWeight: 'bold', letterSpacing: '0.5em' }}>注　文　書</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ border: '1px solid #000', padding: '2px 10px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace' }}>¥{totalAmount.toLocaleString()}</div>
+            <div style={{ marginTop: '4px', fontSize: '10px' }}>{dateFormatted}</div>
           </div>
         </div>
 
-        <div className="text-xs text-black mb-2">下記の通り発注いたしますので、納期厳守のうえご手配のほどお願い申し上げます。</div>
+        {/* Company info */}
+        <div style={{ textAlign: 'right', fontSize: '10px', marginBottom: '8px', lineHeight: '1.5' }}>
+          <div>広島県呉市苗代町126番地の30</div>
+          <div>〒737-0921 TEL(0823)30-3502</div>
+          <div style={{ marginLeft: '60px' }}>FAX(0823)33-3501</div>
+        </div>
 
-        <table className="w-full text-xs border-collapse" style={{ borderCollapse: 'collapse' }}>
+        {/* Supplier + staff info */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'inline-block' }}>
+              {order.supplier}　御中
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '10px' }}>
+            <div>部門: 生管調達課　{`'${dateShort}`}</div>
+            <div>担当:　　　　　　三工電機(株)</div>
+          </div>
+        </div>
+
+        {/* Detail table */}
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '11px' }}>
           <thead>
-            <tr className="bg-slate-100">
-              <th className="border border-slate-400 p-1.5">No.</th>
-              <th className="border border-slate-400 p-1.5">品番</th>
-              <th className="border border-slate-400 p-1.5 text-left">品名・仕様</th>
-              <th className="border border-slate-400 p-1.5 text-right">数量</th>
-              <th className="border border-slate-400 p-1.5 text-right">単価</th>
-              <th className="border border-slate-400 p-1.5 text-right">金額</th>
+            <tr>
+              <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'left', width: '50%' }}>品　番　・　品　名</th>
+              <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '10%' }}>数　量</th>
+              <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', width: '8%' }}>単位</th>
+              <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '12%' }}>単　価</th>
+              <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', width: '12%' }}>金　額</th>
+              <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'left', width: '8%' }}>備　考</th>
             </tr>
           </thead>
           <tbody>
@@ -1392,67 +1402,56 @@ const OrderPdfModal = ({ order, parts, onClose }: {
               const p = parts.find(x => x.id === it.partId);
               return (
                 <tr key={i}>
-                  <td className="border border-slate-400 p-1.5 text-center">{i + 1}</td>
-                  <td className="border border-slate-400 p-1.5 font-mono">{p?.code || it.partId}</td>
-                  <td className="border border-slate-400 p-1.5">
-                    <div>{it.partName || p?.name || '—'}</div>
-                    {p?.spec && <div className="text-black text-[11px]">{p.spec}</div>}
+                  <td style={{ border: '1px solid #000', padding: '3px 6px' }}>
+                    <div style={{ fontFamily: 'monospace', fontSize: '10px' }}>{p?.code || it.partId}</div>
+                    <div>{it.partName || p?.name || ''}</div>
+                    {p?.maker && <div style={{ fontSize: '9px', color: '#555' }}>{p.maker}</div>}
                   </td>
-                  <td className="border border-slate-400 p-1.5 text-right font-mono">{it.qty.toLocaleString()} {p?.unit || ''}</td>
-                  <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(it.unitPrice)}</td>
-                  <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(it.qty * it.unitPrice)}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{it.qty}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'center' }}>{p?.unit || '個'}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{it.unitPrice.toLocaleString()}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{(it.qty * it.unitPrice).toLocaleString()}</td>
+                  <td style={{ border: '1px solid #000', padding: '3px 6px' }}></td>
                 </tr>
               );
             })}
-            {Array.from({ length: Math.max(0, 5 - (order.details || []).length) }).map((_, i) => (
-              <tr key={`empty-${i}`}>
-                <td className="border border-slate-400 p-1.5">&nbsp;</td>
-                <td className="border border-slate-400 p-1.5"></td>
-                <td className="border border-slate-400 p-1.5"></td>
-                <td className="border border-slate-400 p-1.5"></td>
-                <td className="border border-slate-400 p-1.5"></td>
-                <td className="border border-slate-400 p-1.5"></td>
+            {Array.from({ length: Math.max(0, 8 - (order.details || []).length) }).map((_, i) => (
+              <tr key={`e-${i}`}>
+                <td style={{ border: '1px solid #000', padding: '3px 6px', height: '20px' }}>&nbsp;</td>
+                <td style={{ border: '1px solid #000', padding: '3px 6px' }}></td>
+                <td style={{ border: '1px solid #000', padding: '3px 6px' }}></td>
+                <td style={{ border: '1px solid #000', padding: '3px 6px' }}></td>
+                <td style={{ border: '1px solid #000', padding: '3px 6px' }}></td>
+                <td style={{ border: '1px solid #000', padding: '3px 6px' }}></td>
               </tr>
             ))}
-            <tr>
-              <td colSpan={3} className="border border-slate-400 p-1.5 text-right">小計</td>
-              <td className="border border-slate-400 p-1.5 text-right font-mono">{totalQty.toLocaleString()}</td>
-              <td className="border border-slate-400 p-1.5"></td>
-              <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(order.totalAmount)}</td>
-            </tr>
-            <tr>
-              <td colSpan={5} className="border border-slate-400 p-1.5 text-right">消費税 (10%)</td>
-              <td className="border border-slate-400 p-1.5 text-right font-mono">{yen(tax)}</td>
-            </tr>
-            <tr style={{ background: '#f8fafc' }}>
-              <td colSpan={5} className="border border-slate-400 p-1.5 text-right font-bold">合計 (税込)</td>
-              <td className="border border-slate-400 p-1.5 text-right font-mono font-bold text-base">{yen(grandTotal)}</td>
-            </tr>
           </tbody>
         </table>
 
-        <div className="text-xs mt-4 space-y-1 text-black">
-          <div>■ 納入場所: 三工電機株式会社 資材倉庫 (神奈川県横浜市)</div>
-          <div>■ 支払条件: 月末締め翌月末支払 / 銀行振込</div>
-          <div>■ 備考: 納期回答および出荷案内は購買担当宛にメール願います</div>
-        </div>
-
-        <div className="flex gap-6 mt-6 text-[11px]">
-          <div><div>承認</div><div className="border border-slate-300 w-20 h-12"></div></div>
-          <div><div>確認</div><div className="border border-slate-300 w-20 h-12"></div></div>
-          <div><div>担当</div><div className="border border-slate-300 w-20 h-12"></div></div>
+        {/* Footer: 摘要 + 納入先 + 合計 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10px' }}>
+          <div style={{ flex: 1 }}>
+            <div>摘要：生管調達発注</div>
+            <div style={{ marginTop: '4px' }}>納入先：〒737-0921</div>
+            <div>広島県呉市苗代町126番地の30</div>
+            <div>三工電機株式会社</div>
+            <div>生管調達課</div>
+            <div>TEL:0823-30-3502</div>
+            <div>FAX:0823-33-3501</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '11px', marginBottom: '4px' }}>
+              <span>合　計</span>
+              <span style={{ border: '1px solid #000', padding: '2px 12px', marginLeft: '8px', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '13px' }}>
+                ¥{totalAmount.toLocaleString()}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
         <Btn variant="primary" icon={Printer} onClick={handlePrint}>印刷 / PDF保存</Btn>
-        <Btn variant="secondary" icon={Download} onClick={() => {
-          const blob = new Blob(['発注書: ' + order.orderNo + '\n' + JSON.stringify(order, null, 2)], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = `${order.orderNo}.txt`; a.click();
-          URL.revokeObjectURL(url);
-        }}>テキスト出力</Btn>
         <Btn variant="secondary" onClick={onClose} className="ml-auto">閉じる</Btn>
       </div>
     </Modal>
