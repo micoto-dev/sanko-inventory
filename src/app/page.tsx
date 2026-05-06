@@ -1705,7 +1705,7 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
   );
 };
 
-const ProductionScreen = ({ prodOrders, toast, onRefresh }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void }) => {
+const ProductionScreen = ({ prodOrders, toast, onRefresh, parts }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[] }) => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [bomDetail, setBomDetail] = useState<any>(null);
   const [bomLoading, setBomLoading] = useState(false);
@@ -1862,7 +1862,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh }: { prodOrders: ProdOr
 
       {(showNew || editMo) && (
         <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '製造指図 新規登録' : `製造指図編集: ${editMo?.prodNo}`} size="md">
-          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} parts={parts} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
             try {
               if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('製造指図を作成しました'); }
               else { await api.updateProductionOrder(form.id, form); toast('製造指図を更新しました'); }
@@ -2055,9 +2055,45 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
   );
 };
 
-const ProdOrderForm = ({ prodOrder, isNew, products, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+const ProdOrderForm = ({ prodOrder, isNew, products, parts, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; parts: Part[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
   const [form, setForm] = useState(() => prodOrder || { productId: products[0]?.id || '', qty: 1, startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', notes: '' });
+  const [bomItems, setBomItems] = useState<{ partId: string; qty: number; position: string }[]>([]);
+  const [bomLoaded, setBomLoaded] = useState(false);
+  const [addPartSearch, setAddPartSearch] = useState('');
+  const [addPartDropdown, setAddPartDropdown] = useState(false);
   const upd = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+
+  // Load BOM when product is selected (new) or load existing snapshot (edit)
+  useEffect(() => {
+    if (!isNew && prodOrder?.id) {
+      api.getProductionOrder(prodOrder.id).then((detail: any) => {
+        const items = (detail.bomSnapshot || []).map((bs: any) => ({
+          partId: bs.partId, qty: Number(bs.totalQty) || Number(bs.requiredQty) || 0, position: bs.position || '',
+        }));
+        setBomItems(items);
+        setBomLoaded(true);
+      }).catch(() => setBomLoaded(true));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isNew && form.productId) {
+      const product = products.find((p: any) => p.id === Number(form.productId));
+      if (product?.boms) {
+        setBomItems(product.boms.map((b: any) => ({ partId: b.partId, qty: Number(b.qty) * (form.qty || 1), position: b.position || '' })));
+      } else {
+        api.getProduct(Number(form.productId)).then((res: any) => {
+          const p = res.data || res;
+          if (p?.boms) setBomItems(p.boms.map((b: any) => ({ partId: b.partId, qty: Number(b.qty) * (form.qty || 1), position: b.position || '' })));
+        }).catch(() => {});
+      }
+      setBomLoaded(true);
+    }
+  }, [form.productId]);
+
+  const bomPartIds = new Set(bomItems.map(b => b.partId));
+  const filteredAddParts = parts.filter(p => !bomPartIds.has(p.id) && (!addPartSearch || p.id.toLowerCase().includes(addPartSearch.toLowerCase()) || p.name.toLowerCase().includes(addPartSearch.toLowerCase()))).slice(0, 20);
+
   return (
     <div className="space-y-3 text-sm">
       <Field label="製品*">
@@ -2072,10 +2108,57 @@ const ProdOrderForm = ({ prodOrder, isNew, products, onClose, onSave }: { prodOr
         <Field label="開始日"><input type="date" value={form.startDate || ''} onChange={e => upd('startDate', e.target.value)} className={inputClass} /></Field>
         <Field label="納期"><input type="date" value={form.dueDate || ''} onChange={e => upd('dueDate', e.target.value)} className={inputClass} /></Field>
       </div>
-      <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-16`} /></Field>
-      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-800">登録すると、製品のBOMから必要部品が自動展開され、在庫が引当されます。</div>}
+      <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-12`} /></Field>
+
+      {/* BOM editing */}
+      {bomLoaded && bomItems.length > 0 && (
+        <div className="border border-slate-200 rounded overflow-hidden">
+          <div className="bg-slate-50 px-3 py-2 text-xs font-semibold text-black border-b border-slate-200 flex items-center gap-2">
+            <Package size={12} /> 部品リスト ({bomItems.length}部品)
+          </div>
+          <table className="w-full text-xs">
+            <thead className="bg-white text-black border-b border-slate-100">
+              <tr><th className="text-left px-3 py-1.5">品番</th><th className="text-left px-3 py-1.5">品名</th><th className="text-right px-3 py-1.5 w-20">数量</th><th className="text-left px-3 py-1.5 w-20">位置</th><th className="w-8"></th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {bomItems.map((b, i) => {
+                const part = parts.find(p => p.id === b.partId);
+                return (
+                  <tr key={b.partId}>
+                    <td className="px-3 py-1.5 font-mono">{b.partId}</td>
+                    <td className="px-3 py-1.5">{part?.name || b.partId}</td>
+                    <td className="px-3 py-1.5"><input type="number" value={b.qty} min={1} onChange={e => setBomItems(prev => prev.map((item, j) => j === i ? { ...item, qty: Number(e.target.value) || 1 } : item))} className="w-16 border border-slate-300 rounded px-1.5 py-0.5 text-right" /></td>
+                    <td className="px-3 py-1.5"><input value={b.position} onChange={e => setBomItems(prev => prev.map((item, j) => j === i ? { ...item, position: e.target.value } : item))} className="w-16 border border-slate-300 rounded px-1.5 py-0.5" /></td>
+                    <td className="px-3 py-1"><button onClick={() => setBomItems(prev => prev.filter((_, j) => j !== i))} className="text-rose-500 hover:bg-rose-50 p-0.5 rounded"><Trash2 size={12} /></button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add part to BOM */}
+      {bomLoaded && (
+        <div className="relative">
+          <div className="text-xs font-semibold text-black mb-1">部品を追加</div>
+          <input value={addPartSearch} onChange={e => { setAddPartSearch(e.target.value); setAddPartDropdown(true); }} onFocus={() => setAddPartDropdown(true)} onBlur={() => setTimeout(() => setAddPartDropdown(false), 200)} placeholder="品番・品名で検索..." className={`${inputClass} font-mono`} />
+          {addPartDropdown && filteredAddParts.length > 0 && (
+            <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
+              {filteredAddParts.map(p => (
+                <button key={p.id} type="button" onMouseDown={e => { e.preventDefault(); setBomItems(prev => [...prev, { partId: p.id, qty: 1, position: '' }]); setAddPartSearch(''); setAddPartDropdown(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center justify-between">
+                  <span><span className="font-mono">{p.id}</span> {p.name}</span>
+                  <span className="text-black">在庫:{p.stock}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-800">製品を選択するとBOMから部品が自動展開されます。数量の変更や部品の追加・削除が可能です。</div>}
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.productId || !form.qty}>{isNew ? '指図発行' : '保存'}</Btn>
+        <Btn variant="primary" icon={Save} onClick={() => onSave({ ...form, bomItems }, isNew)} disabled={!form.productId || !form.qty}>{isNew ? '指図発行' : '保存'}</Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
     </div>
@@ -4958,7 +5041,7 @@ export default function AppPage() {
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
-          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} />}
+          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}
           {view === 'reports' && <ReportsScreen toast={toast} />}
