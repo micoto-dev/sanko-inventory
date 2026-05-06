@@ -1376,18 +1376,18 @@ const OrderPdfModal = ({ order, parts, onClose }: {
           const top = FIRST_ROW_TOP + i * ROW_H;
           return (
             <React.Fragment key={i}>
-              {/* 品番・品名 */}
-              <div style={{ position: 'absolute', top: `${top + 2}px`, left: '18px', width: '260px', fontSize: '9px', lineHeight: '1.3' }}>
+              {/* 品番・品名 (x≈130) */}
+              <div style={{ position: 'absolute', top: `${top + 2}px`, left: '22px', width: '250px', fontSize: '9px', lineHeight: '1.3', whiteSpace: 'pre-line' }}>
                 {p?.code || it.partId}{'\n'}{it.partName || p?.name || ''}{p?.maker ? `\n${p.maker}` : ''}
               </div>
-              {/* 数量 */}
-              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '280px', width: '50px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{it.qty}</div>
-              {/* 単位 */}
-              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '335px', width: '30px', textAlign: 'center', fontSize: '10px' }}>{p?.unit || '個'}</div>
-              {/* 単価 */}
-              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '375px', width: '65px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{it.unitPrice.toLocaleString()}</div>
-              {/* 金額 */}
-              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '445px', width: '70px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{(it.qty * it.unitPrice).toLocaleString()}</div>
+              {/* 数量 (x≈400) */}
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '275px', width: '40px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{it.qty}</div>
+              {/* 単位 (x≈475) */}
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '320px', width: '30px', textAlign: 'center', fontSize: '10px' }}>{p?.unit || '個'}</div>
+              {/* 単価 (x≈540) */}
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '360px', width: '60px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{it.unitPrice.toLocaleString()}</div>
+              {/* 金額 (x≈650→幅内で525) */}
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '430px', width: '70px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{(it.qty * it.unitPrice).toLocaleString()}</div>
             </React.Fragment>
           );
         })}
