@@ -924,7 +924,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                         toast('コメントを削除しました');
                         onRefresh();
                       } catch (e: any) { toast(`エラー: ${e.message}`); }
-                    }} className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-rose-50 flex-shrink-0 mt-0.5" title="削除"><X size={12} /></button>
+                    }} className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-rose-50 flex-shrink-0 mt-0.5" title="削除"><Trash2 size={12} /></button>
                   </div>
                 ))}
               </div>

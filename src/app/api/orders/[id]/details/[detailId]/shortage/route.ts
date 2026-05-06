@@ -30,6 +30,12 @@ export async function POST(
         data: { remarks: "manufacturer_shortage" },
       });
 
+      // Update part master shortage status
+      await tx.mPart.update({
+        where: { id: detail.partId },
+        data: { shortageReason: `メーカー欠品（発注 ${detail.order.orderNo} より）` },
+      });
+
       // Remove onOrder qty from stock for this part
       const part = await tx.mPart.findUnique({
         where: { id: detail.partId },
@@ -96,6 +102,17 @@ export async function DELETE(
         where: { id: detId },
         data: { remarks: null },
       });
+
+      // Clear part master shortage (check if no other orders have this part as shortage)
+      const otherShortages = await tx.tOrderDetail.count({
+        where: { partId: detail.partId, remarks: 'manufacturer_shortage', id: { not: detId } },
+      });
+      if (otherShortages === 0) {
+        await tx.mPart.update({
+          where: { id: detail.partId },
+          data: { shortageReason: null },
+        });
+      }
 
       // Restore onOrder qty
       const part = await tx.mPart.findUnique({
