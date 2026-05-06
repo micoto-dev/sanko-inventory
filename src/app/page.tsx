@@ -4167,7 +4167,7 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
           <div className="text-xs font-semibold text-black mb-2 flex items-center gap-1">
             <Sparkles size={12} /> 認識結果
           </div>
-          {phase === 'viewfinder' && (
+          {phase === 'camera' && (
             <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-6 text-center text-xs text-black">
               撮影前
             </div>
