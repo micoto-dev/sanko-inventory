@@ -11,6 +11,7 @@ export const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   awaiting: { label: '納品待ち', color: 'bg-blue-100 text-blue-800' },
   manufacturer_shortage: { label: 'メーカー欠品', color: 'bg-rose-100 text-rose-800' },
   completed: { label: '完納', color: 'bg-emerald-100 text-emerald-800' },
+  cancelled: { label: 'キャンセル', color: 'bg-slate-200 text-slate-900' },
 };
 
 export const MO_STATUS: Record<string, { label: string; color: string }> = {

@@ -828,6 +828,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             { id: 'awaiting', label: '納品待ち', n: orders.filter(o => o.status === 'awaiting').length },
             { id: 'manufacturer_shortage', label: 'メーカー欠品', n: orders.filter(o => o.status === 'manufacturer_shortage').length },
             { id: 'completed', label: '完納', n: orders.filter(o => o.status === 'completed').length },
+            { id: 'cancelled', label: 'キャンセル', n: orders.filter(o => o.status === 'cancelled').length },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} className={`px-3 py-2.5 text-sm font-medium border-b-2 ${tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-black hover:text-black'}`}>
               {t.label} <span className="ml-1 text-xs text-black">{t.n}</span>
@@ -977,6 +978,16 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             <Btn variant="primary" icon={Save} onClick={handleSaveDetail}>変更を保存</Btn>
             {showDetail.status === 'draft' && (
               <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>発注確定（納品待ちへ）</Btn>
+            )}
+            {(showDetail.status === 'draft' || showDetail.status === 'awaiting') && (
+              <Btn variant="danger" onClick={async () => {
+                try {
+                  await api.updateOrder(showDetail.id, { status: 'cancelled' });
+                  toast('発注をキャンセルしました');
+                  setShowDetail(null);
+                  onRefresh();
+                } catch (e: any) { toast(`エラー: ${e.message}`); }
+              }}>キャンセル</Btn>
             )}
             <Btn variant="secondary" icon={FileText} onClick={() => handleViewPdf(showDetail)}>発注書PDF</Btn>
             <Btn variant="secondary" onClick={handleClose} className="ml-auto">閉じる</Btn>

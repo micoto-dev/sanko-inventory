@@ -68,6 +68,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      // If cancelling an awaiting order, release onOrder
+      if (status === 'cancelled' && existing.status === 'awaiting') {
+        const details = await tx.tOrderDetail.findMany({ where: { orderId: numId } });
+        for (const d of details) {
+          const remaining = d.qty - d.receivedQty;
+          if (remaining > 0 && d.remarks !== 'manufacturer_shortage') {
+            const part = await tx.mPart.findUnique({ where: { id: d.partId }, select: { defaultLocId: true } });
+            if (part?.defaultLocId) {
+              const stock = await tx.tStock.findUnique({ where: { partId_locationId: { partId: d.partId, locationId: part.defaultLocId } } });
+              if (stock && stock.onOrder > 0) {
+                await tx.tStock.update({ where: { partId_locationId: { partId: d.partId, locationId: part.defaultLocId } }, data: { onOrder: { decrement: Math.min(remaining, stock.onOrder) } } });
+              }
+            }
+          }
+        }
+      }
+
       const order = await tx.tOrder.update({ where: { id: numId }, data });
 
       // Update individual order detail if requested
