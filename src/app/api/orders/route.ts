@@ -29,11 +29,22 @@ export async function GET(request: Request) {
       prisma.tOrder.count({ where }),
     ]);
 
+    // Get all users for resolving comment userIds
+    const allUsers = await prisma.mUser.findMany({ select: { id: true, name: true } });
+    const userMap = new Map(allUsers.map(u => [u.id, u.name]));
+
     const data = orders.map((o: any) => {
-      let meta: { expectedDeliveryDate?: string; comments?: { text: string; ts: string; user?: string }[] } = {};
+      let meta: { expectedDeliveryDate?: string; comments?: { text: string; ts: string; user?: string; userId?: number }[] } = {};
       try {
         if (o.notes && o.notes.startsWith('{')) meta = JSON.parse(o.notes);
       } catch { /* not JSON */ }
+      // Resolve comment user names from userId
+      if (meta.comments) {
+        meta.comments = meta.comments.map(c => ({
+          ...c,
+          user: c.userId ? (userMap.get(c.userId) || c.user || '') : (c.user || ''),
+        }));
+      }
       return {
         id: o.id,
         orderNo: o.orderNo,

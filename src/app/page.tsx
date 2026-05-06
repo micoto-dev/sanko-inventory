@@ -624,8 +624,8 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any;
 };
 
 // ========================== Orders ==========================
-const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
-  parts: Part[]; orders: Order[]; onRefresh: () => void; toast: (msg: string) => void; userName?: string;
+const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
+  parts: Part[]; orders: Order[]; onRefresh: () => void; toast: (msg: string) => void; userName?: string; userId?: number;
 }) => {
   const [replacementModal, setReplacementModal] = useState<{ orderId: number; detailId: number; partId: string; partName: string } | null>(null);
   const [replacementPartId, setReplacementPartId] = useState('');
@@ -894,7 +894,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                 <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12 flex-1`} />
                 <Btn variant="primary" icon={Send} disabled={!editComment.trim()} onClick={async () => {
                   if (!editComment.trim() || !showDetail) return;
-                  const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
+                  const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '', userId: userId || 1 };
                   try {
                     await api.updateOrder(showDetail.id, { newComment });
                     setCommentHistory(prev => [newComment, ...prev]);
@@ -1053,7 +1053,7 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
     return [];
   });
 
-  const filteredItems = items.filter(it => it.supplier === supplier);
+  const filteredItems = items.filter(it => !supplier || it.supplier === supplier || !it.supplier);
   const total = filteredItems.reduce((s, i) => s + i.qty * i.unitPrice, 0);
 
   const addPart = (p: Part) => {
@@ -5117,7 +5117,7 @@ export default function AppPage() {
           {view === 'inventory' && <InventoryScreen parts={parts} locations={locations} openPart={setSelectedPart} />}
           {view === 'locations' && <LocationsScreen locations={locations} onRefresh={fetchAll} toast={toast} />}
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
-          {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} />}
+          {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
