@@ -2389,7 +2389,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
     parts.forEach(p => { if (p.location) { if (!m[p.location]) m[p.location] = []; m[p.location].push(p); } });
     return m;
   }, [parts]);
-  const targetLocations = useMemo(() => locations.filter(l => l.shelf === 'A' || l.shelf === 'B'), [locations]);
+  const targetLocations = useMemo(() => locations, [locations]);
   const warehouseGroups = useMemo(() => {
     const wh: Record<string, Location[]> = {};
     targetLocations.forEach(l => { if (!wh[l.warehouse]) wh[l.warehouse] = []; wh[l.warehouse].push(l); });
@@ -2488,9 +2488,8 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-xs text-black">{'\u68DA\u5378\u8A08\u753B #ST-2026-04'}</div>
-            <h2 className="text-base font-bold">{'\u6708\u6B21\u68DA\u5378\u3057\uFF08A\u68DA\u301CB\u68DA\uFF09'}</h2>
-            <div className="text-xs text-black">{'\u5BFE\u8C61\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3: A\u68DA\u30FBB\u68DA'}</div>
+            <h2 className="text-base font-bold">棚卸し</h2>
+            <div className="text-xs text-black">対象ロケーション: 全倉庫 ({locations.length}箇所)</div>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" icon={Printer} onClick={handlePrint}>棚卸表印刷</Btn>
