@@ -37,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const { status, desiredDate, deliveryAddr, paymentTerms, notes, expectedDeliveryDate, newComment } = body;
+    const { status, desiredDate, deliveryAddr, paymentTerms, notes, expectedDeliveryDate, newComment, detailUpdate } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
@@ -67,6 +67,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const updated = await prisma.$transaction(async (tx) => {
       const order = await tx.tOrder.update({ where: { id: numId }, data });
+
+      // Update individual order detail if requested
+      if (detailUpdate?.detailId) {
+        await tx.tOrderDetail.update({
+          where: { id: Number(detailUpdate.detailId) },
+          data: { remarks: detailUpdate.remarks || null },
+        });
+      }
 
       await tx.tLog.create({
         data: {

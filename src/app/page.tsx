@@ -839,12 +839,15 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               </thead>
               <tbody>
                 {showDetail.details?.map((it, i) => (
-                  <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' ? 'bg-rose-50' : ''}`}>
+                  <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' || it.remarks?.startsWith('replacement:') ? 'bg-rose-50' : ''}`}>
                     <td className="py-2 px-3">
                       <div className="text-xs font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
-                      {it.remarks === 'manufacturer_shortage' && !((it as any).replacementPartName) && <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
-                      {(it as any).replacementPartName && <div className="mt-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs"><span className="text-blue-700 font-semibold">代替品決定:</span> <span className="font-bold">{(it as any).replacementPartName}</span></div>}
+                      {it.remarks === 'manufacturer_shortage' && <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
+                      {it.remarks?.startsWith('replacement:') && (() => {
+                        const repName = it.remarks.split(':')[2] || it.remarks.split(':')[1];
+                        return <div className="mt-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs"><span className="text-blue-700 font-semibold">代替品決定:</span> <span className="font-bold">{repName}</span></div>;
+                      })()}
                     </td>
                     <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
                     <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
@@ -963,14 +966,19 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
             <div className="flex gap-2 pt-2">
               <Btn variant="primary" icon={Save} disabled={!replacementPartId} onClick={async () => {
                 try {
-                  await api.updatePart(replacementModal.partId, { replacementId: replacementPartId, isDiscontinued: true, shortageReason: `廃盤 → 代替品: ${replacementPartId}` });
-                  // Update the detail's display
                   const repPart = parts.find(p => p.id === replacementPartId);
+                  // 1. Update part master with replacement info
+                  await api.updatePart(replacementModal.partId, { replacementId: replacementPartId, isDiscontinued: true, shortageReason: `廃盤 → 代替品: ${repPart?.name || replacementPartId}` });
+                  // 2. Update order detail remarks to store replacement info
+                  await api.updateOrder(replacementModal.orderId, {
+                    detailUpdate: { detailId: replacementModal.detailId, remarks: `replacement:${replacementPartId}:${repPart?.name || ''}` }
+                  });
+                  // 3. Update UI immediately
                   setShowDetail((prev: any) => prev ? {
                     ...prev,
-                    details: prev.details.map((d: any) => d.id === replacementModal.detailId ? { ...d, replacementPartName: repPart?.name || replacementPartId } : d),
+                    details: prev.details.map((d: any) => d.id === replacementModal.detailId ? { ...d, remarks: `replacement:${replacementPartId}:${repPart?.name || ''}`, replacementPartName: repPart?.name || replacementPartId } : d),
                   } : prev);
-                  toast(`代替品「${repPart?.name}」を設定しました。元部品を廃盤マークしました`);
+                  toast(`代替品「${repPart?.name}」を設定しました`);
                   setReplacementModal(null); setReplacementPartId(''); setReplacementSearch('');
                   onRefresh();
                 } catch (e: any) { toast(`エラー: ${e.message}`); }
