@@ -1340,8 +1340,8 @@ const OrderPdfModal = ({ order, parts, onClose }: {
   };
 
   // 行の高さ（明細テーブル）
-  const ROW_H = 27; // px per row in the preview
-  const FIRST_ROW_TOP = 222; // 最初の明細行のtop位置
+  const ROW_H = 30; // px per row
+  const FIRST_ROW_TOP = 210; // 最初の明細行のtop位置
 
   return (
     <Modal open onClose={onClose} title={`注文書プレビュー: ${order.orderNo}`} size="xl">
@@ -1353,22 +1353,22 @@ const OrderPdfModal = ({ order, parts, onClose }: {
         <img src="/order-form-bg.png" alt="注文書" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
 
         {/* コードNO. */}
-        <div style={{ position: 'absolute', top: '27px', left: '72px', fontSize: '11px', fontFamily: 'monospace' }}>{order.orderNo}</div>
+        <div style={{ position: 'absolute', top: '52px', left: '72px', fontSize: '10px', fontFamily: 'monospace' }}>{order.orderNo}</div>
 
-        {/* 注文No. (右上) */}
-        <div style={{ position: 'absolute', top: '27px', right: '30px', fontSize: '11px', fontFamily: 'monospace' }}>{totalAmount.toLocaleString()}</div>
+        {/* 注文No.金額 (右上) */}
+        <div style={{ position: 'absolute', top: '52px', right: '22px', fontSize: '10px', fontFamily: 'monospace' }}>{totalAmount.toLocaleString()}</div>
 
-        {/* 日付 */}
-        <div style={{ position: 'absolute', top: '58px', left: '240px', fontSize: '11px' }}>{dateFormatted}</div>
+        {/* 日付 (中央上) */}
+        <div style={{ position: 'absolute', top: '42px', left: '230px', fontSize: '10px' }}>{dateFormatted}</div>
 
         {/* 納期 */}
-        <div style={{ position: 'absolute', top: '58px', right: '95px', fontSize: '11px' }}>{order.desiredDate?.replace(/-/g, '/') || ''}</div>
+        <div style={{ position: 'absolute', top: '72px', right: '80px', fontSize: '10px' }}>{order.desiredDate?.replace(/-/g, '/') || ''}</div>
 
-        {/* 仕入先 御中 */}
-        <div style={{ position: 'absolute', top: '130px', left: '30px', fontSize: '13px', fontWeight: 'bold' }}>{order.supplier}</div>
+        {/* 仕入先 */}
+        <div style={{ position: 'absolute', top: '142px', left: '30px', fontSize: '12px' }}>{order.supplier}</div>
 
-        {/* 部門・担当 */}
-        <div style={{ position: 'absolute', top: '152px', right: '110px', fontSize: '10px' }}>{dateShort}</div>
+        {/* 日付ショート(担当の右) */}
+        <div style={{ position: 'absolute', top: '162px', right: '85px', fontSize: '9px' }}>{dateShort}</div>
 
         {/* 明細行 */}
         {(order.details || []).map((it, i) => {
@@ -1377,28 +1377,26 @@ const OrderPdfModal = ({ order, parts, onClose }: {
           return (
             <React.Fragment key={i}>
               {/* 品番・品名 */}
-              <div style={{ position: 'absolute', top: `${top}px`, left: '30px', width: '270px', fontSize: '10px', lineHeight: '1.2' }}>
-                <span style={{ fontFamily: 'monospace', fontSize: '9px' }}>{p?.code || it.partId}</span>
-                <br />{it.partName || p?.name || ''}
-                {p?.maker && <><br /><span style={{ fontSize: '8px', color: '#555' }}>{p.maker}</span></>}
+              <div style={{ position: 'absolute', top: `${top + 2}px`, left: '18px', width: '260px', fontSize: '9px', lineHeight: '1.3' }}>
+                {p?.code || it.partId}{'\n'}{it.partName || p?.name || ''}{p?.maker ? `\n${p.maker}` : ''}
               </div>
               {/* 数量 */}
-              <div style={{ position: 'absolute', top: `${top + 4}px`, left: '305px', width: '45px', textAlign: 'right', fontSize: '11px', fontFamily: 'monospace' }}>{it.qty}</div>
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '280px', width: '50px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{it.qty}</div>
               {/* 単位 */}
-              <div style={{ position: 'absolute', top: `${top + 4}px`, left: '355px', width: '30px', textAlign: 'center', fontSize: '10px' }}>{p?.unit || '個'}</div>
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '335px', width: '30px', textAlign: 'center', fontSize: '10px' }}>{p?.unit || '個'}</div>
               {/* 単価 */}
-              <div style={{ position: 'absolute', top: `${top + 4}px`, left: '390px', width: '60px', textAlign: 'right', fontSize: '11px', fontFamily: 'monospace' }}>{it.unitPrice.toLocaleString()}</div>
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '375px', width: '65px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{it.unitPrice.toLocaleString()}</div>
               {/* 金額 */}
-              <div style={{ position: 'absolute', top: `${top + 4}px`, left: '455px', width: '65px', textAlign: 'right', fontSize: '11px', fontFamily: 'monospace' }}>{(it.qty * it.unitPrice).toLocaleString()}</div>
+              <div style={{ position: 'absolute', top: `${top + 5}px`, left: '445px', width: '70px', textAlign: 'right', fontSize: '10px', fontFamily: 'monospace' }}>{(it.qty * it.unitPrice).toLocaleString()}</div>
             </React.Fragment>
           );
         })}
 
         {/* 摘要 */}
-        <div style={{ position: 'absolute', top: '745px', left: '50px', fontSize: '10px' }}>生管調達発注</div>
+        <div style={{ position: 'absolute', top: '748px', left: '50px', fontSize: '9px' }}>生管調達発注</div>
 
         {/* 合計金額 */}
-        <div style={{ position: 'absolute', top: '735px', right: '40px', fontSize: '13px', fontFamily: 'monospace', fontWeight: 'bold' }}>¥{totalAmount.toLocaleString()}</div>
+        <div style={{ position: 'absolute', top: '740px', right: '30px', fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>¥{totalAmount.toLocaleString()}</div>
       </div>
 
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
