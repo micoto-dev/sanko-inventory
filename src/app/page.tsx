@@ -634,7 +634,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
 
   const hasChanges = () => {
     if (!showDetail) return false;
-    return editStatus !== showDetail.status || editExpDate !== (showDetail.expectedDeliveryDate || '') || editComment.trim() !== '';
+    return editStatus !== showDetail.status || editExpDate !== (showDetail.expectedDeliveryDate || '') || editComment.trim() !== '' || Object.keys(pendingDetailChanges).length > 0;
   };
 
   const handleClose = () => {
@@ -655,6 +655,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
     setEditExpDate(o.expectedDeliveryDate || '');
     setEditComment('');
     setCommentHistory(o.comments || []);
+    setPendingDetailChanges({});
   };
 
   const lowStockParts = useMemo(() => parts.filter(p => {
@@ -689,38 +690,29 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
     }
   };
 
-  const handleItemShortage = async (orderId: number, detailId: number) => {
-    try {
-      await api.markItemShortage(orderId, detailId);
-      toast('該当明細をメーカー欠品としてマークしました');
-      // Update showDetail immediately
-      setShowDetail((prev: any) => prev ? {
-        ...prev,
-        details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: 'manufacturer_shortage' } : d),
-      } : prev);
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
+  // Pending detail changes (local only until save)
+  const [pendingDetailChanges, setPendingDetailChanges] = useState<Record<number, { action: 'shortage' | 'cancel' | 'replacement'; replacementPartId?: string; replacementPartName?: string }>>({});
+
+  const handleItemShortage = (_orderId: number, detailId: number) => {
+    setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'shortage' } }));
+    setShowDetail((prev: any) => prev ? {
+      ...prev,
+      details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: 'manufacturer_shortage' } : d),
+    } : prev);
   };
 
-  const handleItemShortageCancel = async (orderId: number, detailId: number) => {
-    try {
-      await api.cancelItemShortage(orderId, detailId);
-      toast('欠品マークを取り消しました');
-      setShowDetail((prev: any) => prev ? {
-        ...prev,
-        details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: null } : d),
-      } : prev);
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
+  const handleItemShortageCancel = (_orderId: number, detailId: number) => {
+    setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'cancel' } }));
+    setShowDetail((prev: any) => prev ? {
+      ...prev,
+      details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: null } : d),
+    } : prev);
   };
 
   const handleSaveDetail = async () => {
     if (!showDetail) return;
     try {
+      // 1. Save order-level changes
       const data: any = {};
       data.status = editStatus;
       if (editExpDate) data.expectedDeliveryDate = editExpDate;
@@ -728,7 +720,27 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
         data.newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
       }
       await api.updateOrder(showDetail.id, data);
+
+      // 2. Save pending detail changes (shortage/cancel/replacement)
+      for (const [detailIdStr, change] of Object.entries(pendingDetailChanges)) {
+        const detailId = Number(detailIdStr);
+        if (change.action === 'shortage') {
+          await api.markItemShortage(showDetail.id, detailId);
+        } else if (change.action === 'cancel') {
+          await api.cancelItemShortage(showDetail.id, detailId);
+        } else if (change.action === 'replacement' && change.replacementPartId) {
+          await api.updatePart(showDetail.details.find((d: any) => d.id === detailId)?.partId || '', {
+            replacementId: change.replacementPartId, isDiscontinued: true,
+            shortageReason: `廃盤 → 代替品: ${change.replacementPartName || change.replacementPartId}`,
+          });
+          await api.updateOrder(showDetail.id, {
+            detailUpdate: { detailId, remarks: `replacement:${change.replacementPartId}:${change.replacementPartName || ''}` },
+          });
+        }
+      }
+
       toast('発注情報を保存しました');
+      setPendingDetailChanges({});
       setShowDetail(null);
       onRefresh();
     } catch (e: any) {
@@ -976,25 +988,20 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               );
             })()}
             <div className="flex gap-2 pt-2">
-              <Btn variant="primary" icon={Save} disabled={!replacementPartId} onClick={async () => {
-                try {
-                  const repPart = parts.find(p => p.id === replacementPartId);
-                  // 1. Update part master with replacement info
-                  await api.updatePart(replacementModal.partId, { replacementId: replacementPartId, isDiscontinued: true, shortageReason: `廃盤 → 代替品: ${repPart?.name || replacementPartId}` });
-                  // 2. Update order detail remarks to store replacement info
-                  await api.updateOrder(replacementModal.orderId, {
-                    detailUpdate: { detailId: replacementModal.detailId, remarks: `replacement:${replacementPartId}:${repPart?.name || ''}` }
-                  });
-                  // 3. Update UI immediately
-                  setShowDetail((prev: any) => prev ? {
-                    ...prev,
-                    details: prev.details.map((d: any) => d.id === replacementModal.detailId ? { ...d, remarks: `replacement:${replacementPartId}:${repPart?.name || ''}`, replacementPartName: repPart?.name || replacementPartId } : d),
-                  } : prev);
-                  toast(`代替品「${repPart?.name}」を設定しました`);
-                  setReplacementModal(null); setReplacementPartId(''); setReplacementSearch('');
-                  onRefresh();
-                } catch (e: any) { toast(`エラー: ${e.message}`); }
-              }}>代替品を設定（元部品を廃盤）</Btn>
+              <Btn variant="primary" icon={Save} disabled={!replacementPartId} onClick={() => {
+                const repPart = parts.find(p => p.id === replacementPartId);
+                // Store as pending change (saved on "変更を保存")
+                setPendingDetailChanges(prev => ({
+                  ...prev,
+                  [replacementModal.detailId]: { action: 'replacement', replacementPartId, replacementPartName: repPart?.name || replacementPartId },
+                }));
+                // Update UI immediately
+                setShowDetail((prev: any) => prev ? {
+                  ...prev,
+                  details: prev.details.map((d: any) => d.id === replacementModal.detailId ? { ...d, remarks: `replacement:${replacementPartId}:${repPart?.name || ''}` } : d),
+                } : prev);
+                setReplacementModal(null); setReplacementPartId(''); setReplacementSearch('');
+              }}>代替品を設定</Btn>
               <Btn variant="secondary" onClick={() => { setReplacementModal(null); setReplacementPartId(''); setReplacementSearch(''); }}>キャンセル</Btn>
             </div>
           </div>
