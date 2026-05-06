@@ -871,11 +871,9 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
           </div>
           <div className="mb-4">
             <Field label="コメント" full>
-              <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-16`} />
-            </Field>
-            {editComment.trim() && (
-              <div className="flex justify-end mt-2">
-                <Btn variant="primary" size="sm" icon={Send} onClick={async () => {
+              <div className="flex gap-2">
+                <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12 flex-1`} />
+                <Btn variant="primary" icon={Send} disabled={!editComment.trim()} onClick={async () => {
                   if (!editComment.trim() || !showDetail) return;
                   const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
                   try {
@@ -884,9 +882,9 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                     setEditComment('');
                     toast('コメントを投稿しました');
                   } catch (e: any) { toast(`エラー: ${e.message}`); }
-                }}>コメント登録</Btn>
+                }}>投稿</Btn>
               </div>
-            )}
+            </Field>
           </div>
           {commentHistory.length > 0 && (
             <div className="mb-4 bg-slate-50 rounded p-3">
