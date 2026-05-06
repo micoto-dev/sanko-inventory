@@ -609,7 +609,7 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any;
             )}
           </div>
         </Field>
-        {isNew && <Field label="在庫数"><input type="number" value={form.initialStock ?? 0} onChange={e => upd('initialStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>}
+        <Field label="在庫数"><input type="number" value={isNew ? (form.initialStock ?? 0) : (form.stock ?? 0)} onChange={e => upd(isNew ? 'initialStock' : 'stock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="発注点*"><input type="number" value={form.reorderPoint ?? 0} onChange={e => upd('reorderPoint', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="安全在庫"><input type="number" value={form.safetyStock ?? 0} onChange={e => upd('safetyStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="最大在庫"><input type="number" value={form.maxStock ?? 0} onChange={e => upd('maxStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
