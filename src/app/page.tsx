@@ -1040,14 +1040,6 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
     return eff < p.reorderPoint && !p.shortageReason;
   });
 
-  const supplierOptions = useMemo(() => {
-    const named = [...new Set(parts.map(p => p.supplier).filter(Boolean))];
-    const hasUnset = items.some(it => !it.supplier);
-    return hasUnset ? [...named, '（未設定）'] : named;
-  }, [parts, items]);
-  const [supplier, setSupplier] = useState(bulk && lowStockParts[0]?.supplier ? lowStockParts[0].supplier : supplierOptions[0] || '');
-  const [searchQ, setSearchQ] = useState('');
-
   const [items, setItems] = useState(() => {
     if (bulk) {
       return lowStockParts.map(p => ({
@@ -1056,6 +1048,14 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
     }
     return [];
   });
+
+  const supplierOptions = useMemo(() => {
+    const named = [...new Set(parts.map(p => p.supplier).filter(Boolean))];
+    const hasUnset = items.some(it => !it.supplier);
+    return hasUnset ? [...named, '（未設定）'] : named;
+  }, [parts, items]);
+  const [supplier, setSupplier] = useState(bulk && lowStockParts[0]?.supplier ? lowStockParts[0].supplier : supplierOptions[0] || '');
+  const [searchQ, setSearchQ] = useState('');
 
   const filteredItems = items.filter(it => {
     if (!supplier) return true;
