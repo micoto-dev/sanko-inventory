@@ -1358,8 +1358,8 @@ const OrderPdfModal = ({ order, parts, onClose }: {
               <td style={{ width: '25%', fontSize: '9px' }}>コードＮＯ.<br/><span style={{ borderBottom: '1px solid #000', paddingBottom: '1px', fontFamily: 'monospace', fontSize: '11px' }}>{order.orderNo}</span></td>
               <td style={{ width: '40%', textAlign: 'center', fontSize: '22px', fontWeight: 'bold', letterSpacing: '0.5em' }}>注　文　書</td>
               <td style={{ width: '35%', textAlign: 'right' }}>
-                <div><span style={{ fontSize: '10px' }}>注文No.</span><span style={{ borderBottom: '1px solid #000', paddingBottom: '1px', fontFamily: 'monospace', fontSize: '12px', marginLeft: '4px' }}>{order.orderNo}</span></div>
-                <div style={{ marginTop: '4px', fontFamily: 'monospace', fontSize: '13px', fontWeight: 'bold' }}>¥{totalAmount.toLocaleString()}</div>
+                <span style={{ fontSize: '10px' }}>注文No.</span>
+                <span style={{ borderBottom: '1px solid #000', paddingBottom: '1px', fontFamily: 'monospace', fontSize: '12px', marginLeft: '4px' }}>{order.orderNo}</span>
               </td>
             </tr>
           </tbody>
