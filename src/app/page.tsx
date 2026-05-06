@@ -57,7 +57,7 @@ const MENU_ITEMS = [
   { id: 'master', label: '部品マスタ', icon: Package },
   { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
   { id: 'locations', label: 'ロケーション', icon: Warehouse },
-  { id: 'suppliers', label: '仕入先管理', icon: Building2 },
+  { id: 'suppliers', label: '仕入先/メーカー管理', icon: Building2 },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
   { id: 'production', label: '製造指図', icon: Factory },
@@ -578,8 +578,15 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
   const [ocrOpen, setOcrOpen] = useState(false);
   const [locSearch, setLocSearch] = useState('');
   const [locDropdownOpen, setLocDropdownOpen] = useState(false);
+  const [makersList, setMakersList] = useState<any[]>([]);
+  const [suppliersList, setSuppliersList] = useState<any[]>([]);
   const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
   const num = (v: string) => Number(v) || 0;
+
+  useEffect(() => {
+    api.getMakers().then(res => setMakersList(res.data || [])).catch(() => {});
+    api.getSuppliers().then(res => setSuppliersList(res.data || [])).catch(() => {});
+  }, []);
 
   const filteredLocs = useMemo(() => {
     if (!locations) return [];
@@ -619,16 +626,16 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
         <Field label="仕様" full><input value={form.spec || ''} onChange={e => upd('spec', e.target.value)} className={inputClass} /></Field>
         <Field label="分類"><input value={form.category || ''} onChange={e => upd('category', e.target.value)} className={inputClass} /></Field>
         <Field label="メーカー">
-          <input list="maker-list" value={form.maker || ''} onChange={e => upd('maker', e.target.value)} className={inputClass} placeholder="選択または入力" />
-          <datalist id="maker-list">
-            {[...new Set((parts || []).map((p: any) => p.maker).filter(Boolean))].map(m => <option key={m as string} value={m as string} />)}
-          </datalist>
+          <select value={form.maker || ''} onChange={e => upd('maker', e.target.value)} className={inputClass}>
+            <option value="">-- 選択 --</option>
+            {makersList.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+          </select>
         </Field>
         <Field label="仕入先">
-          <input list="supplier-list" value={form.supplier || ''} onChange={e => upd('supplier', e.target.value)} className={inputClass} placeholder="選択または入力" />
-          <datalist id="supplier-list">
-            {[...new Set((parts || []).map((p: any) => p.supplier).filter(Boolean))].map(s => <option key={s as string} value={s as string} />)}
-          </datalist>
+          <select value={form.supplierId || ''} onChange={e => { const v = e.target.value; upd('supplierId', v ? Number(v) : null); const s = suppliersList.find((s: any) => s.id === Number(v)); if (s) upd('supplier', s.name); else upd('supplier', ''); }} className={inputClass}>
+            <option value="">-- 選択 --</option>
+            {suppliersList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
         </Field>
         <Field label="単位"><input value={form.unit || ''} onChange={e => upd('unit', e.target.value)} className={inputClass} /></Field>
         <Field label="標準単価 (円)"><input type="number" value={form.unitPrice ?? 0} onChange={e => upd('unitPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
@@ -5035,6 +5042,20 @@ const LocationFormModal = ({ location, isNew, onClose, onSave }: { location: any
 
 // ========================== SuppliersScreen ==========================
 const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
+  const [suppTab, setSuppTab] = useState<'suppliers' | 'makers'>('suppliers');
+  return (
+    <div className="p-5 space-y-3">
+      <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
+        {([['suppliers', '仕入先'], ['makers', 'メーカー']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setSuppTab(k)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${suppTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
+        ))}
+      </div>
+      {suppTab === 'suppliers' ? <SuppliersTab toast={toast} /> : <MakersTab toast={toast} />}
+    </div>
+  );
+};
+
+const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editSupplier, setEditSupplier] = useState<any>(null);
@@ -5062,7 +5083,7 @@ const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
   const formSupplier = editSupplier || newSupplier;
 
   return (
-    <div className="p-5 space-y-3">
+    <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <h2 className="font-bold text-sm">仕入先一覧</h2>
@@ -5113,7 +5134,108 @@ const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
-    </div>
+    </>
+  );
+};
+
+const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
+  const [makers, setMakers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editMaker, setEditMaker] = useState<any>(null);
+  const [newMaker, setNewMaker] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  const fetchMakers = () => { api.getMakers().then(res => { setMakers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { fetchMakers(); }, []);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) { await api.createMaker(form); toast(`メーカー「${form.name}」を登録しました`); }
+      else { await api.updateMaker(form.id, form); toast(`メーカー「${form.name}」を更新しました`); }
+      setEditMaker(null); setNewMaker(null); fetchMakers();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try { await api.deleteMaker(deleteTarget.id); toast(`メーカー「${deleteTarget.name}」を削除しました`); setDeleteTarget(null); fetchMakers(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+  const formMaker = editMaker || newMaker;
+
+  return (
+    <>
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="font-bold text-sm">メーカー一覧</h2>
+          <Btn icon={Plus} onClick={() => setNewMaker({ name: '', code: '', tel: '', email: '', website: '', notes: '' })}>新規登録</Btn>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">メーカー名</th>
+                <th className="text-left px-3 py-2 font-medium">コード</th>
+                <th className="text-left px-3 py-2 font-medium">電話番号</th>
+                <th className="text-left px-3 py-2 font-medium">メール</th>
+                <th className="text-left px-3 py-2 font-medium">Webサイト</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {makers.map((m: any) => (
+                <tr key={m.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 font-semibold">{m.name}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{m.code || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{m.tel || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{m.email || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{m.website ? <a href={m.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{m.website}</a> : '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMaker(m)}>編集</Btn>
+                      <button onClick={() => setDeleteTarget(m)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {makers.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">メーカーが登録されていません</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {formMaker && (
+        <MakerFormModal maker={formMaker} isNew={!!newMaker} onClose={() => { setEditMaker(null); setNewMaker(null); }} onSave={handleSave} />
+      )}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="メーカーの削除確認" size="sm">
+          <div className="text-sm mb-4"><p>以下のメーカーを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-semibold">{deleteTarget.name}</div>{deleteTarget.code && <div className="font-mono text-xs text-black">{deleteTarget.code}</div>}</div></div>
+          <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
+        </Modal>
+      )}
+    </>
+  );
+};
+
+const MakerFormModal = ({ maker, isNew, onClose, onSave }: { maker: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => ({ ...maker }));
+  const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
+  return (
+    <Modal open onClose={onClose} title={isNew ? 'メーカー 新規登録' : `メーカー編集: ${maker.name}`} size="lg">
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <Field label="メーカー名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+        <Field label="コード"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} placeholder="例: MK001" /></Field>
+        <Field label="電話番号"><input value={form.tel || ''} onChange={e => upd('tel', e.target.value)} className={inputClass} placeholder="例: 03-1234-5678" /></Field>
+        <Field label="メール"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+        <Field label="Webサイト" full><input value={form.website || ''} onChange={e => upd('website', e.target.value)} className={inputClass} placeholder="例: https://example.com" /></Field>
+        <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-16`} placeholder="メモ・特記事項など" /></Field>
+      </div>
+      <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name}>{isNew ? '登録' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </Modal>
   );
 };
 
@@ -5152,7 +5274,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   products: { title: '製品マスタ・BOM', subtitle: '製品構成部品の管理' },
   inventory: { title: '在庫一覧', subtitle: 'ロケーション別の在庫状況' },
   locations: { title: 'ロケーション', subtitle: '棚位置の管理' },
-  suppliers: { title: '仕入先管理', subtitle: '仕入先の登録・編集' },
+  suppliers: { title: '仕入先/メーカー管理', subtitle: '仕入先・メーカーの登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
   production: { title: '製造指図', subtitle: 'BOM展開・引当・ピッキング' },

@@ -66,6 +66,12 @@ export const api = {
   updateLocation: (id: string, data: any) => request<any>(`/locations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteLocation: (id: string) => request<any>(`/locations/${id}`, { method: 'DELETE' }),
 
+  // Makers
+  getMakers: () => request<any>('/makers'),
+  createMaker: (data: any) => request<any>('/makers', { method: 'POST', body: JSON.stringify(data) }),
+  updateMaker: (id: number, data: any) => request<any>(`/makers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMaker: (id: number) => request<any>(`/makers/${id}`, { method: 'DELETE' }),
+
   // Suppliers
   getSuppliers: () => request<any>('/suppliers'),
   createSupplier: (data: any) => request<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
