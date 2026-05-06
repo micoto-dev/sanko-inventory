@@ -683,6 +683,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
     if (hasChanges()) { setConfirmClose(true); } else { setShowDetail(null); }
   };
   const [tab, setTab] = useState('all');
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(20);
   const [showNew, setShowNew] = useState<false | 'manual' | 'bulk'>(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
   const [pdfOrder, setPdfOrder] = useState<Order | null>(null);
@@ -710,6 +712,11 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
     if (tab === 'all') return orders;
     return orders.filter(o => o.status === tab);
   }, [tab, orders]);
+
+  const orderTotalPages = Math.max(1, Math.ceil(filtered.length / orderPageSize));
+  const orderSafePage = Math.min(orderPage, orderTotalPages);
+  const pagedOrders = useMemo(() => filtered.slice((orderSafePage - 1) * orderPageSize, orderSafePage * orderPageSize), [filtered, orderSafePage, orderPageSize]);
+  useEffect(() => { setOrderPage(1); }, [tab, orderPageSize]);
 
   const handleApprove = async (orderId: number) => {
     try {
@@ -850,7 +857,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(o => (
+              {pagedOrders.map(o => (
                 <tr key={o.id} className={`hover:bg-slate-50 ${o.status === 'delayed' ? 'bg-orange-50/30' : ''}`}>
                   <td className="px-3 py-2 font-mono text-xs">{o.orderNo}</td>
                   <td className="px-3 py-2">{o.supplier}</td>
@@ -864,6 +871,22 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             </tbody>
           </table>
         </div>
+        {orderTotalPages > 1 && (
+          <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-between bg-slate-50 text-xs">
+            <div className="flex items-center gap-2 text-black">
+              <span>表示件数</span>
+              <select value={orderPageSize} onChange={e => setOrderPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1">
+                <option value={20}>20件</option><option value={50}>50件</option><option value={100}>100件</option>
+              </select>
+              <span>全 {filtered.length}件</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>{(orderSafePage - 1) * orderPageSize + 1}-{Math.min(orderSafePage * orderPageSize, filtered.length)} / {filtered.length}件</span>
+              <button onClick={() => setOrderPage(p => Math.max(1, p - 1))} disabled={orderSafePage <= 1} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40">前へ</button>
+              <button onClick={() => setOrderPage(p => Math.min(orderTotalPages, p + 1))} disabled={orderSafePage >= orderTotalPages} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40">次へ</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {showDetail && (
