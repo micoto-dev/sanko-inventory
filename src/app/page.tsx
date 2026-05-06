@@ -1146,17 +1146,53 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
   };
 
   return (
-    <Modal open onClose={onClose} title="新規発注書作成" size="lg">
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Field label="仕入先">
-          <select value={supplier} onChange={e => setSupplier(e.target.value)} className={inputClass}>
-            {supplierOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
-        <Field label="発注日"><input value={new Date().toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
-        <Field label="想定納期"><input value={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
-      </div>
+    <Modal open onClose={onClose} title={bulk ? "一括発注書作成（仕入先別）" : "新規発注書作成"} size="xl">
+      {!bulk && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <Field label="仕入先">
+            <select value={supplier} onChange={e => setSupplier(e.target.value)} className={inputClass}>
+              {supplierOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="発注日"><input value={new Date().toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
+          <Field label="想定納期"><input value={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
+        </div>
+      )}
 
+      {bulk ? (
+        <div className="space-y-4 mb-3">
+          {(() => {
+            const bySupp: Record<string, typeof items> = {};
+            items.forEach(it => { const k = it.supplier || '（未設定）'; if (!bySupp[k]) bySupp[k] = []; bySupp[k].push(it); });
+            return Object.entries(bySupp).map(([suppName, suppItems]) => (
+              <div key={suppName} className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 size={14} className="text-blue-600" />
+                    <span className="font-bold text-sm">{suppName}</span>
+                    <span className="text-xs text-black">{suppItems.length}部品</span>
+                  </div>
+                  <span className="font-mono font-bold">{yen(suppItems.reduce((s, i) => s + i.qty * i.unitPrice, 0))}</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-black"><tr><th className="text-left py-1 px-3">品名</th><th className="text-right py-1 px-3 w-20">数量</th><th className="text-right py-1 px-3 w-24">単価</th><th className="text-right py-1 px-3 w-28">小計</th><th className="w-8"></th></tr></thead>
+                  <tbody>
+                    {suppItems.map(it => (
+                      <tr key={it.partId} className="border-t border-slate-100">
+                        <td className="py-1.5 px-3"><div className="text-xs font-mono text-black">{it.partId}</div><div>{it.name}</div></td>
+                        <td className="py-1.5 px-3"><input type="number" value={it.qty} onChange={e => setItems(prev => prev.map(i => i.partId === it.partId ? { ...i, qty: Number(e.target.value) || 0 } : i))} className="w-full text-right border border-slate-300 rounded px-2 py-1" /></td>
+                        <td className="py-1.5 px-3 text-right font-mono">{yen(it.unitPrice)}</td>
+                        <td className="py-1.5 px-3 text-right font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
+                        <td><button onClick={() => setItems(prev => prev.filter(i => i.partId !== it.partId))} className="text-rose-500 hover:bg-rose-50 p-1 rounded"><Trash2 size={13} /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ));
+          })()}
+        </div>
+      ) : (
       <div className="bg-slate-50 rounded p-3 mb-3">
         <div className="text-xs font-semibold text-black mb-2">発注明細 ({filteredItems.length} 件 / {supplier})</div>
         {filteredItems.length === 0 ? (
@@ -1179,8 +1215,9 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
           </table>
         )}
       </div>
+      )}
 
-      <div className="mb-3 relative">
+      {!bulk && <div className="mb-3 relative">
         <div className="text-xs font-semibold text-black mb-1">部品を追加 ({supplier})</div>
         <input value={searchQ} onChange={e => { setSearchQ(e.target.value); setDropdownOpen(true); }} onFocus={() => setDropdownOpen(true)} placeholder="品番・品名で検索 (クリックで一覧表示)..." className={inputClass} />
         {dropdownOpen && searchResults.length > 0 && (
@@ -1194,7 +1231,7 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {bulk && items.length > 0 && (() => {
         const bySupp: Record<string, typeof items> = {};
