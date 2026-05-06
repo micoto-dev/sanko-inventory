@@ -900,6 +900,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
                     setCommentHistory(prev => [newComment, ...prev]);
                     setEditComment('');
                     toast('コメントを投稿しました');
+                    onRefresh();
                   } catch (e: any) { toast(`エラー: ${e.message}`); }
                 }}>投稿</Btn>
               </div>
