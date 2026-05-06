@@ -1082,30 +1082,66 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
   }, [supplierParts, items, searchQ]);
 
   const submit = async () => {
-    if (filteredItems.length === 0) return;
-    try {
-      const res = await api.createOrder({
-        supplierId: filteredItems[0]?.supplierId || 1,
-        desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-        details: filteredItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
+    if (bulk) {
+      // Bulk mode: create separate orders per supplier
+      const bySupplier: Record<string, typeof items> = {};
+      items.filter(it => it.qty > 0).forEach(it => {
+        const key = it.supplier || '（未設定）';
+        if (!bySupplier[key]) bySupplier[key] = [];
+        bySupplier[key].push(it);
       });
-      toast('発注書を作成しました');
-      onRefresh();
-      onClose();
-      // Show PDF after creation
-      if (onShowPdf && res) {
-        const newOrder: Order = {
-          id: res.id, orderNo: res.orderNo || '', supplier: supplier,
+      const supplierGroups = Object.entries(bySupplier);
+      if (supplierGroups.length === 0) { toast('発注する部品がありません'); return; }
+      try {
+        let created = 0;
+        let lastOrder: any = null;
+        for (const [, groupItems] of supplierGroups) {
+          const res = await api.createOrder({
+            supplierId: groupItems[0]?.supplierId || 1,
+            desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            details: groupItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
+          });
+          created++;
+          lastOrder = res;
+        }
+        toast(`${created}件の発注書を仕入先別に作成しました`);
+        onRefresh();
+        onClose();
+        if (onShowPdf && lastOrder) {
+          const lastGroup = supplierGroups[supplierGroups.length - 1];
+          onShowPdf({
+            id: lastOrder.id, orderNo: lastOrder.orderNo || '', supplier: lastGroup[0],
+            supplierId: lastGroup[1][0]?.supplierId || 1,
+            orderDate: new Date().toISOString().slice(0, 10),
+            desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            status: 'draft', totalAmount: lastGroup[1].reduce((s, i) => s + i.qty * i.unitPrice, 0),
+            details: lastGroup[1].map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
+          });
+        }
+      } catch (e: any) { toast(`エラー: ${e.message}`); }
+    } else {
+      // Manual mode: create single order for selected supplier
+      if (filteredItems.length === 0) return;
+      try {
+        const res = await api.createOrder({
           supplierId: filteredItems[0]?.supplierId || 1,
-          orderDate: new Date().toISOString().slice(0, 10),
           desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-          status: 'draft', totalAmount: total,
-          details: filteredItems.map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
-        };
-        onShowPdf(newOrder);
-      }
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
+          details: filteredItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
+        });
+        toast('発注書を作成しました');
+        onRefresh();
+        onClose();
+        if (onShowPdf && res) {
+          onShowPdf({
+            id: res.id, orderNo: res.orderNo || '', supplier: supplier,
+            supplierId: filteredItems[0]?.supplierId || 1,
+            orderDate: new Date().toISOString().slice(0, 10),
+            desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            status: 'draft', totalAmount: total,
+            details: filteredItems.map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
+          });
+        }
+      } catch (e: any) { toast(`エラー: ${e.message}`); }
     }
   };
 
@@ -1160,8 +1196,22 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
         )}
       </div>
 
+      {bulk && items.length > 0 && (() => {
+        const bySupp: Record<string, typeof items> = {};
+        items.forEach(it => { const k = it.supplier || '（未設定）'; if (!bySupp[k]) bySupp[k] = []; bySupp[k].push(it); });
+        return (
+          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-3">
+            <div className="font-semibold mb-1">仕入先別に{Object.keys(bySupp).length}件の発注書を作成します:</div>
+            {Object.entries(bySupp).map(([s, its]) => (
+              <div key={s} className="ml-2">• {s}: {its.length}部品 / {yen(its.reduce((sum, i) => sum + i.qty * i.unitPrice, 0))}</div>
+            ))}
+          </div>
+        );
+      })()}
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-        <Btn variant="primary" icon={ShoppingCart} onClick={submit} disabled={filteredItems.length === 0}>発注書作成</Btn>
+        <Btn variant="primary" icon={ShoppingCart} onClick={submit} disabled={bulk ? items.length === 0 : filteredItems.length === 0}>
+          {bulk ? `仕入先別に一括発注（${(() => { const s = new Set(items.map(i => i.supplier || '（未設定）')); return s.size; })()}件）` : '発注書作成'}
+        </Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
       </div>
     </Modal>
