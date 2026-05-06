@@ -641,7 +641,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
     if (hasChanges()) { setConfirmClose(true); } else { setShowDetail(null); }
   };
   const [tab, setTab] = useState('all');
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = useState<false | 'manual' | 'bulk'>(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
   const [pdfOrder, setPdfOrder] = useState<Order | null>(null);
   const [editStatus, setEditStatus] = useState('');
@@ -758,7 +758,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
             <AlertTriangle size={15} className="text-amber-600" />
             <h2 className="font-bold text-sm">発注点アラート</h2>
             <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">{lowStockParts.length}件</span>
-            <Btn className="ml-auto" size="sm" variant="primary" onClick={() => setShowNew(true)}>一括発注書作成</Btn>
+            <Btn className="ml-auto" size="sm" variant="primary" onClick={() => setShowNew('bulk')}>一括発注書作成</Btn>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {lowStockParts.slice(0, 6).map(p => {
@@ -790,7 +790,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               {t.label} <span className="ml-1 text-xs text-black">{t.n}</span>
             </button>
           ))}
-          <Btn className="ml-auto my-1.5 self-center" size="sm" icon={Plus} onClick={() => setShowNew(true)}>新規発注</Btn>
+          <Btn className="ml-auto my-1.5 self-center" size="sm" icon={Plus} onClick={() => setShowNew('manual')}>新規発注</Btn>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -942,7 +942,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       )}
 
       {showNew && (
-        <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} onShowPdf={(o) => setPdfOrder(o)} />
+        <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} onShowPdf={(o) => setPdfOrder(o)} bulk={showNew === 'bulk'} />
       )}
 
       {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => setPdfOrder(null)} />}
@@ -1032,8 +1032,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
   );
 };
 
-const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf }: {
-  parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onShowPdf?: (order: Order) => void;
+const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
+  parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onShowPdf?: (order: Order) => void; bulk?: boolean;
 }) => {
   const lowStockParts = parts.filter(p => {
     const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
@@ -1041,12 +1041,17 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf }: {
   });
 
   const supplierOptions = useMemo(() => [...new Set(parts.map(p => p.supplier).filter(Boolean))], [parts]);
-  const [supplier, setSupplier] = useState(lowStockParts[0]?.supplier || supplierOptions[0] || '');
+  const [supplier, setSupplier] = useState(bulk && lowStockParts[0]?.supplier ? lowStockParts[0].supplier : supplierOptions[0] || '');
   const [searchQ, setSearchQ] = useState('');
 
-  const [items, setItems] = useState(() => lowStockParts.slice(0, 10).map(p => ({
-    partId: p.id, name: p.name, qty: Math.max(p.maxStock - (p.stock - p.allocated + p.onOrder), p.reorderPoint), unitPrice: p.unitPrice, supplierId: p.supplierId, supplier: p.supplier
-  })));
+  const [items, setItems] = useState(() => {
+    if (bulk) {
+      return lowStockParts.map(p => ({
+        partId: p.id, name: p.name, qty: Math.max(p.maxStock - (p.stock - p.allocated + p.onOrder), p.reorderPoint), unitPrice: p.unitPrice, supplierId: p.supplierId, supplier: p.supplier
+      }));
+    }
+    return [];
+  });
 
   const filteredItems = items.filter(it => it.supplier === supplier);
   const total = filteredItems.reduce((s, i) => s + i.qty * i.unitPrice, 0);
