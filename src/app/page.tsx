@@ -1331,16 +1331,11 @@ const OrderPdfModal = ({ order, parts, onClose }: {
     win.document.write(`<!DOCTYPE html><html><head><title>注文書 ${order.orderNo}</title>
       <meta charset="utf-8"/>
       <style>
-        @page { size: A4; margin: 10mm 12mm; }
+        @page { size: A4 portrait; margin: 12mm 15mm; }
         body { margin: 0; padding: 0; font-family: "Yu Gothic", "Meiryo", "Hiragino Sans", sans-serif; font-size: 11px; color: #000; }
-        table { border-collapse: collapse; }
+        table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: top; }
-        .b { border: 1px solid #000; }
-        .bb { border-bottom: 1px solid #000; }
-        .r { text-align: right; }
-        .c { text-align: center; }
-        .mono { font-family: monospace; }
-        .bold { font-weight: bold; }
+        img { max-height: 22px; }
       </style></head><body>${printNode.innerHTML}</body></html>`);
     win.document.close();
     setTimeout(() => { win.print(); }, 300);
@@ -1355,7 +1350,7 @@ const OrderPdfModal = ({ order, parts, onClose }: {
         <FileText size={13} /> 正式注文書を再現。印刷またはPDFとして保存できます。
       </div>
 
-      <div id="po-printable" style={{ ...S, maxWidth: '700px', margin: '0 auto', padding: '15px', background: '#fff' }}>
+      <div id="po-printable" style={{ ...S, width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '12mm 15mm', background: '#fff', boxSizing: 'border-box', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
         {/* Row 1: コードNO + 注文書 + 注文No+金額 */}
         <table style={{ width: '100%', marginBottom: '4px' }}>
           <tbody>
