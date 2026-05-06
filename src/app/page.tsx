@@ -1339,9 +1339,9 @@ const OrderPdfModal = ({ order, parts, onClose }: {
     setTimeout(() => { win.print(); }, 300);
   };
 
-  // 行の高さ（明細テーブル）
-  const ROW_H = 30; // px per row
-  const FIRST_ROW_TOP = 210; // 最初の明細行のtop位置
+  // 行の高さ（明細テーブル）- 用紙の罫線に合わせる
+  const ROW_H = 28; // px per row
+  const FIRST_ROW_TOP = 250; // ヘッダー「品番・品名」行の下、最初の明細行
 
   return (
     <Modal open onClose={onClose} title={`注文書プレビュー: ${order.orderNo}`} size="xl">
@@ -1352,23 +1352,23 @@ const OrderPdfModal = ({ order, parts, onClose }: {
         {/* Background: 注文書用紙 */}
         <img src="/order-form-bg.png" alt="注文書" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
 
-        {/* コードNO. */}
-        <div style={{ position: 'absolute', top: '52px', left: '72px', fontSize: '10px', fontFamily: 'monospace' }}>{order.orderNo}</div>
+        {/* コードNO. (用紙の「コードNO.」の右) */}
+        <div style={{ position: 'absolute', top: '62px', left: '75px', fontSize: '10px', fontFamily: 'monospace' }}>{order.orderNo}</div>
 
-        {/* 注文No.金額 (右上) */}
-        <div style={{ position: 'absolute', top: '52px', right: '22px', fontSize: '10px', fontFamily: 'monospace' }}>{totalAmount.toLocaleString()}</div>
+        {/* 注文No.金額 (用紙の「注文No.」の右) */}
+        <div style={{ position: 'absolute', top: '62px', right: '25px', fontSize: '10px', fontFamily: 'monospace' }}>{totalAmount.toLocaleString()}</div>
 
-        {/* 日付 (中央上) */}
-        <div style={{ position: 'absolute', top: '42px', left: '230px', fontSize: '10px' }}>{dateFormatted}</div>
+        {/* 日付 (「注文書」の上) */}
+        <div style={{ position: 'absolute', top: '50px', left: '225px', fontSize: '10px' }}>{dateFormatted}</div>
 
-        {/* 納期 */}
-        <div style={{ position: 'absolute', top: '72px', right: '80px', fontSize: '10px' }}>{order.desiredDate?.replace(/-/g, '/') || ''}</div>
+        {/* 納期 (「納期:」の右) */}
+        <div style={{ position: 'absolute', top: '83px', right: '82px', fontSize: '10px' }}>{order.desiredDate?.replace(/-/g, '/') || ''}</div>
 
-        {/* 仕入先 */}
-        <div style={{ position: 'absolute', top: '142px', left: '30px', fontSize: '12px' }}>{order.supplier}</div>
+        {/* 仕入先 (「御中」の左) */}
+        <div style={{ position: 'absolute', top: '152px', left: '30px', fontSize: '12px' }}>{order.supplier}</div>
 
-        {/* 日付ショート(担当の右) */}
-        <div style={{ position: 'absolute', top: '162px', right: '85px', fontSize: '9px' }}>{dateShort}</div>
+        {/* 日付ショート(担当欄の右) */}
+        <div style={{ position: 'absolute', top: '108px', right: '82px', fontSize: '9px' }}>{dateShort}</div>
 
         {/* 明細行 */}
         {(order.details || []).map((it, i) => {
@@ -1392,11 +1392,11 @@ const OrderPdfModal = ({ order, parts, onClose }: {
           );
         })}
 
-        {/* 摘要 */}
-        <div style={{ position: 'absolute', top: '748px', left: '50px', fontSize: '9px' }}>生管調達発注</div>
+        {/* 摘要 (「摘要：」の右) */}
+        <div style={{ position: 'absolute', top: '760px', left: '52px', fontSize: '9px' }}>生管調達発注</div>
 
-        {/* 合計金額 */}
-        <div style={{ position: 'absolute', top: '740px', right: '30px', fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>¥{totalAmount.toLocaleString()}</div>
+        {/* 合計金額 (「合計」欄の右) */}
+        <div style={{ position: 'absolute', top: '752px', left: '430px', width: '70px', textAlign: 'right', fontSize: '11px', fontFamily: 'monospace', fontWeight: 'bold' }}>¥{totalAmount.toLocaleString()}</div>
       </div>
 
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
