@@ -442,7 +442,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
       )}
 
       {(editing || newPart) && (
-        <PartFormModal part={editing || newPart} isNew={!!newPart} onClose={() => { setEditing(null); setNewPart(null); }} onSave={handleSave} locations={locations || []} />
+        <PartFormModal part={editing || newPart} isNew={!!newPart} onClose={() => { setEditing(null); setNewPart(null); }} onSave={handleSave} locations={locations || []} parts={parts} />
       )}
 
       {showCsvImport && (
@@ -545,7 +545,7 @@ const CsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => void; on
   );
 };
 
-const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void; locations?: Location[] }) => {
+const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { part: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void; locations?: Location[]; parts?: Part[] }) => {
   const [form, setForm] = useState(() => ({ ...part }));
   const [ocrOpen, setOcrOpen] = useState(false);
   const [locSearch, setLocSearch] = useState('');
@@ -590,7 +590,18 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations }: { part: any;
         <Field label="品名*" full><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
         <Field label="仕様" full><input value={form.spec || ''} onChange={e => upd('spec', e.target.value)} className={inputClass} /></Field>
         <Field label="分類"><input value={form.category || ''} onChange={e => upd('category', e.target.value)} className={inputClass} /></Field>
-        <Field label="メーカー"><input value={form.maker || ''} onChange={e => upd('maker', e.target.value)} className={inputClass} /></Field>
+        <Field label="メーカー">
+          <input list="maker-list" value={form.maker || ''} onChange={e => upd('maker', e.target.value)} className={inputClass} placeholder="選択または入力" />
+          <datalist id="maker-list">
+            {[...new Set(parts.map((p: any) => p.maker).filter(Boolean))].map(m => <option key={m as string} value={m as string} />)}
+          </datalist>
+        </Field>
+        <Field label="仕入先">
+          <input list="supplier-list" value={form.supplier || ''} onChange={e => upd('supplier', e.target.value)} className={inputClass} placeholder="選択または入力" />
+          <datalist id="supplier-list">
+            {[...new Set((parts || []).map((p: any) => p.supplier).filter(Boolean))].map(s => <option key={s as string} value={s as string} />)}
+          </datalist>
+        </Field>
         <Field label="単位"><input value={form.unit || ''} onChange={e => upd('unit', e.target.value)} className={inputClass} /></Field>
         <Field label="標準単価 (円)"><input type="number" value={form.unitPrice ?? 0} onChange={e => upd('unitPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="納品リードタイム（日）"><input type="number" value={form.leadTime ?? 0} onChange={e => upd('leadTime', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
@@ -644,6 +655,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   const [showNew, setShowNew] = useState<false | 'manual' | 'bulk'>(false);
   const [showDetail, setShowDetail] = useState<Order | null>(null);
   const [pdfOrder, setPdfOrder] = useState<Order | null>(null);
+  const [pdfQueue, setPdfQueue] = useState<Order[]>([]);
   const [editStatus, setEditStatus] = useState('');
   const [editExpDate, setEditExpDate] = useState('');
   const [editComment, setEditComment] = useState('');
@@ -942,10 +954,13 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
       )}
 
       {showNew && (
-        <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} onShowPdf={(o) => setPdfOrder(o)} bulk={showNew === 'bulk'} />
+        <NewOrderModal parts={parts} onClose={() => setShowNew(false)} onRefresh={onRefresh} toast={toast} onShowPdf={(o) => setPdfOrder(o)} onShowPdfMulti={(orders) => { if (orders.length > 0) { setPdfOrder(orders[0]); setPdfQueue(orders.slice(1)); } }} bulk={showNew === 'bulk'} />
       )}
 
-      {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => setPdfOrder(null)} />}
+      {pdfOrder && <OrderPdfModal order={pdfOrder} parts={parts} onClose={() => {
+        if (pdfQueue.length > 0) { setPdfOrder(pdfQueue[0]); setPdfQueue(pdfQueue.slice(1)); }
+        else setPdfOrder(null);
+      }} />}
 
       {confirmClose && (
         <Modal open onClose={() => setConfirmClose(false)} title="変更の破棄" size="sm">
@@ -1032,8 +1047,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   );
 };
 
-const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
-  parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onShowPdf?: (order: Order) => void; bulk?: boolean;
+const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfMulti, bulk }: {
+  parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onShowPdf?: (order: Order) => void; onShowPdfMulti?: (orders: Order[]) => void; bulk?: boolean;
 }) => {
   const lowStockParts = parts.filter(p => {
     const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
@@ -1093,30 +1108,29 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, bulk }: {
       const supplierGroups = Object.entries(bySupplier);
       if (supplierGroups.length === 0) { toast('発注する部品がありません'); return; }
       try {
-        let created = 0;
-        let lastOrder: any = null;
-        for (const [, groupItems] of supplierGroups) {
+        const createdOrders: Order[] = [];
+        for (const [suppName, groupItems] of supplierGroups) {
           const res = await api.createOrder({
             supplierId: groupItems[0]?.supplierId || 1,
             desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
             details: groupItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
           });
-          created++;
-          lastOrder = res;
-        }
-        toast(`${created}件の発注書を仕入先別に作成しました`);
-        onRefresh();
-        onClose();
-        if (onShowPdf && lastOrder) {
-          const lastGroup = supplierGroups[supplierGroups.length - 1];
-          onShowPdf({
-            id: lastOrder.id, orderNo: lastOrder.orderNo || '', supplier: lastGroup[0],
-            supplierId: lastGroup[1][0]?.supplierId || 1,
+          createdOrders.push({
+            id: res.id, orderNo: res.orderNo || '', supplier: suppName,
+            supplierId: groupItems[0]?.supplierId || 1,
             orderDate: new Date().toISOString().slice(0, 10),
             desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-            status: 'draft', totalAmount: lastGroup[1].reduce((s, i) => s + i.qty * i.unitPrice, 0),
-            details: lastGroup[1].map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
+            status: 'draft', totalAmount: groupItems.reduce((s, i) => s + i.qty * i.unitPrice, 0),
+            details: groupItems.map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
           });
+        }
+        toast(`${createdOrders.length}件の発注書を仕入先別に作成しました`);
+        onRefresh();
+        onClose();
+        if (onShowPdfMulti && createdOrders.length > 0) {
+          onShowPdfMulti(createdOrders);
+        } else if (onShowPdf && createdOrders.length > 0) {
+          onShowPdf(createdOrders[0]);
         }
       } catch (e: any) { toast(`エラー: ${e.message}`); }
     } else {
