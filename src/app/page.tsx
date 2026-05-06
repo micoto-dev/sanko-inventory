@@ -426,10 +426,10 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
                     <td className="px-3 py-2 text-right font-mono">{yen(p.unitPrice)}</td>
                     <td className="px-3 py-2 text-right font-mono">{p.reorderPoint}</td>
                     <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${s.bg} ${s.text} border ${s.border}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>{s.label}</span></td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(p)}>編集</Btn>
-                        <button onClick={(e: any) => { e.stopPropagation(); setDeleteTarget(p); }} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                        <button onClick={() => setDeleteTarget(p)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
