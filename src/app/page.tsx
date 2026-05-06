@@ -524,8 +524,14 @@ const CsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => void; on
     if (previewRows.length === 0) return;
     setImporting(true);
     try {
-      await api.importParts(previewRows);
-      toast(`${previewRows.length}件の部品を登録しました`);
+      const res = await api.importParts(previewRows);
+      const imported = res.imported || 0;
+      const skipped = res.skipped || 0;
+      if (imported > 0) {
+        toast(`${imported}件の部品を登録しました${skipped > 0 ? `（${skipped}件は重複のためスキップ）` : ''}`);
+      } else {
+        toast(`全て重複のため登録されませんでした（${skipped}件スキップ）`);
+      }
       onRefresh();
       onClose();
     } catch (e: any) {
