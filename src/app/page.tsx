@@ -634,7 +634,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
 
   const hasChanges = () => {
     if (!showDetail) return false;
-    return editStatus !== showDetail.status || editExpDate !== (showDetail.expectedDeliveryDate || '') || editComment.trim() !== '' || Object.keys(pendingDetailChanges).length > 0;
+    return editStatus !== showDetail.status || editExpDate !== (showDetail.expectedDeliveryDate || '') || Object.keys(pendingDetailChanges).length > 0;
   };
 
   const handleClose = () => {
@@ -716,9 +716,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
       const data: any = {};
       data.status = editStatus;
       if (editExpDate) data.expectedDeliveryDate = editExpDate;
-      if (editComment.trim()) {
-        data.newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
-      }
       await api.updateOrder(showDetail.id, data);
 
       // 2. Save pending detail changes (shortage/cancel/replacement)
@@ -892,8 +889,20 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
             </table>
           </div>
           <div className="mb-4">
-            <Field label="コメント（保存時に投稿されます）" full>
-              <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12`} />
+            <Field label="コメント" full>
+              <div className="flex gap-2">
+                <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12 flex-1`} />
+                <Btn variant="primary" icon={Send} disabled={!editComment.trim()} onClick={async () => {
+                  if (!editComment.trim() || !showDetail) return;
+                  const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '' };
+                  try {
+                    await api.updateOrder(showDetail.id, { newComment });
+                    setCommentHistory(prev => [newComment, ...prev]);
+                    setEditComment('');
+                    toast('コメントを投稿しました');
+                  } catch (e: any) { toast(`エラー: ${e.message}`); }
+                }}>投稿</Btn>
+              </div>
             </Field>
           </div>
           {commentHistory.length > 0 && (
