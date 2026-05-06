@@ -37,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const { status, desiredDate, deliveryAddr, paymentTerms, notes, expectedDeliveryDate, newComment, detailUpdate } = body;
+    const { status, desiredDate, deliveryAddr, paymentTerms, notes, expectedDeliveryDate, newComment, detailUpdate, replaceComments } = body;
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
@@ -46,7 +46,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (paymentTerms !== undefined) data.paymentTerms = paymentTerms;
 
     // Handle extended notes with comments and expected delivery date
-    if (notes !== undefined || expectedDeliveryDate !== undefined || newComment) {
+    if (notes !== undefined || expectedDeliveryDate !== undefined || newComment || replaceComments !== undefined) {
       let meta: { expectedDeliveryDate?: string | null; comments?: { text: string; ts: string; user?: string }[] } = {};
       try {
         if (existing.notes && existing.notes.startsWith('{')) {
@@ -54,7 +54,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         }
       } catch { /* not JSON, ignore */ }
       if (expectedDeliveryDate !== undefined) meta.expectedDeliveryDate = expectedDeliveryDate;
-      if (newComment) {
+      if (replaceComments !== undefined) {
+        meta.comments = replaceComments;
+      } else if (newComment) {
         if (!meta.comments) meta.comments = [];
         meta.comments.unshift(newComment);
       }

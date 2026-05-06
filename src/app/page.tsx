@@ -911,9 +911,20 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName }: {
               <div className="text-xs font-semibold text-black mb-2">コメント履歴</div>
               <div className="space-y-2 max-h-32 overflow-y-auto">
                 {commentHistory.map((c, i) => (
-                  <div key={i} className="text-xs border-l-2 border-blue-300 pl-2">
-                    <div className="text-black">{c.user || ''} - {new Date(c.ts).toLocaleString('ja-JP')}</div>
-                    <div className="text-black">{c.text}</div>
+                  <div key={i} className="text-xs border-l-2 border-blue-300 pl-2 flex items-start gap-2">
+                    <div className="flex-1">
+                      <div className="text-black">{c.user || ''} - {new Date(c.ts).toLocaleString('ja-JP')}</div>
+                      <div className="text-black">{c.text}</div>
+                    </div>
+                    <button onClick={async () => {
+                      const updated = commentHistory.filter((_, j) => j !== i);
+                      try {
+                        await api.updateOrder(showDetail!.id, { replaceComments: updated });
+                        setCommentHistory(updated);
+                        toast('コメントを削除しました');
+                        onRefresh();
+                      } catch (e: any) { toast(`エラー: ${e.message}`); }
+                    }} className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-rose-50 flex-shrink-0 mt-0.5" title="削除"><X size={12} /></button>
                   </div>
                 ))}
               </div>
