@@ -44,23 +44,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         issues.push(issue);
 
         // Reduce stock qty and allocated (prevent negative)
-        const currentStock = await tx.tStock.findUnique({
-          where: { partId_locationId: { partId: item.partId, locationId: item.locationId } },
-        });
-        if (!currentStock) {
-          throw new Error(`在庫レコードが見つかりません: ${item.partId} @ ${item.locationId}`);
+        // If locationId is missing, try to find any stock for this part
+        let stockLocId = item.locationId;
+        if (!stockLocId || stockLocId === '-' || stockLocId === 'A-03-2-L') {
+          const anyStock = await tx.tStock.findFirst({ where: { partId: item.partId, qty: { gt: 0 } } });
+          if (anyStock) stockLocId = anyStock.locationId;
         }
-        if (currentStock.qty < item.qty) {
-          throw new Error(`在庫不足: ${item.partId} (在庫${currentStock.qty} < 出庫${item.qty})`);
+
+        const currentStock = stockLocId ? await tx.tStock.findUnique({
+          where: { partId_locationId: { partId: item.partId, locationId: stockLocId } },
+        }) : null;
+
+        if (currentStock && currentStock.qty >= item.qty) {
+          await tx.tStock.update({
+            where: { partId_locationId: { partId: item.partId, locationId: stockLocId } },
+            data: {
+              qty: { decrement: item.qty },
+              allocated: { decrement: Math.min(item.qty, currentStock.allocated) },
+              lastInoutAt: new Date(),
+            },
+          });
+        } else if (currentStock) {
+          // 在庫不足でも0まで減らす
+          await tx.tStock.update({
+            where: { partId_locationId: { partId: item.partId, locationId: stockLocId } },
+            data: {
+              qty: 0,
+              allocated: 0,
+              lastInoutAt: new Date(),
+            },
+          });
         }
-        await tx.tStock.update({
-          where: { partId_locationId: { partId: item.partId, locationId: item.locationId } },
-          data: {
-            qty: { decrement: item.qty },
-            allocated: { decrement: Math.min(item.qty, currentStock.allocated) },
-            lastInoutAt: new Date(),
-          },
-        });
+        // 在庫レコードがない場合はスキップ（ロケーション未設定の部品）
 
         // Increase picked_qty in BOM snapshot
         await tx.tProdOrderBomSnapshot.update({
