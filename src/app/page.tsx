@@ -5115,6 +5115,8 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [newSupplier, setNewSupplier] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [searchSupp, setSearchSupp] = useState('');
+  const [suppPage, setSuppPage] = useState(1);
+  const [suppPerPage, setSuppPerPage] = useState(50);
 
   const fetchSuppliers = () => { api.getSuppliers().then(res => { setSuppliers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchSuppliers(); }, []);
@@ -5136,15 +5138,17 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
   const formSupplier = editSupplier || newSupplier;
   const q = searchSupp.toLowerCase();
-  const filtered = q ? suppliers.filter(s => (s.name||'').toLowerCase().includes(q) || (s.code||'').toLowerCase().includes(q) || (s.contactPerson||'').toLowerCase().includes(q)) : suppliers;
+  const filteredAll = q ? suppliers.filter(s => (s.name||'').toLowerCase().includes(q) || (s.code||'').toLowerCase().includes(q) || (s.contactPerson||'').toLowerCase().includes(q)) : suppliers;
+  const suppTotalPages = Math.ceil(filteredAll.length / suppPerPage);
+  const filtered = filteredAll.slice((suppPage - 1) * suppPerPage, suppPage * suppPerPage);
 
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">仕入先一覧 ({filtered.length}件)</h2>
+          <h2 className="font-bold text-sm">仕入先一覧 ({filteredAll.length}件)</h2>
           <div className="flex items-center gap-2">
-            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchSupp} onChange={e => setSearchSupp(e.target.value)} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchSupp} onChange={e => { setSearchSupp(e.target.value); setSuppPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn icon={Plus} onClick={() => setNewSupplier({ code: '', name: '', tel: '', email: '', contactPerson: '' })}>新規登録</Btn>
           </div>
         </div>
@@ -5183,6 +5187,21 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
             </tbody>
           </table>
         </div>
+        {filteredAll.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-black">
+            <div className="flex items-center gap-2">
+              <span>表示件数:</span>
+              <select value={suppPerPage} onChange={e => { setSuppPerPage(Number(e.target.value)); setSuppPage(1); }} className="border border-slate-200 rounded px-2 py-1">
+                {[20, 50, 100, 200].map(n => <option key={n} value={n}>{n}件</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>{(suppPage-1)*suppPerPage+1}-{Math.min(suppPage*suppPerPage, filteredAll.length)} / {filteredAll.length}件</span>
+              <button onClick={() => setSuppPage(p => Math.max(1, p-1))} disabled={suppPage <= 1} className="px-2 py-1 border border-slate-200 rounded disabled:opacity-30">←</button>
+              <button onClick={() => setSuppPage(p => Math.min(suppTotalPages, p+1))} disabled={suppPage >= suppTotalPages} className="px-2 py-1 border border-slate-200 rounded disabled:opacity-30">→</button>
+            </div>
+          </div>
+        )}
       </div>
       {formSupplier && (
         <SupplierFormModal supplier={formSupplier} isNew={!!newSupplier} onClose={() => { setEditSupplier(null); setNewSupplier(null); }} onSave={handleSave} />
@@ -5204,6 +5223,8 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [newMaker, setNewMaker] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [searchMaker, setSearchMaker] = useState('');
+  const [makerPage, setMakerPage] = useState(1);
+  const [makerPerPage, setMakerPerPage] = useState(50);
 
   const fetchMakers = () => { api.getMakers().then(res => { setMakers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchMakers(); }, []);
@@ -5225,15 +5246,17 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
   const formMaker = editMaker || newMaker;
   const qm = searchMaker.toLowerCase();
-  const filteredMakers = qm ? makers.filter(m => (m.name||'').toLowerCase().includes(qm) || (m.code||'').toLowerCase().includes(qm)) : makers;
+  const filteredMakersAll = qm ? makers.filter(m => (m.name||'').toLowerCase().includes(qm) || (m.code||'').toLowerCase().includes(qm)) : makers;
+  const makerTotalPages = Math.ceil(filteredMakersAll.length / makerPerPage);
+  const filteredMakers = filteredMakersAll.slice((makerPage - 1) * makerPerPage, makerPage * makerPerPage);
 
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">メーカー一覧 ({filteredMakers.length}件)</h2>
+          <h2 className="font-bold text-sm">メーカー一覧 ({filteredMakersAll.length}件)</h2>
           <div className="flex items-center gap-2">
-            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchMaker} onChange={e => setSearchMaker(e.target.value)} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchMaker} onChange={e => { setSearchMaker(e.target.value); setMakerPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn icon={Plus} onClick={() => setNewMaker({ name: '', code: '', tel: '', email: '', website: '', notes: '' })}>新規登録</Btn>
           </div>
         </div>
@@ -5269,6 +5292,21 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
             </tbody>
           </table>
         </div>
+        {filteredMakersAll.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-black">
+            <div className="flex items-center gap-2">
+              <span>表示件数:</span>
+              <select value={makerPerPage} onChange={e => { setMakerPerPage(Number(e.target.value)); setMakerPage(1); }} className="border border-slate-200 rounded px-2 py-1">
+                {[20, 50, 100, 200].map(n => <option key={n} value={n}>{n}件</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>{(makerPage-1)*makerPerPage+1}-{Math.min(makerPage*makerPerPage, filteredMakersAll.length)} / {filteredMakersAll.length}件</span>
+              <button onClick={() => setMakerPage(p => Math.max(1, p-1))} disabled={makerPage <= 1} className="px-2 py-1 border border-slate-200 rounded disabled:opacity-30">←</button>
+              <button onClick={() => setMakerPage(p => Math.min(makerTotalPages, p+1))} disabled={makerPage >= makerTotalPages} className="px-2 py-1 border border-slate-200 rounded disabled:opacity-30">→</button>
+            </div>
+          </div>
+        )}
       </div>
       {formMaker && (
         <MakerFormModal maker={formMaker} isNew={!!newMaker} onClose={() => { setEditMaker(null); setNewMaker(null); }} onSave={handleSave} />
@@ -5340,6 +5378,8 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [searchCust, setSearchCust] = useState('');
+  const [custPage, setCustPage] = useState(1);
+  const [custPerPage, setCustPerPage] = useState(50);
 
   const fetchCustomers = () => { api.getCustomers().then(res => { setCustomers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchCustomers(); }, []);
@@ -5361,15 +5401,17 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
   const formCustomer = editCustomer || newCustomer;
   const qc = searchCust.toLowerCase();
-  const filteredCust = qc ? customers.filter(c => (c.name||'').toLowerCase().includes(qc) || (c.code||'').toLowerCase().includes(qc) || (c.address||'').toLowerCase().includes(qc) || (c.tel||'').includes(qc)) : customers;
+  const filteredCustAll = qc ? customers.filter(c => (c.name||'').toLowerCase().includes(qc) || (c.code||'').toLowerCase().includes(qc) || (c.address||'').toLowerCase().includes(qc) || (c.tel||'').includes(qc)) : customers;
+  const custTotalPages = Math.ceil(filteredCustAll.length / custPerPage);
+  const filteredCust = filteredCustAll.slice((custPage - 1) * custPerPage, custPage * custPerPage);
 
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">顧客一覧 ({filteredCust.length}件)</h2>
+          <h2 className="font-bold text-sm">顧客一覧 ({filteredCustAll.length}件)</h2>
           <div className="flex items-center gap-2">
-            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchCust} onChange={e => setSearchCust(e.target.value)} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchCust} onChange={e => { setSearchCust(e.target.value); setCustPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn variant="secondary" icon={Upload} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
             <Btn icon={Plus} onClick={() => setNewCustomer({ name: '', code: '', postalCode: '', address: '', tel: '', fax: '', email: '', contactPerson: '', industry: '', notes: '' })}>新規登録</Btn>
           </div>
@@ -5411,6 +5453,21 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
             </tbody>
           </table>
         </div>
+        {filteredCustAll.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-black">
+            <div className="flex items-center gap-2">
+              <span>表示件数:</span>
+              <select value={custPerPage} onChange={e => { setCustPerPage(Number(e.target.value)); setCustPage(1); }} className="border border-slate-200 rounded px-2 py-1">
+                {[20, 50, 100, 200].map(n => <option key={n} value={n}>{n}件</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>{(custPage-1)*custPerPage+1}-{Math.min(custPage*custPerPage, filteredCustAll.length)} / {filteredCustAll.length}件</span>
+              <button onClick={() => setCustPage(p => Math.max(1, p-1))} disabled={custPage <= 1} className="px-2 py-1 border border-slate-200 rounded disabled:opacity-30">←</button>
+              <button onClick={() => setCustPage(p => Math.min(custTotalPages, p+1))} disabled={custPage >= custTotalPages} className="px-2 py-1 border border-slate-200 rounded disabled:opacity-30">→</button>
+            </div>
+          </div>
+        )}
       </div>
       {formCustomer && (
         <CustomerFormModal customer={formCustomer} isNew={!!newCustomer} onClose={() => { setEditCustomer(null); setNewCustomer(null); }} onSave={handleSave} />
