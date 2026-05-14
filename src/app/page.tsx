@@ -5117,6 +5117,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [searchSupp, setSearchSupp] = useState('');
   const [suppPage, setSuppPage] = useState(1);
   const [suppPerPage, setSuppPerPage] = useState(50);
+  const [showSuppCsvImport, setShowSuppCsvImport] = useState(false);
 
   const fetchSuppliers = () => { api.getSuppliers().then(res => { setSuppliers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchSuppliers(); }, []);
@@ -5149,6 +5150,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
           <h2 className="font-bold text-sm">仕入先一覧 ({filteredAll.length}件)</h2>
           <div className="flex items-center gap-2">
             <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchSupp} onChange={e => { setSearchSupp(e.target.value); setSuppPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <Btn variant="secondary" icon={Upload} onClick={() => setShowSuppCsvImport(true)}>CSV一括登録</Btn>
             <Btn icon={Plus} onClick={() => setNewSupplier({ code: '', name: '', tel: '', email: '', contactPerson: '' })}>新規登録</Btn>
           </div>
         </div>
@@ -5212,6 +5214,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
+      {showSuppCsvImport && <CsvImportModalGeneric type="supplier" onClose={() => setShowSuppCsvImport(false)} onRefresh={fetchSuppliers} toast={toast} />}
     </>
   );
 };
@@ -5225,6 +5228,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [searchMaker, setSearchMaker] = useState('');
   const [makerPage, setMakerPage] = useState(1);
   const [makerPerPage, setMakerPerPage] = useState(50);
+  const [showMakerCsvImport, setShowMakerCsvImport] = useState(false);
 
   const fetchMakers = () => { api.getMakers().then(res => { setMakers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchMakers(); }, []);
@@ -5257,6 +5261,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
           <h2 className="font-bold text-sm">メーカー一覧 ({filteredMakersAll.length}件)</h2>
           <div className="flex items-center gap-2">
             <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchMaker} onChange={e => { setSearchMaker(e.target.value); setMakerPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <Btn variant="secondary" icon={Upload} onClick={() => setShowMakerCsvImport(true)}>CSV一括登録</Btn>
             <Btn icon={Plus} onClick={() => setNewMaker({ name: '', code: '', tel: '', email: '', website: '', notes: '' })}>新規登録</Btn>
           </div>
         </div>
@@ -5317,6 +5322,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
+      {showMakerCsvImport && <CsvImportModalGeneric type="maker" onClose={() => setShowMakerCsvImport(false)} onRefresh={fetchMakers} toast={toast} />}
     </>
   );
 };
@@ -5478,22 +5484,49 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>無効化する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
-      {showCsvImport && <CustomerCsvImportModal onClose={() => setShowCsvImport(false)} onRefresh={fetchCustomers} toast={toast} />}
+      {showCsvImport && <CsvImportModalGeneric type="customer" onClose={() => setShowCsvImport(false)} onRefresh={fetchCustomers} toast={toast} />}
     </>
   );
 };
 
-const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => void; onRefresh: () => void; toast: (msg: string) => void }) => {
+const CSV_CONFIGS: Record<string, { label: string; headers: string[]; example: string; fileName: string; fields: { key: string; labels: string[] }[]; previewCols: string[]; importFn: (rows: any[]) => Promise<any> }> = {
+  supplier: {
+    label: '仕入先', headers: ['コード','仕入先名','郵便番号','住所','電話番号','FAX','メール','担当者','支払条件','備考'],
+    example: 'SUP001,○○商事,123-4567,東京都...,03-XXXX-XXXX,03-XXXX-XXXX,info@example.com,山田太郎,月末締翌月末払い,',
+    fileName: 'suppliers_import_template.csv',
+    fields: [{ key: 'code', labels: ['コード','code'] },{ key: 'name', labels: ['仕入先名','name'] },{ key: 'postalCode', labels: ['郵便番号','postalCode'] },{ key: 'address', labels: ['住所','address'] },{ key: 'tel', labels: ['電話番号','tel'] },{ key: 'fax', labels: ['FAX','fax'] },{ key: 'email', labels: ['メール','email'] },{ key: 'contactPerson', labels: ['担当者','contactPerson'] },{ key: 'paymentTerms', labels: ['支払条件','paymentTerms'] },{ key: 'notes', labels: ['備考','notes'] }],
+    previewCols: ['コード', '仕入先名', '電話番号', '担当者'],
+    importFn: (rows) => api.importSuppliers(rows),
+  },
+  maker: {
+    label: 'メーカー', headers: ['メーカー名','コード','電話番号','メール','Webサイト','備考'],
+    example: '三菱電機,MK001,03-XXXX-XXXX,info@example.com,https://example.com,',
+    fileName: 'makers_import_template.csv',
+    fields: [{ key: 'name', labels: ['メーカー名','name'] },{ key: 'code', labels: ['コード','code'] },{ key: 'tel', labels: ['電話番号','tel'] },{ key: 'email', labels: ['メール','email'] },{ key: 'website', labels: ['Webサイト','website'] },{ key: 'notes', labels: ['備考','notes'] }],
+    previewCols: ['コード', 'メーカー名', '電話番号', 'メール'],
+    importFn: (rows) => api.importMakers(rows),
+  },
+  customer: {
+    label: '顧客', headers: ['コード','顧客名','郵便番号','住所','電話番号','FAX','メール','担当者','業種','備考'],
+    example: 'CUS001,○○造船株式会社,123-4567,広島県尾道市...,0848-XX-XXXX,0848-XX-XXXX,info@example.com,山田太郎,造船業,',
+    fileName: 'customers_import_template.csv',
+    fields: [{ key: 'code', labels: ['コード','code'] },{ key: 'name', labels: ['顧客名','name'] },{ key: 'postalCode', labels: ['郵便番号','postalCode'] },{ key: 'address', labels: ['住所','address'] },{ key: 'tel', labels: ['電話番号','tel'] },{ key: 'fax', labels: ['FAX','fax'] },{ key: 'email', labels: ['メール','email'] },{ key: 'contactPerson', labels: ['担当者','contactPerson'] },{ key: 'industry', labels: ['業種','industry'] },{ key: 'notes', labels: ['備考','notes'] }],
+    previewCols: ['コード', '顧客名', '住所', '電話番号'],
+    importFn: (rows) => api.importCustomers(rows),
+  },
+};
+
+const CsvImportModalGeneric = ({ type, onClose, onRefresh, toast }: { type: string; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void }) => {
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
-  const CSV_HEADERS = ['コード','顧客名','郵便番号','住所','電話番号','FAX','メール','担当者','業種','備考'];
+  const cfg = CSV_CONFIGS[type];
 
   const downloadTemplate = () => {
-    const csv = CSV_HEADERS.join(',') + '\nCUS001,○○造船株式会社,123-4567,広島県尾道市...,0848-XX-XXXX,0848-XX-XXXX,info@example.com,山田太郎,造船業,';
+    const csv = cfg.headers.join(',') + '\n' + cfg.example;
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'customers_import_template.csv'; a.click();
+    a.href = url; a.download = cfg.fileName; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -5507,7 +5540,6 @@ const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => 
       if (lines.length < 2) { toast('データ行がありません'); return; }
       const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
       const rows = lines.slice(1).map(line => {
-        // Handle CSV with quoted fields containing commas
         const vals: string[] = [];
         let current = '';
         let inQuotes = false;
@@ -5517,18 +5549,12 @@ const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => 
           else { current += ch; }
         }
         vals.push(current.trim());
-        return {
-          code: vals[headers.indexOf('コード')] || vals[headers.indexOf('code')] || vals[0] || '',
-          name: vals[headers.indexOf('顧客名')] || vals[headers.indexOf('name')] || vals[1] || '',
-          postalCode: vals[headers.indexOf('郵便番号')] || vals[headers.indexOf('postalCode')] || vals[2] || '',
-          address: vals[headers.indexOf('住所')] || vals[headers.indexOf('address')] || vals[3] || '',
-          tel: vals[headers.indexOf('電話番号')] || vals[headers.indexOf('tel')] || vals[4] || '',
-          fax: vals[headers.indexOf('FAX')] || vals[headers.indexOf('fax')] || vals[5] || '',
-          email: vals[headers.indexOf('メール')] || vals[headers.indexOf('email')] || vals[6] || '',
-          contactPerson: vals[headers.indexOf('担当者')] || vals[headers.indexOf('contactPerson')] || vals[7] || '',
-          industry: vals[headers.indexOf('業種')] || vals[headers.indexOf('industry')] || vals[8] || '',
-          notes: vals[headers.indexOf('備考')] || vals[headers.indexOf('notes')] || vals[9] || '',
-        };
+        const row: any = {};
+        cfg.fields.forEach((f, idx) => {
+          const hi = f.labels.map(l => headers.indexOf(l)).find(i => i >= 0);
+          row[f.key] = hi !== undefined && hi >= 0 ? vals[hi] : vals[idx] || '';
+        });
+        return row;
       }).filter(r => r.name);
       setPreviewRows(rows);
     };
@@ -5539,8 +5565,8 @@ const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => 
     if (previewRows.length === 0) return;
     setImporting(true);
     try {
-      const res = await api.importCustomers(previewRows);
-      toast(`${res.created}件の顧客を登録しました${res.skipped > 0 ? `（${res.skipped}件スキップ）` : ''}`);
+      const res = await cfg.importFn(previewRows);
+      toast(`${res.created}件の${cfg.label}を登録しました${res.skipped > 0 ? `（${res.skipped}件スキップ）` : ''}`);
       onRefresh();
       onClose();
     } catch (e: any) {
@@ -5550,8 +5576,10 @@ const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => 
     }
   };
 
+  const previewKeys = cfg.fields.filter(f => cfg.previewCols.some(c => f.labels.includes(c))).map(f => f.key);
+
   return (
-    <Modal open onClose={onClose} title="顧客CSV一括登録" size="lg">
+    <Modal open onClose={onClose} title={`${cfg.label}CSV一括登録`} size="lg">
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <button onClick={downloadTemplate} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Download size={14} />雛形ダウンロード</button>
@@ -5563,10 +5591,10 @@ const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => 
             <div className="text-xs font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
             <div className="max-h-60 overflow-auto border border-slate-200 rounded">
               <table className="w-full text-xs">
-                <thead className="bg-slate-50 sticky top-0"><tr><th className="px-2 py-1 text-left">コード</th><th className="px-2 py-1 text-left">顧客名</th><th className="px-2 py-1 text-left">住所</th><th className="px-2 py-1 text-left">電話番号</th><th className="px-2 py-1 text-left">業種</th></tr></thead>
+                <thead className="bg-slate-50 sticky top-0"><tr>{cfg.previewCols.map(c => <th key={c} className="px-2 py-1 text-left">{c}</th>)}</tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {previewRows.slice(0, 20).map((r, i) => (
-                    <tr key={i}><td className="px-2 py-1 font-mono">{r.code || '-'}</td><td className="px-2 py-1">{r.name}</td><td className="px-2 py-1 truncate max-w-[200px]">{r.address || '-'}</td><td className="px-2 py-1">{r.tel || '-'}</td><td className="px-2 py-1">{r.industry || '-'}</td></tr>
+                    <tr key={i}>{previewKeys.map(k => <td key={k} className="px-2 py-1 truncate max-w-[200px]">{r[k] || '-'}</td>)}</tr>
                   ))}
                 </tbody>
               </table>

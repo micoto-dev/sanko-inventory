@@ -71,12 +71,14 @@ export const api = {
   createMaker: (data: any) => request<any>('/makers', { method: 'POST', body: JSON.stringify(data) }),
   updateMaker: (id: number, data: any) => request<any>(`/makers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMaker: (id: number) => request<any>(`/makers/${id}`, { method: 'DELETE' }),
+  importMakers: (data: any[]) => request<any>('/makers/import', { method: 'POST', body: JSON.stringify({ makers: data }) }),
 
   // Suppliers
   getSuppliers: () => request<any>('/suppliers'),
   createSupplier: (data: any) => request<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
   updateSupplier: (id: number, data: any) => request<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSupplier: (id: number) => request<any>(`/suppliers/${id}`, { method: 'DELETE' }),
+  importSuppliers: (data: any[]) => request<any>('/suppliers/import', { method: 'POST', body: JSON.stringify({ suppliers: data }) }),
 
   // Customers
   getCustomers: () => request<any>('/customers'),
