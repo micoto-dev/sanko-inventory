@@ -5099,7 +5099,7 @@ const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
   return (
     <div className="p-5 space-y-3">
       <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
-        {([['suppliers', '仕入先'], ['makers', 'メーカー'], ['customers', '顧客']] as const).map(([k, label]) => (
+        {([['suppliers', '仕入先管理'], ['makers', 'メーカー管理'], ['customers', '顧客管理']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setSuppTab(k)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${suppTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
         ))}
       </div>
@@ -5114,6 +5114,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [editSupplier, setEditSupplier] = useState<any>(null);
   const [newSupplier, setNewSupplier] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [searchSupp, setSearchSupp] = useState('');
 
   const fetchSuppliers = () => { api.getSuppliers().then(res => { setSuppliers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchSuppliers(); }, []);
@@ -5134,13 +5135,18 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
 
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
   const formSupplier = editSupplier || newSupplier;
+  const q = searchSupp.toLowerCase();
+  const filtered = q ? suppliers.filter(s => (s.name||'').toLowerCase().includes(q) || (s.code||'').toLowerCase().includes(q) || (s.contactPerson||'').toLowerCase().includes(q)) : suppliers;
 
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">仕入先一覧</h2>
-          <Btn icon={Plus} onClick={() => setNewSupplier({ code: '', name: '', tel: '', email: '', contactPerson: '' })}>新規登録</Btn>
+          <h2 className="font-bold text-sm">仕入先一覧 ({filtered.length}件)</h2>
+          <div className="flex items-center gap-2">
+            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchSupp} onChange={e => setSearchSupp(e.target.value)} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <Btn icon={Plus} onClick={() => setNewSupplier({ code: '', name: '', tel: '', email: '', contactPerson: '' })}>新規登録</Btn>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -5155,7 +5161,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {suppliers.map((s: any) => (
+              {filtered.map((s: any) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-mono text-xs">{s.code}</td>
                   <td className="px-3 py-2">
@@ -5173,7 +5179,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
                   </td>
                 </tr>
               ))}
-              {suppliers.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">仕入先が登録されていません</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">{q ? '該当する仕入先がありません' : '仕入先が登録されていません'}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -5197,6 +5203,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [editMaker, setEditMaker] = useState<any>(null);
   const [newMaker, setNewMaker] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [searchMaker, setSearchMaker] = useState('');
 
   const fetchMakers = () => { api.getMakers().then(res => { setMakers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchMakers(); }, []);
@@ -5217,13 +5224,18 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
 
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
   const formMaker = editMaker || newMaker;
+  const qm = searchMaker.toLowerCase();
+  const filteredMakers = qm ? makers.filter(m => (m.name||'').toLowerCase().includes(qm) || (m.code||'').toLowerCase().includes(qm)) : makers;
 
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">メーカー一覧</h2>
-          <Btn icon={Plus} onClick={() => setNewMaker({ name: '', code: '', tel: '', email: '', website: '', notes: '' })}>新規登録</Btn>
+          <h2 className="font-bold text-sm">メーカー一覧 ({filteredMakers.length}件)</h2>
+          <div className="flex items-center gap-2">
+            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchMaker} onChange={e => setSearchMaker(e.target.value)} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
+            <Btn icon={Plus} onClick={() => setNewMaker({ name: '', code: '', tel: '', email: '', website: '', notes: '' })}>新規登録</Btn>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -5238,7 +5250,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {makers.map((m: any) => (
+              {filteredMakers.map((m: any) => (
                 <tr key={m.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-semibold">{m.name}</td>
                   <td className="px-3 py-2 font-mono text-xs">{m.code || '-'}</td>
@@ -5253,7 +5265,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
                   </td>
                 </tr>
               ))}
-              {makers.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">メーカーが登録されていません</td></tr>}
+              {filteredMakers.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">{qm ? '該当するメーカーがありません' : 'メーカーが登録されていません'}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -5327,6 +5339,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [newCustomer, setNewCustomer] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [showCsvImport, setShowCsvImport] = useState(false);
+  const [searchCust, setSearchCust] = useState('');
 
   const fetchCustomers = () => { api.getCustomers().then(res => { setCustomers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchCustomers(); }, []);
@@ -5347,13 +5360,16 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
 
   if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
   const formCustomer = editCustomer || newCustomer;
+  const qc = searchCust.toLowerCase();
+  const filteredCust = qc ? customers.filter(c => (c.name||'').toLowerCase().includes(qc) || (c.code||'').toLowerCase().includes(qc) || (c.address||'').toLowerCase().includes(qc) || (c.tel||'').includes(qc)) : customers;
 
   return (
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">顧客一覧 ({customers.length}件)</h2>
+          <h2 className="font-bold text-sm">顧客一覧 ({filteredCust.length}件)</h2>
           <div className="flex items-center gap-2">
+            <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchCust} onChange={e => setSearchCust(e.target.value)} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn variant="secondary" icon={Upload} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
             <Btn icon={Plus} onClick={() => setNewCustomer({ name: '', code: '', postalCode: '', address: '', tel: '', fax: '', email: '', contactPerson: '', industry: '', notes: '' })}>新規登録</Btn>
           </div>
@@ -5372,7 +5388,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {customers.map((c: any) => (
+              {filteredCust.map((c: any) => (
                 <tr key={c.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-mono text-xs">{c.code || '-'}</td>
                   <td className="px-3 py-2">
@@ -5391,7 +5407,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
                   </td>
                 </tr>
               ))}
-              {customers.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-black">顧客が登録されていません</td></tr>}
+              {filteredCust.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-black">{qc ? '該当する顧客がありません' : '顧客が登録されていません'}</td></tr>}
             </tbody>
           </table>
         </div>
