@@ -1981,7 +1981,7 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
   );
 };
 
-const ProductionScreen = ({ prodOrders, toast, onRefresh, parts }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[] }) => {
+const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [bomDetail, setBomDetail] = useState<any>(null);
   const [bomLoading, setBomLoading] = useState(false);
@@ -2138,7 +2138,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts }: { prodOrders:
 
       {(showNew || editMo) && (
         <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '製造指図 新規登録' : `製造指図編集: ${editMo?.prodNo}`} size="md">
-          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} parts={parts} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
             try {
               if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('製造指図を作成しました'); }
               else { await api.updateProductionOrder(form.id, form); toast('製造指図を更新しました'); }
@@ -2331,7 +2331,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
   );
 };
 
-const ProdOrderForm = ({ prodOrder, isNew, products, parts, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; parts: Part[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+const ProdOrderForm = ({ prodOrder, isNew, products, parts, customers, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; parts: Part[]; customers: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
   const [form, setForm] = useState(() => prodOrder || { productId: products[0]?.id || '', qty: 1, startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', notes: '' });
   const [bomItems, setBomItems] = useState<{ partId: string; qty: number; position: string }[]>([]);
   const [bomLoaded, setBomLoaded] = useState(false);
@@ -2380,7 +2380,12 @@ const ProdOrderForm = ({ prodOrder, isNew, products, parts, onClose, onSave }: {
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="数量*"><input type="number" value={form.qty || 1} onChange={e => upd('qty', Number(e.target.value) || 1)} min={1} className={`${inputClass} text-right font-mono`} /></Field>
-        <Field label="顧客"><input value={form.customer || ''} onChange={e => upd('customer', e.target.value)} className={inputClass} placeholder="例: ○○造船" /></Field>
+        <Field label="顧客">
+          <select value={form.customer || ''} onChange={e => upd('customer', e.target.value)} className={inputClass}>
+            <option value="">-- 顧客を選択 --</option>
+            {customers.map((c: any) => <option key={c.id} value={c.name}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
+          </select>
+        </Field>
         <Field label="開始日"><input type="date" value={form.startDate || ''} onChange={e => upd('startDate', e.target.value)} className={inputClass} /></Field>
         <Field label="納期"><input type="date" value={form.dueDate || ''} onChange={e => upd('dueDate', e.target.value)} className={inputClass} /></Field>
       </div>
@@ -5430,7 +5435,6 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
                 <th className="text-left px-3 py-2 font-medium">顧客名</th>
                 <th className="text-left px-3 py-2 font-medium">電話番号</th>
                 <th className="text-left px-3 py-2 font-medium">FAX</th>
-                <th className="text-left px-3 py-2 font-medium">担当者</th>
                 <th className="text-left px-3 py-2 font-medium">メール</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -5445,7 +5449,6 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
                   </td>
                   <td className="px-3 py-2 text-xs">{c.tel || '-'}</td>
                   <td className="px-3 py-2 text-xs">{c.fax || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{c.contactPerson || '-'}</td>
                   <td className="px-3 py-2 text-xs">{c.email || '-'}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
@@ -5455,7 +5458,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
                   </td>
                 </tr>
               ))}
-              {filteredCust.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-black">{qc ? '該当する顧客がありません' : '顧客が登録されていません'}</td></tr>}
+              {filteredCust.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">{qc ? '該当する顧客がありません' : '顧客が登録されていません'}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -5663,6 +5666,7 @@ export default function AppPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [prodOrders, setProdOrders] = useState<ProdOrder[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUserName, setCurrentUserName] = useState('');
@@ -5687,16 +5691,18 @@ export default function AppPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [partsRes, ordersRes, prodRes, locRes] = await Promise.all([
+      const [partsRes, ordersRes, prodRes, locRes, custRes] = await Promise.all([
         api.getParts({ limit: '1000' }),
         api.getOrders(),
         api.getProductionOrders(),
         api.getLocations(),
+        api.getCustomers(),
       ]);
       setParts(partsRes.data || []);
       setOrders(ordersRes.data || []);
       setProdOrders(prodRes.data || []);
       setLocations(locRes.data || []);
+      setCustomers(custRes.data || []);
       // Get current logged-in user
       try {
         const meRes = await api.getMe();
@@ -5740,7 +5746,7 @@ export default function AppPage() {
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
-          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} />}
+          {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}
           {view === 'reports' && <ReportsScreen toast={toast} />}
