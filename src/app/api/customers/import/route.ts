@@ -22,9 +22,32 @@ export async function POST(request: Request) {
           if (existing) { skipped++; continue; }
         }
 
-        // Skip if same name already exists
-        const existingName = await prisma.mCustomer.findFirst({ where: { name: c.name, isActive: true } });
-        if (existingName) { skipped++; continue; }
+        // Check if same name exists (active or inactive)
+        const existingName = await prisma.mCustomer.findFirst({ where: { name: c.name } });
+        if (existingName) {
+          if (!existingName.isActive) {
+            // Reactivate and update
+            await prisma.mCustomer.update({
+              where: { id: existingName.id },
+              data: {
+                isActive: true,
+                code: c.code || existingName.code,
+                postalCode: c.postalCode || existingName.postalCode,
+                address: c.address || existingName.address,
+                tel: c.tel || existingName.tel,
+                fax: c.fax || existingName.fax,
+                email: c.email || existingName.email,
+                contactPerson: c.contactPerson || existingName.contactPerson,
+                industry: c.industry || existingName.industry,
+                notes: c.notes || existingName.notes,
+              },
+            });
+            created++;
+          } else {
+            skipped++;
+          }
+          continue;
+        }
 
         await prisma.mCustomer.create({
           data: {
