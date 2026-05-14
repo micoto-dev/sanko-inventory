@@ -57,7 +57,7 @@ const MENU_ITEMS = [
   { id: 'master', label: '部品マスタ', icon: Package },
   { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
   { id: 'locations', label: 'ロケーション', icon: Warehouse },
-  { id: 'suppliers', label: '仕入先/メーカー管理', icon: Building2 },
+  { id: 'suppliers', label: '企業管理', icon: Building2 },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
   { id: 'production', label: '製造指図', icon: Factory },
@@ -5095,15 +5095,15 @@ const LocationFormModal = ({ location, isNew, onClose, onSave }: { location: any
 
 // ========================== SuppliersScreen ==========================
 const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
-  const [suppTab, setSuppTab] = useState<'suppliers' | 'makers'>('suppliers');
+  const [suppTab, setSuppTab] = useState<'suppliers' | 'makers' | 'customers'>('suppliers');
   return (
     <div className="p-5 space-y-3">
       <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
-        {([['suppliers', '仕入先'], ['makers', 'メーカー']] as const).map(([k, label]) => (
+        {([['suppliers', '仕入先'], ['makers', 'メーカー'], ['customers', '顧客']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setSuppTab(k)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${suppTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
         ))}
       </div>
-      {suppTab === 'suppliers' ? <SuppliersTab toast={toast} /> : <MakersTab toast={toast} />}
+      {suppTab === 'suppliers' ? <SuppliersTab toast={toast} /> : suppTab === 'makers' ? <MakersTab toast={toast} /> : <CustomersTab toast={toast} />}
     </div>
   );
 };
@@ -5320,6 +5320,116 @@ const SupplierFormModal = ({ supplier, isNew, onClose, onSave }: { supplier: any
   );
 };
 
+const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editCustomer, setEditCustomer] = useState<any>(null);
+  const [newCustomer, setNewCustomer] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  const fetchCustomers = () => { api.getCustomers().then(res => { setCustomers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { fetchCustomers(); }, []);
+
+  const handleSave = async (form: any, isNew: boolean) => {
+    try {
+      if (isNew) { await api.createCustomer(form); toast(`顧客「${form.name}」を登録しました`); }
+      else { await api.updateCustomer(form.id, form); toast(`顧客「${form.name}」を更新しました`); }
+      setEditCustomer(null); setNewCustomer(null); fetchCustomers();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try { await api.deleteCustomer(deleteTarget.id); toast(`顧客「${deleteTarget.name}」を無効化しました`); setDeleteTarget(null); fetchCustomers(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  if (loading) return <div className="p-5 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+  const formCustomer = editCustomer || newCustomer;
+
+  return (
+    <>
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="font-bold text-sm">顧客一覧</h2>
+          <Btn icon={Plus} onClick={() => setNewCustomer({ name: '', code: '', postalCode: '', address: '', tel: '', fax: '', email: '', contactPerson: '', industry: '', notes: '' })}>新規登録</Btn>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">コード</th>
+                <th className="text-left px-3 py-2 font-medium">顧客名</th>
+                <th className="text-left px-3 py-2 font-medium">業種</th>
+                <th className="text-left px-3 py-2 font-medium">電話番号</th>
+                <th className="text-left px-3 py-2 font-medium">担当者</th>
+                <th className="text-left px-3 py-2 font-medium">メール</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {customers.map((c: any) => (
+                <tr key={c.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 font-mono text-xs">{c.code || '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-semibold">{c.name}</div>
+                    {c.address && <div className="text-xs text-black truncate max-w-[200px]">{c.address}</div>}
+                  </td>
+                  <td className="px-3 py-2 text-xs">{c.industry || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{c.tel || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{c.contactPerson || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{c.email || '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditCustomer(c)}>編集</Btn>
+                      <button onClick={() => setDeleteTarget(c)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {customers.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-black">顧客が登録されていません</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {formCustomer && (
+        <CustomerFormModal customer={formCustomer} isNew={!!newCustomer} onClose={() => { setEditCustomer(null); setNewCustomer(null); }} onSave={handleSave} />
+      )}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="顧客の無効化確認" size="sm">
+          <div className="text-sm mb-4"><p>以下の顧客を無効化しますか？</p><div className="mt-2 bg-slate-50 rounded p-3">{deleteTarget.code && <div className="font-mono text-xs text-black">{deleteTarget.code}</div>}<div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>無効化する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
+        </Modal>
+      )}
+    </>
+  );
+};
+
+const CustomerFormModal = ({ customer, isNew, onClose, onSave }: { customer: any; isNew: boolean; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => ({ ...customer }));
+  const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
+  return (
+    <Modal open onClose={onClose} title={isNew ? '顧客 新規登録' : `顧客編集: ${customer.name}`} size="lg">
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <Field label="顧客名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+        <Field label="顧客コード"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} placeholder="例: CUS001" /></Field>
+        <Field label="業種"><input value={form.industry || ''} onChange={e => upd('industry', e.target.value)} className={inputClass} placeholder="例: 造船業" /></Field>
+        <Field label="担当者"><input value={form.contactPerson || ''} onChange={e => upd('contactPerson', e.target.value)} className={inputClass} /></Field>
+        <Field label="郵便番号"><input value={form.postalCode || ''} onChange={e => upd('postalCode', e.target.value)} className={inputClass} placeholder="例: 123-4567" /></Field>
+        <Field label="メール"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} /></Field>
+        <Field label="住所" full><input value={form.address || ''} onChange={e => upd('address', e.target.value)} className={inputClass} placeholder="都道府県から入力" /></Field>
+        <Field label="電話番号"><input value={form.tel || ''} onChange={e => upd('tel', e.target.value)} className={inputClass} placeholder="例: 03-1234-5678" /></Field>
+        <Field label="FAX"><input value={form.fax || ''} onChange={e => upd('fax', e.target.value)} className={inputClass} placeholder="例: 03-1234-5679" /></Field>
+        <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-16`} placeholder="メモ・特記事項など" /></Field>
+      </div>
+      <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={() => onSave(form, isNew)} disabled={!form.name}>{isNew ? '登録' : '保存'}</Btn>
+        <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+      </div>
+    </Modal>
+  );
+};
+
 // ========================== View Titles ==========================
 const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: 'ダッシュボード', subtitle: '在庫状況の概要' },
@@ -5327,7 +5437,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   products: { title: '製品マスタ・BOM', subtitle: '製品構成部品の管理' },
   inventory: { title: '在庫一覧', subtitle: 'ロケーション別の在庫状況' },
   locations: { title: 'ロケーション', subtitle: '棚位置の管理' },
-  suppliers: { title: '仕入先/メーカー管理', subtitle: '仕入先・メーカーの登録・編集' },
+  suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・顧客の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
   production: { title: '製造指図', subtitle: 'BOM展開・引当・ピッキング' },

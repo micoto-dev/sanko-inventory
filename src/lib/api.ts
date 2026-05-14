@@ -78,6 +78,12 @@ export const api = {
   updateSupplier: (id: number, data: any) => request<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteSupplier: (id: number) => request<any>(`/suppliers/${id}`, { method: 'DELETE' }),
 
+  // Customers
+  getCustomers: () => request<any>('/customers'),
+  createCustomer: (data: any) => request<any>('/customers', { method: 'POST', body: JSON.stringify(data) }),
+  updateCustomer: (id: number, data: any) => request<any>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCustomer: (id: number) => request<any>(`/customers/${id}`, { method: 'DELETE' }),
+
   // Logs
   getLogs: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
