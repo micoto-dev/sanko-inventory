@@ -83,6 +83,7 @@ export const api = {
   createCustomer: (data: any) => request<any>('/customers', { method: 'POST', body: JSON.stringify(data) }),
   updateCustomer: (id: number, data: any) => request<any>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCustomer: (id: number) => request<any>(`/customers/${id}`, { method: 'DELETE' }),
+  importCustomers: (data: any[]) => request<any>('/customers/import', { method: 'POST', body: JSON.stringify({ customers: data }) }),
 
   // Logs
   getLogs: (params?: Record<string, string>) => {

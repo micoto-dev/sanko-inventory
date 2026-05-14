@@ -11,7 +11,7 @@ import {
   X, KeyRound, PlusCircle, ChevronDown, Tag, LogOut, RotateCcw, Settings,
   QrCode, Printer, ScanLine, Menu, Camera,
   TrendingUp, Clock, Building2,
-  Zap, RefreshCw, Link2, XCircle, Download, ChevronUp,
+  Zap, RefreshCw, Link2, XCircle, Download, Upload, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
@@ -5326,6 +5326,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
   const [editCustomer, setEditCustomer] = useState<any>(null);
   const [newCustomer, setNewCustomer] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   const fetchCustomers = () => { api.getCustomers().then(res => { setCustomers(res.data || []); setLoading(false); }).catch(() => setLoading(false)); };
   useEffect(() => { fetchCustomers(); }, []);
@@ -5351,8 +5352,11 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">顧客一覧</h2>
-          <Btn icon={Plus} onClick={() => setNewCustomer({ name: '', code: '', postalCode: '', address: '', tel: '', fax: '', email: '', contactPerson: '', industry: '', notes: '' })}>新規登録</Btn>
+          <h2 className="font-bold text-sm">顧客一覧 ({customers.length}件)</h2>
+          <div className="flex items-center gap-2">
+            <Btn variant="secondary" icon={Upload} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
+            <Btn icon={Plus} onClick={() => setNewCustomer({ name: '', code: '', postalCode: '', address: '', tel: '', fax: '', email: '', contactPerson: '', industry: '', notes: '' })}>新規登録</Btn>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -5401,7 +5405,105 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>無効化する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
+      {showCsvImport && <CustomerCsvImportModal onClose={() => setShowCsvImport(false)} onRefresh={fetchCustomers} toast={toast} />}
     </>
+  );
+};
+
+const CustomerCsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => void; onRefresh: () => void; toast: (msg: string) => void }) => {
+  const [previewRows, setPreviewRows] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const CSV_HEADERS = ['コード','顧客名','郵便番号','住所','電話番号','FAX','メール','担当者','業種','備考'];
+
+  const downloadTemplate = () => {
+    const csv = CSV_HEADERS.join(',') + '\nCUS001,○○造船株式会社,123-4567,広島県尾道市...,0848-XX-XXXX,0848-XX-XXXX,info@example.com,山田太郎,造船業,';
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'customers_import_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { toast('データ行がありません'); return; }
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      const rows = lines.slice(1).map(line => {
+        // Handle CSV with quoted fields containing commas
+        const vals: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (const ch of line) {
+          if (ch === '"') { inQuotes = !inQuotes; }
+          else if (ch === ',' && !inQuotes) { vals.push(current.trim()); current = ''; }
+          else { current += ch; }
+        }
+        vals.push(current.trim());
+        return {
+          code: vals[headers.indexOf('コード')] || vals[headers.indexOf('code')] || vals[0] || '',
+          name: vals[headers.indexOf('顧客名')] || vals[headers.indexOf('name')] || vals[1] || '',
+          postalCode: vals[headers.indexOf('郵便番号')] || vals[headers.indexOf('postalCode')] || vals[2] || '',
+          address: vals[headers.indexOf('住所')] || vals[headers.indexOf('address')] || vals[3] || '',
+          tel: vals[headers.indexOf('電話番号')] || vals[headers.indexOf('tel')] || vals[4] || '',
+          fax: vals[headers.indexOf('FAX')] || vals[headers.indexOf('fax')] || vals[5] || '',
+          email: vals[headers.indexOf('メール')] || vals[headers.indexOf('email')] || vals[6] || '',
+          contactPerson: vals[headers.indexOf('担当者')] || vals[headers.indexOf('contactPerson')] || vals[7] || '',
+          industry: vals[headers.indexOf('業種')] || vals[headers.indexOf('industry')] || vals[8] || '',
+          notes: vals[headers.indexOf('備考')] || vals[headers.indexOf('notes')] || vals[9] || '',
+        };
+      }).filter(r => r.name);
+      setPreviewRows(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (previewRows.length === 0) return;
+    setImporting(true);
+    try {
+      const res = await api.importCustomers(previewRows);
+      toast(`${res.created}件の顧客を登録しました${res.skipped > 0 ? `（${res.skipped}件スキップ）` : ''}`);
+      onRefresh();
+      onClose();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="顧客CSV一括登録" size="lg">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={downloadTemplate} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Download size={14} />雛形ダウンロード</button>
+          <span className="text-xs text-black">CSVファイルを選択してアップロードしてください</span>
+        </div>
+        <input type="file" accept=".csv" onChange={handleFile} className="block w-full text-sm text-black file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+        {previewRows.length > 0 && (
+          <>
+            <div className="text-xs font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
+            <div className="max-h-60 overflow-auto border border-slate-200 rounded">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 sticky top-0"><tr><th className="px-2 py-1 text-left">コード</th><th className="px-2 py-1 text-left">顧客名</th><th className="px-2 py-1 text-left">住所</th><th className="px-2 py-1 text-left">電話番号</th><th className="px-2 py-1 text-left">業種</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {previewRows.slice(0, 20).map((r, i) => (
+                    <tr key={i}><td className="px-2 py-1 font-mono">{r.code || '-'}</td><td className="px-2 py-1">{r.name}</td><td className="px-2 py-1 truncate max-w-[200px]">{r.address || '-'}</td><td className="px-2 py-1">{r.tel || '-'}</td><td className="px-2 py-1">{r.industry || '-'}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {previewRows.length > 20 && <div className="text-xs text-black">...他 {previewRows.length - 20}件</div>}
+            <Btn variant="primary" icon={Upload} onClick={handleImport} disabled={importing}>{importing ? '登録中...' : `${previewRows.length}件を一括登録`}</Btn>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 };
 
