@@ -5364,8 +5364,8 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
               <tr>
                 <th className="text-left px-3 py-2 font-medium">コード</th>
                 <th className="text-left px-3 py-2 font-medium">顧客名</th>
-                <th className="text-left px-3 py-2 font-medium">業種</th>
                 <th className="text-left px-3 py-2 font-medium">電話番号</th>
+                <th className="text-left px-3 py-2 font-medium">FAX</th>
                 <th className="text-left px-3 py-2 font-medium">担当者</th>
                 <th className="text-left px-3 py-2 font-medium">メール</th>
                 <th className="px-3 py-2"></th>
@@ -5379,8 +5379,8 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
                     <div className="font-semibold">{c.name}</div>
                     {c.address && <div className="text-xs text-black truncate max-w-[200px]">{c.address}</div>}
                   </td>
-                  <td className="px-3 py-2 text-xs">{c.industry || '-'}</td>
                   <td className="px-3 py-2 text-xs">{c.tel || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{c.fax || '-'}</td>
                   <td className="px-3 py-2 text-xs">{c.contactPerson || '-'}</td>
                   <td className="px-3 py-2 text-xs">{c.email || '-'}</td>
                   <td className="px-3 py-2">
