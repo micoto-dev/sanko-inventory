@@ -16,30 +16,28 @@ export async function POST(request: Request) {
       if (!c.name) { skipped++; continue; }
 
       try {
-        // Skip if code already exists
-        if (c.code) {
-          const existing = await prisma.mCustomer.findUnique({ where: { code: c.code } });
-          if (existing) { skipped++; continue; }
-        }
+        // Check existing by code or name
+        const existing = c.code
+          ? await prisma.mCustomer.findUnique({ where: { code: c.code } })
+          : await prisma.mCustomer.findFirst({ where: { name: c.name } });
 
-        // Check if same name exists (active or inactive)
-        const existingName = await prisma.mCustomer.findFirst({ where: { name: c.name } });
-        if (existingName) {
-          if (!existingName.isActive) {
-            // Reactivate and update
+        if (existing) {
+          if (!existing.isActive) {
+            // Reactivate and update with new data
             await prisma.mCustomer.update({
-              where: { id: existingName.id },
+              where: { id: existing.id },
               data: {
                 isActive: true,
-                code: c.code || existingName.code,
-                postalCode: c.postalCode || existingName.postalCode,
-                address: c.address || existingName.address,
-                tel: c.tel || existingName.tel,
-                fax: c.fax || existingName.fax,
-                email: c.email || existingName.email,
-                contactPerson: c.contactPerson || existingName.contactPerson,
-                industry: c.industry || existingName.industry,
-                notes: c.notes || existingName.notes,
+                name: c.name || existing.name,
+                code: c.code || existing.code,
+                postalCode: c.postalCode || existing.postalCode,
+                address: c.address || existing.address,
+                tel: c.tel || existing.tel,
+                fax: c.fax || existing.fax,
+                email: c.email || existing.email,
+                contactPerson: c.contactPerson || existing.contactPerson,
+                industry: c.industry || existing.industry,
+                notes: c.notes || existing.notes,
               },
             });
             created++;
