@@ -2024,9 +2024,8 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
               <tr>
                 <th className="px-3 py-2 w-8"></th>
                 <th className="text-left px-3 py-2 font-medium">工番</th>
-                <th className="text-left px-3 py-2 font-medium">区分</th>
-                <th className="text-left px-3 py-2 font-medium">分類</th>
                 <th className="text-left px-3 py-2 font-medium">製品名</th>
+                <th className="text-left px-3 py-2 font-medium">区分</th>
                 <th className="text-left px-3 py-2 font-medium">顧客</th>
                 <th className="text-right px-3 py-2 font-medium">数量</th>
                 <th className="text-right px-3 py-2 font-medium">受注金額</th>
@@ -2043,9 +2042,8 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                       {expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs font-semibold">{m.prodNo}</td>
-                    <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
-                    <td className="px-3 py-2 text-xs">{(m as any).category || '-'}</td>
                     <td className="px-3 py-2 text-xs">{(m as any).productName || '-'}</td>
+                    <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
                     <td className="px-3 py-2 text-xs">{m.customer || '-'}</td>
                     <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
                     <td className="px-3 py-2 text-right font-mono">{(m as any).amount ? `¥${Number((m as any).amount).toLocaleString()}` : '-'}</td>
@@ -2060,7 +2058,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                   </tr>
                   {expandedId === m.id && (
                     <tr>
-                      <td colSpan={11} className="bg-slate-50 px-4 py-3">
+                      <td colSpan={10} className="bg-slate-50 px-4 py-3">
                         {bomLoading ? (
                           <div className="flex items-center gap-2 text-sm text-black py-4 justify-center">
                             <Loader2 size={16} className="animate-spin" /> BOM情報を読み込み中...
@@ -2379,14 +2377,13 @@ const ProdOrderForm = ({ prodOrder, isNew, products, parts, customers, onClose, 
   return (
     <div className="space-y-3 text-sm">
       <div className="grid grid-cols-2 gap-3">
+        <Field label="製品名"><input value={form.productName || ''} onChange={e => upd('productName', e.target.value)} className={inputClass} placeholder="例: 主配電盤 MSB-001" /></Field>
         <Field label="区分*">
           <select value={form.division || ''} onChange={e => upd('division', e.target.value)} className={inputClass}>
             <option value="">-- 区分を選択 --</option>
             {['A', 'B', 'C', 'D', 'E', 'F', 'AA'].map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </Field>
-        <Field label="分類"><input value={form.category || ''} onChange={e => upd('category', e.target.value)} className={inputClass} placeholder="例: 配電盤、制御盤、監視盤" /></Field>
-        <Field label="製品名"><input value={form.productName || ''} onChange={e => upd('productName', e.target.value)} className={inputClass} placeholder="例: 主配電盤 MSB-001" /></Field>
         <Field label="顧客*">
           <select value={form.customer || ''} onChange={e => upd('customer', e.target.value)} className={inputClass}>
             <option value="">-- 顧客を選択 --</option>
