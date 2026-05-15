@@ -303,7 +303,9 @@ model TProdOrder {
   productId   Int?      @map("product_id")
   qty         Int
   status      String    @default("allocated") @db.VarChar(32)
+  division    String?   @db.VarChar(10)
   category    String?   @db.VarChar(100)
+  productName String?   @map("product_name") @db.VarChar(255)
   startDate   DateTime? @map("start_date") @db.Date
   dueDate     DateTime? @map("due_date") @db.Date
   customer    String?   @db.VarChar(255)

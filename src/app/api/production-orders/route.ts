@@ -33,10 +33,11 @@ export async function GET(request: Request) {
       prodNo: o.prodNo,
       productId: o.productId,
       productCode: o.product?.code || '',
-      productName: o.product?.name || '',
       qty: Number(o.qty),
       status: o.status,
+      division: o.division || '',
       category: o.category || '',
+      productName: o.productName || o.product?.name || '',
       startDate: o.startDate?.toISOString?.()?.slice(0, 10) || '',
       dueDate: o.dueDate?.toISOString?.()?.slice(0, 10) || '',
       customer: o.customer || '',
@@ -56,26 +57,33 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { productId, qty, category, startDate, dueDate, customer, amount, notes, createdById } = body;
+    const { productId, qty, division, category, productName: prodName, startDate, dueDate, customer, amount, notes, createdById } = body;
 
     if (!qty || !createdById) {
       return Response.json({ error: "qty and createdById are required" }, { status: 400 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Generate prodNo (工番)
-      const year = new Date().getFullYear();
-      const prefix = `MO-${year}-`;
+      // Generate prodNo (工番): 6桁の連番
       const lastProd = await tx.tProdOrder.findFirst({
-        where: { prodNo: { startsWith: prefix } },
         orderBy: { prodNo: "desc" },
+        where: { prodNo: { not: { startsWith: "MO-" } } },
+      });
+      // Also check old format
+      const lastOld = await tx.tProdOrder.findFirst({
+        orderBy: { id: "desc" },
       });
       let seq = 1;
       if (lastProd) {
-        const lastSeq = parseInt(lastProd.prodNo.replace(prefix, ""), 10);
+        const lastSeq = parseInt(lastProd.prodNo, 10);
         if (!isNaN(lastSeq)) seq = lastSeq + 1;
       }
-      const prodNo = `${prefix}${String(seq).padStart(4, "0")}`;
+      // Ensure we don't go below existing count
+      const totalCount = await tx.tProdOrder.count();
+      if (seq <= totalCount) seq = totalCount + 1;
+      // Ensure at least 6 digits starting from 100001
+      if (seq < 100001) seq = 100001;
+      const prodNo = String(seq);
 
       // Create production order
       const prodOrder = await tx.tProdOrder.create({
@@ -83,7 +91,9 @@ export async function POST(request: Request) {
           prodNo,
           productId: productId || null,
           qty,
+          division: division || null,
           category: category || null,
+          productName: prodName || null,
           startDate: startDate ? new Date(startDate) : undefined,
           dueDate: dueDate ? new Date(dueDate) : undefined,
           customer,
