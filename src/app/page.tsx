@@ -2771,12 +2771,10 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             <input ref={excelInputRef} type="file" accept=".csv,.xlsx" onChange={handleExcelImport} className="hidden" />
           </div>
         </div>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           {[
-            { l: '進捗', v: total > 0 ? Math.round(doneCount / total * 100) + '%' : '0%', c: 'text-black' },
-            { l: '完了', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
-            { l: '差異あり', v: String(diffCount), c: 'text-amber-600' },
-            { l: '未着手', v: String(total - doneCount - diffCount), c: 'text-black' },
+            { l: '在庫品目数', v: String(parts.filter(p => p.stock > 0).length), c: 'text-black' },
+            { l: '在庫総数量', v: parts.reduce((s, p) => s + p.stock, 0).toLocaleString(), c: 'text-black' },
             { l: '在庫原価計', v: `¥${allCostTotal.toLocaleString()}`, c: 'text-black' },
             { l: '在庫売価計', v: `¥${allSellingTotal.toLocaleString()}`, c: 'text-black' },
           ].map((k, i) => (
