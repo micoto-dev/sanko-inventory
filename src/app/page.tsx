@@ -54,14 +54,14 @@ interface Log {
 // ========================== Sidebar ==========================
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
+  { id: 'production', label: '受注管理', icon: Factory },
   { id: 'master', label: '部品マスタ', icon: Package },
-  { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
   { id: 'locations', label: 'ロケーション', icon: Warehouse },
   { id: 'suppliers', label: '企業管理', icon: Building2 },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
-  { id: 'production', label: '製造指図', icon: Factory },
   { id: 'issue', label: '出庫処理', icon: Package2 },
+  { id: 'products', label: '製品マスタ・BOM', icon: Cpu },
   { id: 'qr', label: 'QRコード', icon: QrCode },
   { id: 'stocktake', label: '棚卸し', icon: ClipboardCheck },
   { id: 'reports', label: 'レポート', icon: BarChart3 },
@@ -2015,19 +2015,20 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">製造指図一覧</h2>
-          <Btn icon={Plus} onClick={() => setShowNew(true)}>新規指図</Btn>
+          <h2 className="font-bold text-sm">受注一覧</h2>
+          <Btn icon={Plus} onClick={() => setShowNew(true)}>新規受注</Btn>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-black uppercase">
               <tr>
                 <th className="px-3 py-2 w-8"></th>
-                <th className="text-left px-3 py-2 font-medium">指図番号</th>
-                <th className="text-left px-3 py-2 font-medium">製品</th>
-                <th className="text-right px-3 py-2 font-medium">数量</th>
+                <th className="text-left px-3 py-2 font-medium">工番</th>
+                <th className="text-left px-3 py-2 font-medium">分類</th>
                 <th className="text-left px-3 py-2 font-medium">顧客</th>
-                <th className="text-left px-3 py-2 font-medium">納期</th>
+                <th className="text-right px-3 py-2 font-medium">数量</th>
+                <th className="text-right px-3 py-2 font-medium">受注金額</th>
+                <th className="text-left px-3 py-2 font-medium">出荷納期</th>
                 <th className="text-left px-3 py-2 font-medium">ステータス</th>
                 <th className="px-3 py-2 font-medium">操作</th>
               </tr>
@@ -2039,11 +2040,12 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                     <td className="px-3 py-2 text-black">
                       {expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">{m.prodNo}</td>
-                    <td className="px-3 py-2 font-semibold">{m.productName || m.productCode}</td>
+                    <td className="px-3 py-2 font-mono text-xs font-semibold">{m.prodNo}</td>
+                    <td className="px-3 py-2 text-xs">{(m as any).category || '-'}</td>
+                    <td className="px-3 py-2 text-xs">{m.customer || '-'}</td>
                     <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
-                    <td className="px-3 py-2 text-xs">{m.customer}</td>
-                    <td className="px-3 py-2 text-xs">{m.dueDate}</td>
+                    <td className="px-3 py-2 text-right font-mono">{(m as any).amount ? `¥${Number((m as any).amount).toLocaleString()}` : '-'}</td>
+                    <td className="px-3 py-2 text-xs">{m.dueDate || '-'}</td>
                     <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
@@ -2054,7 +2056,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                   </tr>
                   {expandedId === m.id && (
                     <tr>
-                      <td colSpan={8} className="bg-slate-50 px-4 py-3">
+                      <td colSpan={9} className="bg-slate-50 px-4 py-3">
                         {bomLoading ? (
                           <div className="flex items-center gap-2 text-sm text-black py-4 justify-center">
                             <Loader2 size={16} className="animate-spin" /> BOM情報を読み込み中...
@@ -2137,11 +2139,11 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
       </div>
 
       {(showNew || editMo) && (
-        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '製造指図 新規登録' : `製造指図編集: ${editMo?.prodNo}`} size="md">
+        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '新規受注登録' : `受注編集: ${editMo?.prodNo}`} size="md">
           <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
             try {
-              if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('製造指図を作成しました'); }
-              else { await api.updateProductionOrder(form.id, form); toast('製造指図を更新しました'); }
+              if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('受注を登録しました'); }
+              else { await api.updateProductionOrder(form.id, form); toast('受注を更新しました'); }
               setShowNew(false); setEditMo(null); onRefresh();
             } catch (e: any) { toast(`エラー: ${e.message}`); }
           }} />
@@ -2149,10 +2151,10 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
       )}
 
       {deleteTarget && (
-        <Modal open onClose={() => setDeleteTarget(null)} title="製造指図の削除確認" size="sm">
+        <Modal open onClose={() => setDeleteTarget(null)} title="受注の削除確認" size="sm">
           <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3 mb-4">
             <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
-            <div><p className="font-bold text-rose-800">「{deleteTarget.prodNo}」を削除しますか？</p><p className="text-rose-700 mt-1">{deleteTarget.productName} x {deleteTarget.qty} の指図が削除され、引当中の在庫が解除されます。</p></div>
+            <div><p className="font-bold text-rose-800">工番「{deleteTarget.prodNo}」を削除しますか？</p><p className="text-rose-700 mt-1">{deleteTarget.customer || ''} の受注が削除されます。</p></div>
           </div>
           <div className="flex gap-2">
             <Btn variant="danger" icon={Trash2} onClick={async () => { try { await api.deleteProductionOrder(deleteTarget.id); toast(`削除しました`); setDeleteTarget(null); onRefresh(); } catch (e: any) { toast(`エラー: ${e.message}`); } }}>削除する</Btn>
@@ -2332,7 +2334,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
 };
 
 const ProdOrderForm = ({ prodOrder, isNew, products, parts, customers, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; parts: Part[]; customers: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
-  const [form, setForm] = useState(() => prodOrder || { productId: products[0]?.id || '', qty: 1, startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', notes: '' });
+  const [form, setForm] = useState(() => prodOrder || { productId: '', qty: 1, category: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', amount: '', notes: '' });
   const [bomItems, setBomItems] = useState<{ partId: string; qty: number; position: string }[]>([]);
   const [bomLoaded, setBomLoaded] = useState(false);
   const [addPartSearch, setAddPartSearch] = useState('');
@@ -2372,23 +2374,25 @@ const ProdOrderForm = ({ prodOrder, isNew, products, parts, customers, onClose, 
 
   return (
     <div className="space-y-3 text-sm">
-      <Field label="製品*">
-        <select value={form.productId || ''} onChange={e => upd('productId', Number(e.target.value))} className={inputClass} disabled={!isNew}>
-          <option value="">-- 製品を選択 --</option>
-          {products.map((p: any) => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
-        </select>
-      </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="数量*"><input type="number" value={form.qty || 1} onChange={e => upd('qty', Number(e.target.value) || 1)} min={1} className={`${inputClass} text-right font-mono`} /></Field>
-        <Field label="顧客">
+        <Field label="分類*"><input value={form.category || ''} onChange={e => upd('category', e.target.value)} className={inputClass} placeholder="例: 配電盤、制御盤、監視盤" /></Field>
+        <Field label="顧客*">
           <select value={form.customer || ''} onChange={e => upd('customer', e.target.value)} className={inputClass}>
             <option value="">-- 顧客を選択 --</option>
             {customers.map((c: any) => <option key={c.id} value={c.name}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
           </select>
         </Field>
+        <Field label="数量*"><input type="number" value={form.qty || 1} onChange={e => upd('qty', Number(e.target.value) || 1)} min={1} className={`${inputClass} text-right font-mono`} /></Field>
+        <Field label="受注金額"><input type="number" value={form.amount || ''} onChange={e => upd('amount', Number(e.target.value) || null)} className={`${inputClass} text-right font-mono`} placeholder="円" /></Field>
+        <Field label="出荷納期"><input type="date" value={form.dueDate || ''} onChange={e => upd('dueDate', e.target.value)} className={inputClass} /></Field>
         <Field label="開始日"><input type="date" value={form.startDate || ''} onChange={e => upd('startDate', e.target.value)} className={inputClass} /></Field>
-        <Field label="納期"><input type="date" value={form.dueDate || ''} onChange={e => upd('dueDate', e.target.value)} className={inputClass} /></Field>
       </div>
+      <Field label="製品（BOM展開用）">
+        <select value={form.productId || ''} onChange={e => upd('productId', e.target.value ? Number(e.target.value) : null)} className={inputClass} disabled={!isNew}>
+          <option value="">-- 任意：製品を選択 --</option>
+          {products.map((p: any) => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
+        </select>
+      </Field>
       <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-12`} /></Field>
 
       {/* BOM editing */}
@@ -5646,7 +5650,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・顧客の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
-  production: { title: '製造指図', subtitle: 'BOM展開・引当・ピッキング' },
+  production: { title: '受注管理', subtitle: '工番管理・受注登録・進捗管理' },
   issue: { title: '出庫処理', subtitle: '製造指図に基づく部品払出' },
   stocktake: { title: '棚卸し', subtitle: '実地棚卸しの管理' },
   reports: { title: 'レポート', subtitle: '在庫分析・統計' },

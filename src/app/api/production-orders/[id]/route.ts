@@ -50,13 +50,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const body = await request.json();
-    const { qty, status, startDate, dueDate, customer, notes, bomItems } = body;
+    const { qty, status, category, startDate, dueDate, customer, amount, notes, bomItems } = body;
     const data: Record<string, unknown> = {};
     if (qty !== undefined) data.qty = qty;
     if (status !== undefined) data.status = status;
+    if (category !== undefined) data.category = category;
     if (startDate !== undefined) data.startDate = new Date(startDate);
-    if (dueDate !== undefined) data.dueDate = new Date(dueDate);
+    if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (customer !== undefined) data.customer = customer;
+    if (amount !== undefined) data.amount = amount ? Number(amount) : null;
     if (notes !== undefined) data.notes = notes;
 
     const updated = await prisma.$transaction(async (tx) => {
