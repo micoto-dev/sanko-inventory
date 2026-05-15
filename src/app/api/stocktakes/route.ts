@@ -5,8 +5,16 @@ export async function GET() {
     const stocktakes = await prisma.tStocktake.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        createdBy: { select: { name: true } },
+        createdBy: { select: { id: true, name: true } },
+        approvedBy: { select: { id: true, name: true } },
         _count: { select: { details: true } },
+        details: {
+          include: {
+            part: { select: { id: true, code: true, name: true, costPrice: true, sellingPrice: true } },
+            countedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { id: "asc" },
+        },
       },
     });
     return Response.json({ data: stocktakes });

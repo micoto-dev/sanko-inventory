@@ -2793,58 +2793,79 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       </div>
 
       {stocktakeTab === 'log' && (
-        <div className="bg-white rounded-lg border border-slate-200">
-          <div className="px-4 py-3 border-b border-slate-200">
-            <h2 className="font-bold text-sm">棚卸し差異ログ</h2>
-            <div className="text-xs text-black">過去の棚卸しで発生した帳簿数と実数の差異を追跡</div>
-          </div>
-          {stocktakeLogs.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium">日付</th>
-                    <th className="text-left px-3 py-2 font-medium">部署</th>
-                    <th className="text-left px-3 py-2 font-medium">品番</th>
-                    <th className="text-left px-3 py-2 font-medium">品名</th>
-                    <th className="text-right px-3 py-2 font-medium">帳簿数</th>
-                    <th className="text-right px-3 py-2 font-medium">実数</th>
-                    <th className="text-right px-3 py-2 font-medium">差異</th>
-                    <th className="text-right px-3 py-2 font-medium">差異金額(原価)</th>
-                    <th className="text-left px-3 py-2 font-medium">ステータス</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {stocktakeLogs.flatMap((st: any) => (st.items || []).filter((it: any) => it.diffQty !== 0).map((it: any, idx: number) => {
-                    const part = parts.find(p => p.id === it.partId);
-                    const diffAmount = (it.diffQty || 0) * (part?.costPrice || 0);
-                    return (
-                      <tr key={`${st.id}-${idx}`} className="hover:bg-slate-50">
-                        <td className="px-3 py-2 text-xs">{st.startDate?.slice(0, 10) || st.createdAt?.slice(0, 10) || '-'}</td>
-                        <td className="px-3 py-2 text-xs">{st.warehouse || '-'}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{it.partId}</td>
-                        <td className="px-3 py-2 text-xs">{part?.name || it.partId}</td>
-                        <td className="px-3 py-2 text-right font-mono">{it.bookQty}</td>
-                        <td className="px-3 py-2 text-right font-mono">{it.actualQty}</td>
-                        <td className="px-3 py-2 text-right font-mono">
-                          <span className={it.diffQty > 0 ? 'text-blue-600' : 'text-rose-600 font-bold'}>{it.diffQty > 0 ? '+' : ''}{it.diffQty}</span>
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">
-                          {diffAmount !== 0 ? <span className={diffAmount > 0 ? 'text-blue-600' : 'text-rose-600'}>¥{diffAmount.toLocaleString()}</span> : '—'}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={`text-xs px-2 py-0.5 rounded ${st.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {st.status === 'approved' ? '承認済' : '未承認'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  }))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="px-4 py-8 text-center text-sm text-black">棚卸し差異ログがありません</div>
+        <div className="space-y-3">
+          {stocktakeLogs.length > 0 ? stocktakeLogs.map((st: any) => {
+            const details = st.details || [];
+            const diffItems = details.filter((d: any) => d.diffQty !== 0);
+            const totalDiffCost = diffItems.reduce((s: number, d: any) => s + (d.diffQty || 0) * (d.part?.costPrice || 0), 0);
+            return (
+              <div key={st.id} className="bg-white rounded-lg border border-slate-200">
+                <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs font-bold">{st.stocktakeNo}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${st.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {st.status === 'approved' ? '承認済' : '未承認'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-black">
+                      {diffItems.length > 0 && totalDiffCost !== 0 && (
+                        <span className={`font-mono font-semibold ${totalDiffCost > 0 ? 'text-blue-600' : 'text-rose-600'}`}>差異金額: ¥{totalDiffCost.toLocaleString()}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1.5 text-xs text-black">
+                    <span>日付: {st.startDate?.slice(0, 10) || st.createdAt?.slice(0, 10) || '-'}</span>
+                    <span>部署: {st.warehouse || '-'}</span>
+                    <span>実査者: {st.createdBy?.name || '-'}</span>
+                    {st.approvedBy && <span>承認者: {st.approvedBy.name}</span>}
+                    <span>品目数: {details.length}</span>
+                    <span>差異: {diffItems.length}件</span>
+                  </div>
+                </div>
+                {details.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                        <tr>
+                          <th className="text-left px-3 py-1.5 font-medium">品番</th>
+                          <th className="text-left px-3 py-1.5 font-medium">品名</th>
+                          <th className="text-right px-3 py-1.5 font-medium">帳簿数</th>
+                          <th className="text-right px-3 py-1.5 font-medium">実数</th>
+                          <th className="text-right px-3 py-1.5 font-medium">差異</th>
+                          <th className="text-right px-3 py-1.5 font-medium">差異金額</th>
+                          <th className="text-left px-3 py-1.5 font-medium">実査者</th>
+                          <th className="text-left px-3 py-1.5 font-medium">実査日時</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {details.map((d: any) => {
+                          const diffAmt = (d.diffQty || 0) * (d.part?.costPrice || 0);
+                          return (
+                            <tr key={d.id} className={`hover:bg-slate-50 ${d.diffQty !== 0 ? 'bg-amber-50/30' : ''}`}>
+                              <td className="px-3 py-1.5 font-mono text-xs">{d.part?.code || d.partId}</td>
+                              <td className="px-3 py-1.5 text-xs">{d.part?.name || d.partId}</td>
+                              <td className="px-3 py-1.5 text-right font-mono">{d.bookQty}</td>
+                              <td className="px-3 py-1.5 text-right font-mono">{d.actualQty ?? '—'}</td>
+                              <td className="px-3 py-1.5 text-right font-mono">
+                                {d.diffQty !== 0 ? <span className={d.diffQty > 0 ? 'text-blue-600 font-semibold' : 'text-rose-600 font-bold'}>{d.diffQty > 0 ? '+' : ''}{d.diffQty}</span> : <span className="text-emerald-600">0</span>}
+                              </td>
+                              <td className="px-3 py-1.5 text-right font-mono text-xs">
+                                {diffAmt !== 0 ? <span className={diffAmt > 0 ? 'text-blue-600' : 'text-rose-600'}>¥{diffAmt.toLocaleString()}</span> : '—'}
+                              </td>
+                              <td className="px-3 py-1.5 text-xs">{d.countedBy?.name || st.createdBy?.name || '-'}</td>
+                              <td className="px-3 py-1.5 text-xs">{d.countedAt ? new Date(d.countedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          }) : (
+            <div className="bg-white rounded-lg border border-slate-200 px-4 py-8 text-center text-sm text-black">棚卸しログがありません</div>
           )}
         </div>
       )}
