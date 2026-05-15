@@ -23,7 +23,7 @@ interface Part {
   maker?: string; makerCode?: string; supplier?: string; supplierId?: number;
   stock: number; allocated: number; onOrder: number;
   reorderPoint: number; safetyStock: number; maxStock: number;
-  unit: string; unitPrice: number; leadTime: number; location?: string;
+  unit: string; unitPrice: number; costPrice: number; sellingPrice: number; leadTime: number; location?: string;
   shortageReason?: string;
 }
 
@@ -634,6 +634,8 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
         </Field>
         <Field label="単位"><input value={form.unit || ''} onChange={e => upd('unit', e.target.value)} className={inputClass} /></Field>
         <Field label="標準単価 (円)"><input type="number" value={form.unitPrice ?? 0} onChange={e => upd('unitPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
+        <Field label="原価 (円)"><input type="number" value={form.costPrice ?? 0} onChange={e => upd('costPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
+        <Field label="売価 (円)"><input type="number" value={form.sellingPrice ?? 0} onChange={e => upd('sellingPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="納品リードタイム（日）"><input type="number" value={form.leadTime ?? 0} onChange={e => upd('leadTime', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="保管ロケーション">
           <div className="relative">
@@ -2774,16 +2776,18 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             <input ref={excelInputRef} type="file" accept=".csv,.xlsx" onChange={handleExcelImport} className="hidden" />
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5">
           {[
             { l: '進捗', v: total > 0 ? Math.round(doneCount / total * 100) + '%' : '0%', c: 'text-black' },
             { l: '完了', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
             { l: '差異あり', v: String(diffCount), c: 'text-amber-600' },
             { l: '未着手', v: String(total - doneCount - diffCount), c: 'text-black' },
+            { l: '在庫原価計', v: `¥${parts.reduce((s, p) => s + p.stock * (p.costPrice || 0), 0).toLocaleString()}`, c: 'text-black' },
+            { l: '在庫売価計', v: `¥${parts.reduce((s, p) => s + p.stock * (p.sellingPrice || 0), 0).toLocaleString()}`, c: 'text-black' },
           ].map((k, i) => (
             <div key={i} className="bg-white rounded p-2.5">
               <div className="text-[11px] text-black">{k.l}</div>
-              <div className={`text-xl font-bold ${k.c}`}>{k.v}</div>
+              <div className={`text-lg font-bold ${k.c}`}>{k.v}</div>
             </div>
           ))}
         </div>
@@ -2792,6 +2796,8 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       {deptList.map(dept => {
         const dp = partsByDept[dept] || [];
         const bookTotal = dp.reduce((s, p) => s + p.stock, 0);
+        const costTotal = dp.reduce((s, p) => s + p.stock * (p.costPrice || 0), 0);
+        const sellingTotal = dp.reduce((s, p) => s + p.stock * (p.sellingPrice || 0), 0);
         const hasCount = dp.some(p => counts[p.id] !== undefined);
         const actualTotal = dp.reduce((s, p) => s + (counts[p.id] !== undefined ? counts[p.id] : 0), 0);
         const diffTotal = hasCount ? actualTotal - bookTotal : 0;
@@ -2811,11 +2817,13 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                 <Btn variant="ghost" size="sm" onClick={() => setSelectedDept(dept)}>{st === 'pending' ? '実査開始' : '実査結果'}</Btn>
               )}
             </div>
-            <div className="px-4 py-2.5 grid grid-cols-4 gap-4 text-xs">
+            <div className="px-4 py-2.5 grid grid-cols-3 md:grid-cols-6 gap-3 text-xs">
               <div><span className="text-black">品目数:</span> <span className="font-mono font-semibold">{dp.length}</span></div>
               <div><span className="text-black">帳簿合計:</span> <span className="font-mono font-semibold">{bookTotal}</span></div>
               <div><span className="text-black">実数合計:</span> <span className="font-mono">{hasCount ? actualTotal : '—'}</span></div>
               <div><span className="text-black">差異:</span> {hasCount && diffTotal !== 0 ? <span className={`font-mono font-semibold ${diffTotal > 0 ? 'text-blue-600' : 'text-rose-600'}`}>{diffTotal > 0 ? '+' : ''}{diffTotal}</span> : <span className="font-mono">—</span>}</div>
+              <div><span className="text-black">原価計:</span> <span className="font-mono font-semibold">¥{costTotal.toLocaleString()}</span></div>
+              <div><span className="text-black">売価計:</span> <span className="font-mono font-semibold">¥{sellingTotal.toLocaleString()}</span></div>
             </div>
           </div>
         );

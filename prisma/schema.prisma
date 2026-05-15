@@ -55,6 +55,8 @@ model MPart {
   supplierId    Int?      @map("supplier_id")
   unit          String    @default("個") @db.VarChar(20)
   unitPrice     Int       @default(0) @map("unit_price")
+  costPrice     Int       @default(0) @map("cost_price")
+  sellingPrice  Int       @default(0) @map("selling_price")
   leadTimeDays  Int       @default(14) @map("lead_time_days")
   reorderPoint  Int       @default(0) @map("reorder_point")
   safetyStock   Int       @default(0) @map("safety_stock")

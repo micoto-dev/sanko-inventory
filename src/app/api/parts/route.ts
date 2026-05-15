@@ -65,6 +65,8 @@ export async function GET(request: Request) {
         supplierId: part.supplierId,
         unit: part.unit,
         unitPrice: part.unitPrice,
+        costPrice: part.costPrice,
+        sellingPrice: part.sellingPrice,
         leadTime: part.leadTimeDays,
         reorderPoint: part.reorderPoint,
         safetyStock: part.safetyStock,
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       code, name, spec, category, maker, makerCode,
-      supplierId, unit, unitPrice, leadTimeDays, leadTime, reorderPoint,
+      supplierId, unit, unitPrice, costPrice, sellingPrice, leadTimeDays, leadTime, reorderPoint,
       safetyStock, maxStock, defaultLocId, shortageReason, stock,
     } = body;
 
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
       const part = await tx.mPart.create({
         data: {
           id, code, name, spec, category, maker, makerCode,
-          supplierId, unit, unitPrice: unitPrice || 0,
+          supplierId, unit, unitPrice: unitPrice || 0, costPrice: costPrice || 0, sellingPrice: sellingPrice || 0,
           leadTimeDays: leadTimeDays || leadTime || 14,
           reorderPoint: reorderPoint || 0,
           safetyStock: safetyStock || 0,

@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const {
       code, name, spec, category, maker, makerCode,
-      supplierId, unit, unitPrice, leadTimeDays, reorderPoint,
+      supplierId, unit, unitPrice, costPrice, sellingPrice, leadTimeDays, reorderPoint,
       safetyStock, maxStock, defaultLocId, shortageReason, isActive,
       replacementId, isDiscontinued, stock,
     } = body;
@@ -49,6 +49,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (supplierId !== undefined) data.supplierId = supplierId;
     if (unit !== undefined) data.unit = unit;
     if (unitPrice !== undefined) data.unitPrice = unitPrice;
+    if (costPrice !== undefined) data.costPrice = costPrice;
+    if (sellingPrice !== undefined) data.sellingPrice = sellingPrice;
     if (leadTimeDays !== undefined) data.leadTimeDays = leadTimeDays;
     if (reorderPoint !== undefined) data.reorderPoint = reorderPoint;
     if (safetyStock !== undefined) data.safetyStock = safetyStock;
