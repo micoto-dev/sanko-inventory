@@ -2648,7 +2648,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [confirmedDepts, setConfirmedDepts] = useState<Record<string, boolean>>({});
-  const [stocktakeTab, setStocktakeTab] = useState<'count' | 'log' | 'value'>('count');
+  const [stocktakeTab, setStocktakeTab] = useState<'count' | 'log' | 'diff' | 'value'>('count');
   const [stocktakeLogs, setStocktakeLogs] = useState<any[]>([]);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -2787,7 +2787,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       </div>
 
       <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
-        {([['count', '棚卸実査'], ['log', '差異ログ'], ['value', '在庫金額']] as const).map(([k, label]) => (
+        {([['count', '棚卸実査'], ['log', 'ログ'], ['diff', '差異ログ'], ['value', '在庫金額']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setStocktakeTab(k)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${stocktakeTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
         ))}
       </div>
@@ -2869,6 +2869,64 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
           )}
         </div>
       )}
+
+      {stocktakeTab === 'diff' && (() => {
+        const allDiffs = stocktakeLogs.flatMap((st: any) => (st.details || []).filter((d: any) => d.diffQty !== 0).map((d: any) => ({ ...d, stocktakeNo: st.stocktakeNo, date: st.startDate?.slice(0, 10) || st.createdAt?.slice(0, 10) || '-', warehouse: st.warehouse || '-', conductor: d.countedBy?.name || st.createdBy?.name || '-' })));
+        const totalDiffQty = allDiffs.reduce((s: number, d: any) => s + Math.abs(d.diffQty || 0), 0);
+        const totalDiffCost = allDiffs.reduce((s: number, d: any) => s + (d.diffQty || 0) * (d.part?.costPrice || 0), 0);
+        return (
+          <div className="space-y-3">
+            <div className="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-center gap-6">
+              <div className="text-sm"><span className="text-black">差異件数:</span> <span className="font-bold text-amber-600">{allDiffs.length}件</span></div>
+              <div className="text-sm"><span className="text-black">差異数量合計:</span> <span className="font-bold font-mono">{totalDiffQty}</span></div>
+              <div className="text-sm"><span className="text-black">差異金額合計(原価):</span> <span className={`font-bold font-mono ${totalDiffCost >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>¥{totalDiffCost.toLocaleString()}</span></div>
+            </div>
+            {allDiffs.length > 0 ? (
+              <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium">日付</th>
+                      <th className="text-left px-3 py-2 font-medium">部署</th>
+                      <th className="text-left px-3 py-2 font-medium">品番</th>
+                      <th className="text-left px-3 py-2 font-medium">品名</th>
+                      <th className="text-right px-3 py-2 font-medium">帳簿</th>
+                      <th className="text-right px-3 py-2 font-medium">実数</th>
+                      <th className="text-right px-3 py-2 font-medium">差異</th>
+                      <th className="text-right px-3 py-2 font-medium">差異金額</th>
+                      <th className="text-left px-3 py-2 font-medium">実査者</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {allDiffs.map((d: any, i: number) => {
+                      const diffAmt = (d.diffQty || 0) * (d.part?.costPrice || 0);
+                      return (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-3 py-2 text-xs">{d.date}</td>
+                          <td className="px-3 py-2 text-xs">{d.warehouse}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{d.part?.code || d.partId}</td>
+                          <td className="px-3 py-2 text-xs">{d.part?.name || d.partId}</td>
+                          <td className="px-3 py-2 text-right font-mono">{d.bookQty}</td>
+                          <td className="px-3 py-2 text-right font-mono">{d.actualQty}</td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            <span className={d.diffQty > 0 ? 'text-blue-600 font-semibold' : 'text-rose-600 font-bold'}>{d.diffQty > 0 ? '+' : ''}{d.diffQty}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            <span className={diffAmt > 0 ? 'text-blue-600' : 'text-rose-600'}>¥{diffAmt.toLocaleString()}</span>
+                          </td>
+                          <td className="px-3 py-2 text-xs">{d.conductor}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg border border-slate-200 px-4 py-8 text-center text-sm text-black">差異のある棚卸しデータがありません</div>
+            )}
+          </div>
+        );
+      })()}
 
       {stocktakeTab === 'value' && (
         <div className="space-y-3">
