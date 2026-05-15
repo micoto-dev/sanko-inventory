@@ -56,7 +56,6 @@ const MENU_ITEMS = [
   { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
   { id: 'production', label: '受注管理／製造管理', icon: Factory },
   { id: 'master', label: '部品マスタ', icon: Package },
-  { id: 'locations', label: 'ロケーション', icon: Warehouse },
   { id: 'suppliers', label: '企業管理', icon: Building2 },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
@@ -2656,74 +2655,75 @@ const ExcelImportDropdown = ({ onDownload, onImport }: { onDownload: () => void;
   );
 };
 
+const STOCK_DEPARTMENTS = ['資材', '組立', '板金'] as const;
+
 const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]; locations: Location[]; toast: (msg: string) => void; onRefresh: () => void }) => {
-  const [selected, setSelected] = useState<Location | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [confirmedDiffs, setConfirmedDiffs] = useState<Record<string, boolean>>({});
-  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [confirmedDepts, setConfirmedDepts] = useState<Record<string, boolean>>({});
   const excelInputRef = useRef<HTMLInputElement>(null);
-  const partsByLoc = useMemo(() => {
+
+  // Group parts by department (based on location prefix or category)
+  const partsByDept = useMemo(() => {
     const m: Record<string, Part[]> = {};
-    parts.forEach(p => { if (p.location) { if (!m[p.location]) m[p.location] = []; m[p.location].push(p); } });
+    STOCK_DEPARTMENTS.forEach(d => { m[d] = []; });
+    m['その他'] = [];
+    parts.forEach(p => {
+      const loc = (p.location || '').toUpperCase();
+      const cat = (p.category || '').toLowerCase();
+      if (loc.includes('資材') || cat.includes('資材')) m['資材'].push(p);
+      else if (loc.includes('組立') || cat.includes('組立') || cat.includes('電気')) m['組立'].push(p);
+      else if (loc.includes('板金') || cat.includes('板金') || cat.includes('鈑金')) m['板金'].push(p);
+      else m['資材'].push(p); // default to 資材
+    });
     return m;
   }, [parts]);
-  const targetLocations = useMemo(() => locations, [locations]);
-  const warehouseGroups = useMemo(() => {
-    const wh: Record<string, Location[]> = {};
-    targetLocations.forEach(l => { if (!wh[l.warehouse]) wh[l.warehouse] = []; wh[l.warehouse].push(l); });
-    return Object.entries(wh);
-  }, [targetLocations]);
-  const getLocStatus = (locId: string) => {
-    const partsInLoc = partsByLoc[locId] || [];
-    const allCounted = partsInLoc.length > 0 && partsInLoc.every(p => counts[p.id] !== undefined);
+
+  const deptList = [...STOCK_DEPARTMENTS, ...( partsByDept['その他']?.length > 0 ? ['その他' as const] : [])];
+
+  const getDeptStatus = (dept: string) => {
+    const dp = partsByDept[dept] || [];
+    if (dp.length === 0) return 'pending';
+    const allCounted = dp.every(p => counts[p.id] !== undefined);
     if (!allCounted) return 'pending';
-    const hasDiff = partsInLoc.some(p => counts[p.id] !== p.stock);
-    if (hasDiff && !confirmedDiffs[locId]) return 'diff';
+    const hasDiff = dp.some(p => counts[p.id] !== p.stock);
+    if (hasDiff && !confirmedDepts[dept]) return 'diff';
     return 'done';
   };
-  const total = targetLocations.length;
-  const doneCount = targetLocations.filter(l => getLocStatus(l.id) === 'done').length;
-  const diffCount = targetLocations.filter(l => getLocStatus(l.id) === 'diff').length;
-  const pendingCount = targetLocations.filter(l => getLocStatus(l.id) === 'pending').length;
-  const startCount = (loc: Location) => {
-    setSelected(loc);
-  };
+
+  const total = deptList.length;
+  const doneCount = deptList.filter(d => getDeptStatus(d) === 'done').length;
+  const diffCount = deptList.filter(d => getDeptStatus(d) === 'diff').length;
+
   const updateCount = (partId: string, value: string) => {
     setCounts(c => ({ ...c, [partId]: Math.max(0, Number(value) || 0) }));
   };
-  const approveDiff = async (loc: Location) => {
-    const partsInLoc = partsByLoc[loc.id] || [];
-    const items = partsInLoc
-      .filter(p => counts[p.id] !== undefined)
-      .map(p => ({ partId: p.id, locationId: loc.id, bookQty: p.stock, actualQty: counts[p.id], diffQty: counts[p.id] - p.stock }));
 
+  const approveDept = async (dept: string) => {
+    const dp = partsByDept[dept] || [];
+    const items = dp
+      .filter(p => counts[p.id] !== undefined)
+      .map(p => ({ partId: p.id, locationId: p.location || dept, bookQty: p.stock, actualQty: counts[p.id], diffQty: counts[p.id] - p.stock }));
     try {
-      // Save stocktake to DB via API
-      await api.createStocktake({
-        warehouse: loc.warehouse,
-        startDate: new Date().toISOString().slice(0, 10),
-        locationId: loc.id,
-        items,
-      });
-      setConfirmedDiffs(c => ({ ...c, [loc.id]: true }));
-      toast(`${loc.id} の棚卸し結果を保存・在庫を更新しました`);
-      setSelected(null);
+      await api.createStocktake({ warehouse: dept, startDate: new Date().toISOString().slice(0, 10), locationId: dept, items });
+      setConfirmedDepts(c => ({ ...c, [dept]: true }));
+      toast(`${dept}部署の棚卸し結果を保存・在庫を更新しました`);
+      setSelectedDept(null);
       onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
   };
+
   const downloadExcelTemplate = () => {
-    const header = '\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3ID,\u54C1\u756A,\u54C1\u540D,\u5E33\u7C3F\u6570,\u5B9F\u6570,\u5DEE\u7570,\u5099\u8003';
-    const rows = targetLocations.flatMap(l => (partsByLoc[l.id] || []).map(p => `${l.id},${p.id},${p.name},${p.stock},,,""`));
+    const header = '部署,品番,品名,帳簿数,実数,差異,備考';
+    const rows = deptList.flatMap(d => (partsByDept[d] || []).map(p => `${d},${p.id},${p.name},${p.stock},,,""`));
     const csv = [header, ...rows].join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `stocktake_template_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `stocktake_${new Date().toISOString().slice(0,10)}.csv`; a.click();
     URL.revokeObjectURL(url);
-    toast('Excel\u30C6\u30F3\u30D7\u30EC\u30FC\u30C8\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u307E\u3057\u305F');
+    toast('棚卸テンプレートをダウンロードしました');
   };
+
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2731,28 +2731,26 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
       const lines = text.split('\n').filter(l => l.trim());
-      if (lines.length < 2) { toast('\u30C7\u30FC\u30BF\u884C\u304C\u3042\u308A\u307E\u305B\u3093'); return; }
+      if (lines.length < 2) { toast('データ行がありません'); return; }
       let imported = 0;
       lines.slice(1).forEach(line => {
         const vals = line.split(',').map(v => v.replace(/"/g, '').trim());
         const partId = vals[1];
         const actual = Number(vals[4]);
-        if (partId && !isNaN(actual) && vals[4] !== '') {
-          setCounts(c => ({ ...c, [partId]: actual }));
-          imported++;
-        }
+        if (partId && !isNaN(actual) && vals[4] !== '') { setCounts(c => ({ ...c, [partId]: actual })); imported++; }
       });
-      toast(`${imported}\u4EF6\u306E\u5B9F\u6570\u30C7\u30FC\u30BF\u3092\u53D6\u308A\u8FBC\u307F\u307E\u3057\u305F`);
+      toast(`${imported}件の実数データを取り込みました`);
     };
     reader.readAsText(file);
     e.target.value = '';
   };
+
   const handlePrint = () => {
     const printNode = document.getElementById('stocktake-printable');
     if (!printNode) return;
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>\u68DA\u5378\u8868</title><meta charset="utf-8"/><style>
+    win.document.write(`<!DOCTYPE html><html><head><title>棚卸表</title><meta charset="utf-8"/><style>
       body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif; padding: 20px; color: #0f172a; font-size: 12px; }
       h1 { font-size: 18px; margin-bottom: 4px; } h2 { font-size: 14px; margin-top: 16px; }
       table { width: 100%; border-collapse: collapse; margin: 8px 0; } th, td { border: 1px solid #94a3b8; padding: 4px 6px; }
@@ -2761,27 +2759,27 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
     win.document.close();
     setTimeout(() => { win.print(); }, 300);
   };
+
   return (
     <div className="p-5 space-y-3">
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-base font-bold">棚卸し</h2>
-            <div className="text-xs text-black">対象ロケーション: 全倉庫 ({locations.length}箇所)</div>
+            <div className="text-xs text-black">対象部署: 資材・組立・板金 ({parts.length}品目)</div>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" icon={Printer} onClick={handlePrint}>棚卸表印刷</Btn>
             <ExcelImportDropdown onDownload={downloadExcelTemplate} onImport={() => excelInputRef.current?.click()} />
             <input ref={excelInputRef} type="file" accept=".csv,.xlsx" onChange={handleExcelImport} className="hidden" />
-            <Btn icon={QrCode} onClick={() => setShowQrScanner(true)}>QR読取で開始</Btn>
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2.5">
           {[
-            { l: '\u9032\u6357', v: total > 0 ? Math.round(doneCount / total * 100) + '%' : '0%', c: 'text-black' },
-            { l: '\u5B8C\u4E86', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
-            { l: '\u5DEE\u7570\u3042\u308A', v: String(diffCount), c: 'text-amber-600' },
-            { l: '\u672A\u7740\u624B', v: String(pendingCount), c: 'text-black' },
+            { l: '進捗', v: total > 0 ? Math.round(doneCount / total * 100) + '%' : '0%', c: 'text-black' },
+            { l: '完了', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
+            { l: '差異あり', v: String(diffCount), c: 'text-amber-600' },
+            { l: '未着手', v: String(total - doneCount - diffCount), c: 'text-black' },
           ].map((k, i) => (
             <div key={i} className="bg-white rounded p-2.5">
               <div className="text-[11px] text-black">{k.l}</div>
@@ -2790,121 +2788,70 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
           ))}
         </div>
       </div>
-      {warehouseGroups.map(([wh, locs]) => (
-        <div key={wh} className="bg-white rounded-lg border border-slate-200">
-          <div className="px-4 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-slate-50">
-            <Warehouse size={14} className="text-black" />
-            <span className="font-bold text-sm">{wh}</span>
-            <span className="text-xs text-black">({locs.length}{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3'})</span>
+
+      {deptList.map(dept => {
+        const dp = partsByDept[dept] || [];
+        const bookTotal = dp.reduce((s, p) => s + p.stock, 0);
+        const hasCount = dp.some(p => counts[p.id] !== undefined);
+        const actualTotal = dp.reduce((s, p) => s + (counts[p.id] !== undefined ? counts[p.id] : 0), 0);
+        const diffTotal = hasCount ? actualTotal - bookTotal : 0;
+        const st = getDeptStatus(dept);
+        const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-900' : 'bg-slate-200 text-black';
+        const lbl = st === 'done' ? '完了' : st === 'diff' ? '差異あり' : '未着手';
+        return (
+          <div key={dept} className="bg-white rounded-lg border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Building size={14} className="text-black" />
+                <span className="font-bold text-sm">{dept}部署</span>
+                <span className="text-xs text-black">({dp.length}品目)</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{lbl}</span>
+              </div>
+              {dp.length > 0 && (
+                <Btn variant="ghost" size="sm" onClick={() => setSelectedDept(dept)}>{st === 'pending' ? '実査開始' : '実査結果'}</Btn>
+              )}
+            </div>
+            <div className="px-4 py-2.5 grid grid-cols-4 gap-4 text-xs">
+              <div><span className="text-black">品目数:</span> <span className="font-mono font-semibold">{dp.length}</span></div>
+              <div><span className="text-black">帳簿合計:</span> <span className="font-mono font-semibold">{bookTotal}</span></div>
+              <div><span className="text-black">実数合計:</span> <span className="font-mono">{hasCount ? actualTotal : '—'}</span></div>
+              <div><span className="text-black">差異:</span> {hasCount && diffTotal !== 0 ? <span className={`font-mono font-semibold ${diffTotal > 0 ? 'text-blue-600' : 'text-rose-600'}`}>{diffTotal > 0 ? '+' : ''}{diffTotal}</span> : <span className="font-mono">—</span>}</div>
+            </div>
           </div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase">
-              <tr>
-                <th className="text-left px-4 py-2 font-medium">{'\u30ED\u30B1\u30FC\u30B7\u30E7\u30F3'}</th>
-                <th className="text-right px-4 py-2 font-medium">{'\u54C1\u76EE\u6570'}</th>
-                <th className="text-right px-4 py-2 font-medium">{'\u5E33\u7C3F\u5408\u8A08'}</th>
-                <th className="text-right px-4 py-2 font-medium">{'\u5B9F\u6570\u5408\u8A08'}</th>
-                <th className="text-right px-4 py-2 font-medium">{'\u5DEE\u7570'}</th>
-                <th className="text-left px-4 py-2 font-medium">{'\u72B6\u614B'}</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {locs.map(l => {
-                const partsInLoc = partsByLoc[l.id] || [];
-                const bookTotal = partsInLoc.reduce((s, p) => s + p.stock, 0);
-                const actualTotal = partsInLoc.reduce((s, p) => s + (counts[p.id] !== undefined ? counts[p.id] : 0), 0);
-                const hasCount = partsInLoc.some(p => counts[p.id] !== undefined);
-                const diffTotal = hasCount ? actualTotal - bookTotal : 0;
-                const st = getLocStatus(l.id);
-                const cls = st === 'done' ? 'bg-emerald-100 text-emerald-700' : st === 'diff' ? 'bg-amber-100 text-amber-900' : 'bg-slate-200 text-black';
-                const lbl = st === 'done' ? '\u5B8C\u4E86' : st === 'diff' ? '\u5DEE\u7570\u3042\u308A' : '\u672A\u7740\u624B';
-                return (
-                  <tr key={l.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2"><span className="font-mono inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded text-xs"><MapPin size={10} />{l.id}</span></td>
-                    <td className="px-4 py-2 text-right">{partsInLoc.length}</td>
-                    <td className="px-4 py-2 text-right font-mono">{bookTotal}</td>
-                    <td className="px-4 py-2 text-right font-mono">{hasCount ? actualTotal : '\u2014'}</td>
-                    <td className="px-4 py-2 text-right font-mono">{hasCount && diffTotal !== 0 ? <span className={diffTotal > 0 ? 'text-blue-600' : 'text-rose-600'}>{diffTotal > 0 ? '+' : ''}{diffTotal}</span> : '\u2014'}</td>
-                    <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{lbl}</span></td>
-                    <td className="px-4 py-2 text-right">
-                      {partsInLoc.length === 0 ? <span className="text-xs text-black">{'\u90E8\u54C1\u306A\u3057'}</span>
-                        : <Btn variant="ghost" size="sm" onClick={() => startCount(l)}>{st === 'pending' ? '\u5B9F\u67FB\u958B\u59CB' : '\u5B9F\u67FB\u7D50\u679C'}</Btn>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Hidden printable stocktake sheet */}
       <div id="stocktake-printable" style={{ display: 'none' }}>
-        <h1>{'\u68DA\u5378\u8868'}</h1>
-        <div>{'\u65E5\u4ED8'}: {new Date().toLocaleDateString('ja-JP')} / {'\u5BFE\u8C61'}: A{'\u68DA'}\u30FBB{'\u68DA'}</div>
-        {warehouseGroups.map(([wh, locs]) => (
-          <div key={wh}>
-            <h2>{wh}</h2>
-            {locs.map(l => {
-              const partsInLoc = partsByLoc[l.id] || [];
-              if (partsInLoc.length === 0) return null;
-              return (
-                <div key={l.id}>
-                  <div style={{ fontWeight: 'bold', marginTop: 8 }}>{l.id} - {l.name}</div>
-                  <table>
-                    <thead><tr><th>{'\u54C1\u756A'}</th><th>{'\u54C1\u540D'}</th><th className="right">{'\u5E33\u7C3F\u6570'}</th><th className="right">{'\u5B9F\u6570'}</th><th className="right">{'\u5DEE\u7570'}</th><th>{'\u5099\u8003'}</th></tr></thead>
-                    <tbody>
-                      {partsInLoc.map(p => (
-                        <tr key={p.id}><td>{p.id}</td><td>{p.name}</td><td className="right">{p.stock}</td><td className="right"></td><td className="right"></td><td></td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-          </div>
-        ))}
+        <h1>棚卸表</h1>
+        <div>日付: {new Date().toLocaleDateString('ja-JP')} / 対象: 資材・組立・板金</div>
+        {deptList.map(dept => {
+          const dp = partsByDept[dept] || [];
+          if (dp.length === 0) return null;
+          return (
+            <div key={dept}>
+              <h2>{dept}部署</h2>
+              <table>
+                <thead><tr><th>品番</th><th>品名</th><th className="right">帳簿数</th><th className="right">実数</th><th className="right">差異</th><th>備考</th></tr></thead>
+                <tbody>
+                  {dp.map(p => (
+                    <tr key={p.id}><td>{p.id}</td><td>{p.name}</td><td className="right">{p.stock}</td><td className="right"></td><td className="right"></td><td></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
       </div>
 
-      {showQrScanner && (
-        <Modal open onClose={() => setShowQrScanner(false)} title="QR読取でロケーション選択" size="md">
-          <QrCameraScanner autoStart onScan={(text) => {
-            setShowQrScanner(false);
-            try {
-              const data = JSON.parse(text);
-              if (data.type === 'location') {
-                const loc = targetLocations.find(l => l.id === data.id);
-                if (loc) { setSelected(loc); toast(`ロケーション ${loc.id} を読み取りました`); }
-                else toast('対象外のロケーションです');
-              } else {
-                const loc = targetLocations.find(l => l.id === text);
-                if (loc) { setSelected(loc); toast(`ロケーション ${loc.id} を読み取りました`); }
-                else toast('該当するロケーションが見つかりません');
-              }
-            } catch {
-              const loc = targetLocations.find(l => l.id === text);
-              if (loc) { setSelected(loc); toast(`ロケーション ${loc.id} を読み取りました`); }
-              else toast('該当するロケーションが見つかりません');
-            }
-          }} />
-          <div className="mt-3 text-center">
-            <Btn variant="secondary" onClick={() => setShowQrScanner(false)}>キャンセル</Btn>
-          </div>
-        </Modal>
-      )}
-
-      {selected && (
-        <Modal open onClose={() => setSelected(null)} title={'棚卸実査: ' + selected.id + ' - ' + selected.name} size="lg">
-          <div className="bg-blue-50 border border-blue-200 rounded p-2.5 mb-3 text-xs text-blue-800 flex items-center gap-2">
-            <QrCode size={14} /> {'\u5B9F\u6A5F\u3067\u306FQR\u30B3\u30FC\u30C9\u3092\u8AAD\u307F\u53D6\u3063\u3066\u5B9F\u6570\u3092\u5165\u529B\u3057\u307E\u3059\u3002\u3053\u3053\u3067\u306F\u624B\u5165\u529B\u3067\u52D5\u4F5C\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002'}
-          </div>
+      {selectedDept && (
+        <Modal open onClose={() => setSelectedDept(null)} title={`棚卸実査: ${selectedDept}部署`} size="lg">
           <table className="w-full text-sm">
             <thead className="text-xs text-black border-b border-slate-200">
-              <tr><th className="text-left py-2">{'\u54C1\u756A'}</th><th className="text-left py-2">{'\u54C1\u540D'}</th><th className="text-right py-2">{'\u5E33\u7C3F\u6570'}</th><th className="text-right py-2">{'\u5B9F\u6570'}</th><th className="text-right py-2">{'\u5DEE\u7570'}</th></tr>
+              <tr><th className="text-left py-2">品番</th><th className="text-left py-2">品名</th><th className="text-right py-2">帳簿数</th><th className="text-right py-2">実数</th><th className="text-right py-2">差異</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(partsByLoc[selected.id] || []).map(p => {
+              {(partsByDept[selectedDept] || []).map(p => {
                 const actual = counts[p.id];
                 const dif = actual !== undefined ? actual - p.stock : 0;
                 return (
@@ -2916,7 +2863,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                       <input type="number" value={actual === undefined ? '' : actual} onChange={e => updateCount(p.id, e.target.value)} className="w-20 border border-slate-300 rounded px-2 py-1 text-right font-mono" />
                     </td>
                     <td className="py-2 text-right font-mono">
-                      {actual !== undefined && dif !== 0 ? <span className={dif > 0 ? 'text-blue-600' : 'text-rose-600 font-bold'}>{dif > 0 ? '+' : ''}{dif}</span> : '\u2014'}
+                      {actual !== undefined && dif !== 0 ? <span className={dif > 0 ? 'text-blue-600' : 'text-rose-600 font-bold'}>{dif > 0 ? '+' : ''}{dif}</span> : '—'}
                     </td>
                   </tr>
                 );
@@ -2924,8 +2871,8 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             </tbody>
           </table>
           <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
-            <Btn variant="success" icon={CheckCircle2} onClick={() => approveDiff(selected)}>{'\u5DEE\u7570\u3092\u627F\u8A8D\u30FB\u5728\u5EAB\u66F4\u65B0'}</Btn>
-            <Btn variant="secondary" onClick={() => setSelected(null)}>{'\u623B\u308B'}</Btn>
+            <Btn variant="success" icon={CheckCircle2} onClick={() => approveDept(selectedDept)}>差異を承認・在庫更新</Btn>
+            <Btn variant="secondary" onClick={() => setSelectedDept(null)}>戻る</Btn>
           </div>
         </Modal>
       )}
