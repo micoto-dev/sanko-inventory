@@ -637,21 +637,6 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
         <Field label="原価 (円)"><input type="number" value={form.costPrice ?? 0} onChange={e => upd('costPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="売価 (円)"><input type="number" value={form.sellingPrice ?? 0} onChange={e => upd('sellingPrice', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="納品リードタイム（日）"><input type="number" value={form.leadTime ?? 0} onChange={e => upd('leadTime', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
-        <Field label="保管ロケーション">
-          <div className="relative">
-            <input value={locDropdownOpen ? locSearch : (form.location || form.defaultLocId || '')} onChange={e => { setLocSearch(e.target.value); setLocDropdownOpen(true); upd('defaultLocId', e.target.value); }} onFocus={() => { setLocDropdownOpen(true); setLocSearch(form.location || form.defaultLocId || ''); }} onBlur={() => setTimeout(() => setLocDropdownOpen(false), 200)} placeholder="ロケーションを検索..." className={`${inputClass} font-mono`} />
-            {locDropdownOpen && filteredLocs.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
-                {filteredLocs.slice(0, 20).map(l => (
-                  <button key={l.id} type="button" onMouseDown={e => { e.preventDefault(); upd('defaultLocId', l.id); upd('location', l.id); setLocSearch(l.id); setLocDropdownOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2">
-                    <span className="font-mono font-semibold">{l.id}</span>
-                    <span className="text-black">{l.name} ({l.warehouse})</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </Field>
         <Field label="在庫数"><input type="number" value={isNew ? (form.initialStock ?? 0) : (form.stock ?? 0)} onChange={e => upd(isNew ? 'initialStock' : 'stock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="発注点*"><input type="number" value={form.reorderPoint ?? 0} onChange={e => upd('reorderPoint', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
         <Field label="安全在庫"><input type="number" value={form.safetyStock ?? 0} onChange={e => upd('safetyStock', num(e.target.value))} className={`${inputClass} text-right font-mono`} /></Field>
@@ -2663,7 +2648,13 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [confirmedDepts, setConfirmedDepts] = useState<Record<string, boolean>>({});
+  const [stocktakeTab, setStocktakeTab] = useState<'count' | 'log' | 'value'>('count');
+  const [stocktakeLogs, setStocktakeLogs] = useState<any[]>([]);
   const excelInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api.getStocktakes().then(res => setStocktakeLogs(res.data || [])).catch(() => {});
+  }, []);
 
   // Group parts by department (based on location prefix or category)
   const partsByDept = useMemo(() => {
@@ -2712,6 +2703,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       toast(`${dept}部署の棚卸し結果を保存・在庫を更新しました`);
       setSelectedDept(null);
       onRefresh();
+      api.getStocktakes().then(res => setStocktakeLogs(res.data || [])).catch(() => {});
     } catch (e: any) { toast(`エラー: ${e.message}`); }
   };
 
@@ -2762,6 +2754,9 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
     setTimeout(() => { win.print(); }, 300);
   };
 
+  const allCostTotal = parts.reduce((s, p) => s + p.stock * (p.costPrice || 0), 0);
+  const allSellingTotal = parts.reduce((s, p) => s + p.stock * (p.sellingPrice || 0), 0);
+
   return (
     <div className="p-5 space-y-3">
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
@@ -2782,8 +2777,8 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             { l: '完了', v: `${doneCount}/${total}`, c: 'text-emerald-600' },
             { l: '差異あり', v: String(diffCount), c: 'text-amber-600' },
             { l: '未着手', v: String(total - doneCount - diffCount), c: 'text-black' },
-            { l: '在庫原価計', v: `¥${parts.reduce((s, p) => s + p.stock * (p.costPrice || 0), 0).toLocaleString()}`, c: 'text-black' },
-            { l: '在庫売価計', v: `¥${parts.reduce((s, p) => s + p.stock * (p.sellingPrice || 0), 0).toLocaleString()}`, c: 'text-black' },
+            { l: '在庫原価計', v: `¥${allCostTotal.toLocaleString()}`, c: 'text-black' },
+            { l: '在庫売価計', v: `¥${allSellingTotal.toLocaleString()}`, c: 'text-black' },
           ].map((k, i) => (
             <div key={i} className="bg-white rounded p-2.5">
               <div className="text-[11px] text-black">{k.l}</div>
@@ -2793,7 +2788,126 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
         </div>
       </div>
 
-      {deptList.map(dept => {
+      <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
+        {([['count', '棚卸実査'], ['log', '差異ログ'], ['value', '在庫金額']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setStocktakeTab(k)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${stocktakeTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
+        ))}
+      </div>
+
+      {stocktakeTab === 'log' && (
+        <div className="bg-white rounded-lg border border-slate-200">
+          <div className="px-4 py-3 border-b border-slate-200">
+            <h2 className="font-bold text-sm">棚卸し差異ログ</h2>
+            <div className="text-xs text-black">過去の棚卸しで発生した帳簿数と実数の差異を追跡</div>
+          </div>
+          {stocktakeLogs.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">日付</th>
+                    <th className="text-left px-3 py-2 font-medium">部署</th>
+                    <th className="text-left px-3 py-2 font-medium">品番</th>
+                    <th className="text-left px-3 py-2 font-medium">品名</th>
+                    <th className="text-right px-3 py-2 font-medium">帳簿数</th>
+                    <th className="text-right px-3 py-2 font-medium">実数</th>
+                    <th className="text-right px-3 py-2 font-medium">差異</th>
+                    <th className="text-right px-3 py-2 font-medium">差異金額(原価)</th>
+                    <th className="text-left px-3 py-2 font-medium">ステータス</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {stocktakeLogs.flatMap((st: any) => (st.items || []).filter((it: any) => it.diffQty !== 0).map((it: any, idx: number) => {
+                    const part = parts.find(p => p.id === it.partId);
+                    const diffAmount = (it.diffQty || 0) * (part?.costPrice || 0);
+                    return (
+                      <tr key={`${st.id}-${idx}`} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 text-xs">{st.startDate?.slice(0, 10) || st.createdAt?.slice(0, 10) || '-'}</td>
+                        <td className="px-3 py-2 text-xs">{st.warehouse || '-'}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{it.partId}</td>
+                        <td className="px-3 py-2 text-xs">{part?.name || it.partId}</td>
+                        <td className="px-3 py-2 text-right font-mono">{it.bookQty}</td>
+                        <td className="px-3 py-2 text-right font-mono">{it.actualQty}</td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          <span className={it.diffQty > 0 ? 'text-blue-600' : 'text-rose-600 font-bold'}>{it.diffQty > 0 ? '+' : ''}{it.diffQty}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          {diffAmount !== 0 ? <span className={diffAmount > 0 ? 'text-blue-600' : 'text-rose-600'}>¥{diffAmount.toLocaleString()}</span> : '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`text-xs px-2 py-0.5 rounded ${st.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {st.status === 'approved' ? '承認済' : '未承認'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="px-4 py-8 text-center text-sm text-black">棚卸し差異ログがありません</div>
+          )}
+        </div>
+      )}
+
+      {stocktakeTab === 'value' && (
+        <div className="space-y-3">
+          <div className="bg-white rounded-lg border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <h2 className="font-bold text-sm">在庫金額サマリー</h2>
+            </div>
+            <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="bg-blue-50 rounded-lg p-3"><div className="text-xs text-black">在庫原価 合計</div><div className="text-xl font-bold font-mono">¥{allCostTotal.toLocaleString()}</div></div>
+              <div className="bg-emerald-50 rounded-lg p-3"><div className="text-xs text-black">在庫売価 合計</div><div className="text-xl font-bold font-mono">¥{allSellingTotal.toLocaleString()}</div></div>
+              <div className="bg-slate-50 rounded-lg p-3"><div className="text-xs text-black">在庫品目数</div><div className="text-xl font-bold font-mono">{parts.filter(p => p.stock > 0).length}</div></div>
+              <div className="bg-slate-50 rounded-lg p-3"><div className="text-xs text-black">在庫総数量</div><div className="text-xl font-bold font-mono">{parts.reduce((s, p) => s + p.stock, 0).toLocaleString()}</div></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <h2 className="font-bold text-sm">部品別 在庫金額一覧</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">品番</th>
+                    <th className="text-left px-3 py-2 font-medium">品名</th>
+                    <th className="text-right px-3 py-2 font-medium">在庫数</th>
+                    <th className="text-right px-3 py-2 font-medium">原価</th>
+                    <th className="text-right px-3 py-2 font-medium">売価</th>
+                    <th className="text-right px-3 py-2 font-medium">原価計</th>
+                    <th className="text-right px-3 py-2 font-medium">売価計</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {parts.filter(p => p.stock > 0).sort((a, b) => (b.stock * (b.costPrice || 0)) - (a.stock * (a.costPrice || 0))).map(p => (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-mono text-xs">{p.code || p.id}</td>
+                      <td className="px-3 py-2 text-xs">{p.name}</td>
+                      <td className="px-3 py-2 text-right font-mono">{p.stock}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">¥{(p.costPrice || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">¥{(p.sellingPrice || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono font-semibold">¥{(p.stock * (p.costPrice || 0)).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono font-semibold">¥{(p.stock * (p.sellingPrice || 0)).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-xs">
+                  <tr>
+                    <td className="px-3 py-2" colSpan={5}>合計</td>
+                    <td className="px-3 py-2 text-right font-mono">¥{allCostTotal.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right font-mono">¥{allSellingTotal.toLocaleString()}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stocktakeTab === 'count' && deptList.map(dept => {
         const dp = partsByDept[dept] || [];
         const bookTotal = dp.reduce((s, p) => s + p.stock, 0);
         const costTotal = dp.reduce((s, p) => s + p.stock * (p.costPrice || 0), 0);
@@ -2830,6 +2944,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       })}
 
       {/* Hidden printable stocktake sheet */}
+      {/* End of stocktakeTab === 'count' is implicit - all tabs share the modals below */}
       <div id="stocktake-printable" style={{ display: 'none' }}>
         <h1>棚卸表</h1>
         <div>日付: {new Date().toLocaleDateString('ja-JP')} / 対象: 資材・組立・板金</div>
