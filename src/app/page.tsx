@@ -2874,12 +2874,14 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
         const allDiffs = stocktakeLogs.flatMap((st: any) => (st.details || []).filter((d: any) => d.diffQty !== 0).map((d: any) => ({ ...d, stocktakeNo: st.stocktakeNo, date: st.startDate?.slice(0, 10) || st.createdAt?.slice(0, 10) || '-', warehouse: st.warehouse || '-', conductor: d.countedBy?.name || st.createdBy?.name || '-' })));
         const totalDiffQty = allDiffs.reduce((s: number, d: any) => s + Math.abs(d.diffQty || 0), 0);
         const totalDiffCost = allDiffs.reduce((s: number, d: any) => s + (d.diffQty || 0) * (d.part?.costPrice || 0), 0);
+        const totalDiffSelling = allDiffs.reduce((s: number, d: any) => s + (d.diffQty || 0) * (d.part?.sellingPrice || 0), 0);
         return (
           <div className="space-y-3">
-            <div className="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-center gap-6">
+            <div className="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-center gap-6 flex-wrap">
               <div className="text-sm"><span className="text-black">差異件数:</span> <span className="font-bold text-amber-600">{allDiffs.length}件</span></div>
               <div className="text-sm"><span className="text-black">差異数量合計:</span> <span className="font-bold font-mono">{totalDiffQty}</span></div>
               <div className="text-sm"><span className="text-black">差異金額合計(原価):</span> <span className={`font-bold font-mono ${totalDiffCost >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>¥{totalDiffCost.toLocaleString()}</span></div>
+              <div className="text-sm"><span className="text-black">差異金額合計(売価):</span> <span className={`font-bold font-mono ${totalDiffSelling >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>¥{totalDiffSelling.toLocaleString()}</span></div>
             </div>
             {allDiffs.length > 0 ? (
               <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
