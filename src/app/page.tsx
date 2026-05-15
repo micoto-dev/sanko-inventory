@@ -54,7 +54,7 @@ interface Log {
 // ========================== Sidebar ==========================
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
-  { id: 'production', label: '受注管理', icon: Factory },
+  { id: 'production', label: '受注管理／製造管理', icon: Factory },
   { id: 'master', label: '部品マスタ', icon: Package },
   { id: 'locations', label: 'ロケーション', icon: Warehouse },
   { id: 'suppliers', label: '企業管理', icon: Building2 },
@@ -1987,6 +1987,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
   const [bomLoading, setBomLoading] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [editMo, setEditMo] = useState<ProdOrder | null>(null);
+  const [copySource, setCopySource] = useState<ProdOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProdOrder | null>(null);
   const [products, setProducts] = useState<any[]>([]);
 
@@ -2052,6 +2053,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMo(m)}>編集</Btn>
+                        <Btn variant="ghost" size="sm" icon={Copy} onClick={() => { setCopySource(m); setShowNew(true); }}>複製</Btn>
                         <button onClick={() => setDeleteTarget(m)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -2141,12 +2143,12 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
       </div>
 
       {(showNew || editMo) && (
-        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '新規受注登録' : `受注編集: ${editMo?.prodNo}`} size="md">
-          <ProdOrderForm prodOrder={editMo} isNew={showNew} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
+        <Modal open onClose={() => { setShowNew(false); setEditMo(null); setCopySource(null); }} title={showNew ? (copySource ? `受注複製: ${copySource.prodNo}` : '新規受注登録') : `受注編集: ${editMo?.prodNo}`} size="md">
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} copySource={copySource} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); setCopySource(null); }} onSave={async (form: any, isNew: boolean) => {
             try {
               if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('受注を登録しました'); }
               else { await api.updateProductionOrder(form.id, form); toast('受注を更新しました'); }
-              setShowNew(false); setEditMo(null); onRefresh();
+              setShowNew(false); setEditMo(null); setCopySource(null); onRefresh();
             } catch (e: any) { toast(`エラー: ${e.message}`); }
           }} />
         </Modal>
@@ -2335,8 +2337,24 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
   );
 };
 
-const ProdOrderForm = ({ prodOrder, isNew, products, parts, customers, onClose, onSave }: { prodOrder: any; isNew: boolean; products: any[]; parts: Part[]; customers: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
-  const [form, setForm] = useState(() => prodOrder || { productId: '', qty: 1, division: '', category: '', productName: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', amount: '', notes: '' });
+const ProdOrderForm = ({ prodOrder, isNew, copySource, products, parts, customers, onClose, onSave }: { prodOrder: any; isNew: boolean; copySource?: any; products: any[]; parts: Part[]; customers: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => {
+    if (copySource) {
+      return {
+        productId: copySource.productId || '',
+        qty: copySource.qty || 1,
+        division: copySource.division || '',
+        category: copySource.category || '',
+        productName: copySource.productName || '',
+        startDate: new Date().toISOString().slice(0, 10),
+        dueDate: '',
+        customer: copySource.customer || '',
+        amount: copySource.amount || '',
+        notes: copySource.notes || '',
+      };
+    }
+    return prodOrder || { productId: '', qty: 1, division: '', category: '', productName: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', amount: '', notes: '' };
+  });
   const [bomItems, setBomItems] = useState<{ partId: string; qty: number; position: string }[]>([]);
   const [bomLoaded, setBomLoaded] = useState(false);
   const [addPartSearch, setAddPartSearch] = useState('');
@@ -5658,7 +5676,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・顧客の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
-  production: { title: '受注管理', subtitle: '工番管理・受注登録・進捗管理' },
+  production: { title: '受注管理／製造管理', subtitle: '工番管理・受注登録・進捗管理' },
   issue: { title: '出庫処理', subtitle: '製造指図に基づく部品払出' },
   stocktake: { title: '棚卸し', subtitle: '実地棚卸しの管理' },
   reports: { title: 'レポート', subtitle: '在庫分析・統計' },
