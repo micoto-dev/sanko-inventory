@@ -1987,7 +1987,6 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
   const [bomLoading, setBomLoading] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [editMo, setEditMo] = useState<ProdOrder | null>(null);
-  const [copySource, setCopySource] = useState<ProdOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProdOrder | null>(null);
   const [products, setProducts] = useState<any[]>([]);
 
@@ -2053,7 +2052,6 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMo(m)}>編集</Btn>
-                        <Btn variant="ghost" size="sm" icon={Copy} onClick={() => { setCopySource(m); setShowNew(true); }}>複製</Btn>
                         <button onClick={() => setDeleteTarget(m)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -2143,12 +2141,12 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
       </div>
 
       {(showNew || editMo) && (
-        <Modal open onClose={() => { setShowNew(false); setEditMo(null); setCopySource(null); }} title={showNew ? (copySource ? `受注複製: ${copySource.prodNo}` : '新規受注登録') : `受注編集: ${editMo?.prodNo}`} size="md">
-          <ProdOrderForm prodOrder={editMo} isNew={showNew} copySource={copySource} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); setCopySource(null); }} onSave={async (form: any, isNew: boolean) => {
+        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '新規受注登録' : `受注編集: ${editMo?.prodNo}`} size="md">
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
             try {
               if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('受注を登録しました'); }
               else { await api.updateProductionOrder(form.id, form); toast('受注を更新しました'); }
-              setShowNew(false); setEditMo(null); setCopySource(null); onRefresh();
+              setShowNew(false); setEditMo(null); onRefresh();
             } catch (e: any) { toast(`エラー: ${e.message}`); }
           }} />
         </Modal>
@@ -2337,29 +2335,30 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
   );
 };
 
-const ProdOrderForm = ({ prodOrder, isNew, copySource, products, parts, customers, onClose, onSave }: { prodOrder: any; isNew: boolean; copySource?: any; products: any[]; parts: Part[]; customers: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
-  const [form, setForm] = useState(() => {
-    if (copySource) {
-      return {
-        productId: copySource.productId || '',
-        qty: copySource.qty || 1,
-        division: copySource.division || '',
-        category: copySource.category || '',
-        productName: copySource.productName || '',
-        startDate: new Date().toISOString().slice(0, 10),
-        dueDate: '',
-        customer: copySource.customer || '',
-        amount: copySource.amount || '',
-        notes: copySource.notes || '',
-      };
-    }
-    return prodOrder || { productId: '', qty: 1, division: '', category: '', productName: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', amount: '', notes: '' };
-  });
+const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customers, onClose, onSave }: { prodOrder: any; isNew: boolean; prodOrders?: any[]; products: any[]; parts: Part[]; customers: any[]; onClose: () => void; onSave: (form: any, isNew: boolean) => void }) => {
+  const [form, setForm] = useState(() => prodOrder || { productId: '', qty: 1, division: '', category: '', productName: '', startDate: new Date().toISOString().slice(0, 10), dueDate: '', customer: '', amount: '', notes: '' });
   const [bomItems, setBomItems] = useState<{ partId: string; qty: number; position: string }[]>([]);
   const [bomLoaded, setBomLoaded] = useState(false);
   const [addPartSearch, setAddPartSearch] = useState('');
   const [addPartDropdown, setAddPartDropdown] = useState(false);
+  const [showCopySearch, setShowCopySearch] = useState(false);
+  const [copySearch, setCopySearch] = useState('');
   const upd = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
+
+  const applyCopy = (src: any) => {
+    setForm((prev: any) => ({
+      ...prev,
+      productId: src.productId || prev.productId,
+      qty: src.qty || prev.qty,
+      division: src.division || prev.division,
+      productName: src.productName || prev.productName,
+      customer: src.customer || prev.customer,
+      amount: src.amount || prev.amount,
+      notes: src.notes || prev.notes,
+    }));
+    setShowCopySearch(false);
+    setCopySearch('');
+  };
 
   // Load BOM when product is selected (new) or load existing snapshot (edit)
   useEffect(() => {
@@ -2392,8 +2391,55 @@ const ProdOrderForm = ({ prodOrder, isNew, copySource, products, parts, customer
   const bomPartIds = new Set(bomItems.map(b => b.partId));
   const filteredAddParts = parts.filter(p => !bomPartIds.has(p.id) && (!addPartSearch || p.id.toLowerCase().includes(addPartSearch.toLowerCase()) || p.name.toLowerCase().includes(addPartSearch.toLowerCase()))).slice(0, 20);
 
+  const copyQ = copySearch.toLowerCase();
+  const copyResults = (prodOrders || []).filter(o => {
+    if (!copyQ) return false;
+    return (o.prodNo||'').toLowerCase().includes(copyQ) || (o.productName||'').toLowerCase().includes(copyQ) || (o.customer||'').toLowerCase().includes(copyQ) || (o.division||'').toLowerCase().includes(copyQ);
+  }).slice(0, 10);
+
   return (
     <div className="space-y-3 text-sm">
+      {isNew && (
+        <div className="relative">
+          {!showCopySearch ? (
+            <button onClick={() => setShowCopySearch(true)} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 transition">
+              <Copy size={13} /> 過去案件から複製して作成
+            </button>
+          ) : (
+            <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/50 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-2.5 top-2 text-slate-400" />
+                  <input value={copySearch} onChange={e => setCopySearch(e.target.value)} placeholder="工番・製品名・顧客で検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-full bg-white" autoFocus />
+                </div>
+                <button onClick={() => { setShowCopySearch(false); setCopySearch(''); }} className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5">閉じる</button>
+              </div>
+              {copySearch && (
+                <div className="max-h-48 overflow-auto bg-white rounded border border-slate-200">
+                  {copyResults.length > 0 ? (
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 sticky top-0"><tr><th className="text-left px-2 py-1">工番</th><th className="text-left px-2 py-1">製品名</th><th className="text-left px-2 py-1">区分</th><th className="text-left px-2 py-1">顧客</th><th className="px-2 py-1"></th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {copyResults.map((o: any) => (
+                          <tr key={o.id} className="hover:bg-blue-50 cursor-pointer" onClick={() => applyCopy(o)}>
+                            <td className="px-2 py-1.5 font-mono font-semibold">{o.prodNo}</td>
+                            <td className="px-2 py-1.5">{o.productName || '-'}</td>
+                            <td className="px-2 py-1.5">{o.division || '-'}</td>
+                            <td className="px-2 py-1.5">{o.customer || '-'}</td>
+                            <td className="px-2 py-1.5"><span className="text-blue-600 font-semibold">適用</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="px-3 py-4 text-center text-xs text-black">該当する案件がありません</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Field label="製品名"><input value={form.productName || ''} onChange={e => upd('productName', e.target.value)} className={inputClass} placeholder="例: 主配電盤 MSB-001" /></Field>
         <Field label="区分*">
