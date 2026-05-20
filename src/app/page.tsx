@@ -76,7 +76,7 @@ const SidebarContent = ({ view, setView, onNavigate }: { view: string; setView: 
   <>
     <div className="p-3.5 border-b border-slate-800">
       <div className="flex items-center gap-2">
-        <img src="/sanko-logo.png" alt="SANKO" className="w-8 h-8 object-contain" />
+        <img src="/sanko-logo.png" alt="SANKO" className="w-8 h-8 object-contain brightness-200 contrast-200" style={{ mixBlendMode: 'lighten' }} />
         <div>
           <div className="font-bold text-sm">三工電機</div>
           <div className="text-[11px] text-black uppercase">Inventory</div>
