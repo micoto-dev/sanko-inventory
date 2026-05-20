@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
     if (type === "inventory") {
       title = "在庫一覧表";
-      csvHeader = "品番,社内品番,品名,メーカー,在庫数,引当数,発注残,有効在庫,単価,在庫金額,ロケーション,状態";
+      csvHeader = "品番,社内品番,品名,メーカー,在庫数,引当数,発注残,有効在庫,単価,在庫金額,保管場所,状態";
       const parts = await prisma.mPart.findMany({ where: { deletedAt: null }, include: { stocks: true, supplier: { select: { name: true } } }, orderBy: { code: "asc" } });
       csvRows = parts.map(p => {
         const stock = p.stocks.reduce((s, st) => s + st.qty, 0);
@@ -72,9 +72,9 @@ export async function GET(request: Request) {
       });
     } else if (type === "shortage_impact") {
       title = "メーカー欠品影響";
-      csvHeader = "品番,品名,メーカー,欠品理由,代替品ID,廃盤,影響製品数";
+      csvHeader = "品番,品名,メーカー,欠品理由,廃盤,影響製品数";
       const parts = await prisma.mPart.findMany({ where: { shortageReason: { not: null }, deletedAt: null }, include: { boms: { include: { product: { select: { name: true } } } } } });
-      csvRows = parts.map(p => [p.id, p.name, p.maker || "", p.shortageReason || "", p.replacementId || "", p.isDiscontinued ? "廃盤" : "", p.boms.length].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+      csvRows = parts.map(p => [p.id, p.name, p.maker || "", p.shortageReason || "", p.isDiscontinued ? "廃盤" : "", p.boms.length].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     } else if (type === "monthly_purchase") {
       title = "月次仕入集計";
       csvHeader = "月,仕入先,発注件数,合計金額";
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
       });
     } else if (type === "stocktake_result") {
       title = "棚卸結果報告書";
-      csvHeader = "棚卸番号,ロケーション,品番,品名,帳簿数,実数,差異,承認";
+      csvHeader = "棚卸番号,部署,品番,品名,帳簿数,実数,差異,承認";
       const stocktakes = await prisma.tStocktake.findMany({
         include: { details: { include: { part: { select: { name: true } } } } },
         orderBy: { createdAt: "desc" }, take: 10,

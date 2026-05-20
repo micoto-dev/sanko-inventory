@@ -24,11 +24,11 @@ export const MO_STATUS: Record<string, { label: string; color: string }> = {
 export const LOG_CATEGORY: Record<string, { label: string; color: string }> = {
   master: { label: '部品マスタ', color: 'bg-slate-100 text-slate-900' },
   product: { label: '製品/BOM', color: 'bg-purple-100 text-purple-700' },
-  location: { label: 'ロケーション', color: 'bg-cyan-100 text-cyan-700' },
+  location: { label: '保管場所', color: 'bg-cyan-100 text-cyan-700' },
   order: { label: '発注', color: 'bg-blue-100 text-blue-700' },
   receive: { label: '入庫', color: 'bg-emerald-100 text-emerald-700' },
   issue: { label: '出庫', color: 'bg-amber-100 text-amber-700' },
-  production: { label: '製造指図', color: 'bg-indigo-100 text-indigo-700' },
+  production: { label: '受注/製造', color: 'bg-indigo-100 text-indigo-700' },
   stocktake: { label: '棚卸し', color: 'bg-rose-100 text-rose-700' },
   auth: { label: '認証', color: 'bg-slate-200 text-slate-900' },
   part: { label: '部品マスタ', color: 'bg-slate-100 text-slate-900' },

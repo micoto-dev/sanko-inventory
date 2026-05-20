@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   <img src="${dataUrl}" alt="QR" />
   <div class="code">${label}</div>
   <div class="name">${sublabel}</div>
-  <div class="type">${type === "part" ? "部品" : "ロケーション"} | ${id}</div>
+  <div class="type">${type === "part" ? "部品" : "保管場所"} | ${id}</div>
 </div>
 </body></html>`;
 

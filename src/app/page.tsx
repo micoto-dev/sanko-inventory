@@ -305,7 +305,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
   };
 
   const handleCsvDownload = () => {
-    const header = ['品番','社内品番','品名','仕様','分類','メーカー','メーカー品番','在庫','引当','発注残','発注点','安全在庫','最大在庫','単位','単価','リードタイム','ロケーション'];
+    const header = ['品番','社内品番','品名','仕様','分類','メーカー','メーカー品番','在庫','引当','発注残','発注点','安全在庫','最大在庫','単位','単価','リードタイム','保管場所'];
     const rows = parts.map(p => [p.id,p.code,p.name,p.spec||'',p.category||'',p.maker||'',p.makerCode||'',p.stock,p.allocated,p.onOrder,p.reorderPoint,p.safetyStock,p.maxStock,p.unit,p.unitPrice,p.leadTime,p.location||'']);
     const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -900,7 +900,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
               </thead>
               <tbody>
                 {showDetail.details?.map((it, i) => (
-                  <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' || it.remarks?.startsWith('replacement:') ? 'bg-rose-50' : ''}`}>
+                  <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' ? 'bg-rose-50' : ''}`}>
                     <td className="py-2 px-3">
                       <div className="text-xs font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
@@ -1422,8 +1422,8 @@ const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locati
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card label="在庫品目数" value={parts.length} sub="アクティブ部品" />
         <Card label="在庫総額" value={yen(totalStock)} sub="評価額" />
-        <Card label="ロケーション数" value={locations.length} sub={`${warehouses.length - 1}倉庫`} />
-        <Card label="引当中数量" value={parts.reduce((s, p) => s + p.allocated, 0).toLocaleString()} sub="製造指図に紐付け" />
+        <Card label="保管場所数" value={locations.length} sub={`${warehouses.length - 1}倉庫`} />
+        <Card label="引当中数量" value={parts.reduce((s, p) => s + p.allocated, 0).toLocaleString()} sub="受注/製造に紐付け" />
       </div>
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
         <span className="text-xs text-black">倉庫:</span>
@@ -1676,20 +1676,13 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
         const insp = inspection[partId] || '合格';
         const receiveQtyFinal = insp === '不合格' ? 0 : qty;
 
-        // 代替品の場合、代替品IDで在庫加算する
-        let stockPartId = partId;
-        if (detail?.remarks?.startsWith('replacement:')) {
-          const repId = detail.remarks.split(':')[1];
-          if (repId) stockPartId = repId;
-        }
-
         return {
-          partId: stockPartId, // 在庫加算は代替品IDで
-          originalPartId: partId, // 元の部品ID（発注明細更新用）
+          partId,
+          originalPartId: partId,
           qty: receiveQtyFinal,
           orderDetailId: detail?.id,
           orderId: order.id,
-          locationId: parts.find(p => p.id === stockPartId)?.location || parts.find(p => p.id === partId)?.location || 'A-03-2-L',
+          locationId: parts.find(p => p.id === partId)?.location || 'A-03-2-L',
           result: insp === '不合格' ? 'reject' : 'ok',
           rejectReason: insp === '不合格' ? '検査不合格' : insp === '条件付合格' ? '条件付合格' : undefined,
         };
@@ -2078,8 +2071,8 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
   return (
     <div className="p-5 max-w-5xl">
       <div className="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 className="font-bold mb-1">出庫処理（製造指図ベース）</h2>
-        <p className="text-xs text-black mb-4">引当済み・ピッキング中の製造指図からピッキングリストを表示します</p>
+        <h2 className="font-bold mb-1">出庫処理（受注/製造ベース）</h2>
+        <p className="text-xs text-black mb-4">引当済み・ピッキング中の受注/製造からピッキングリストを表示します</p>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100"
@@ -2092,11 +2085,11 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
                     const data = JSON.parse(text);
                     const found = activeOrders.find(o => o.prodNo === (data.id || text) || o.id === Number(data.id || text));
                     if (found) { setSelectedMo(found.id); toast(`指図 ${found.prodNo} を読み取りました`); }
-                    else toast('該当するアクティブな製造指図が見つかりません');
+                    else toast('該当するアクティブな受注/製造が見つかりません');
                   } catch {
                     const found = activeOrders.find(o => o.prodNo === text);
                     if (found) { setSelectedMo(found.id); toast(`指図 ${found.prodNo} を読み取りました`); }
-                    else toast('該当するアクティブな製造指図が見つかりません');
+                    else toast('該当するアクティブな受注/製造が見つかりません');
                   }
                 }} />
                 <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-xs text-blue-600 hover:underline">キャンセル</button>
@@ -2110,7 +2103,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
             )}
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
-            <div className="text-xs text-black mb-2">アクティブな製造指図</div>
+            <div className="text-xs text-black mb-2">アクティブな受注/製造</div>
             <select value={selectedMo} onChange={e => setSelectedMo(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded px-2 py-2 text-sm">
               <option value="">-- 指図を選択 --</option>
               {activeOrders.map(m => (
@@ -2135,7 +2128,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
             </div>
 
             <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
-              <div className="bg-slate-50 px-4 py-2 text-xs text-black border-b border-slate-200">ピッキングリスト（ロケーション順）</div>
+              <div className="bg-slate-50 px-4 py-2 text-xs text-black border-b border-slate-200">ピッキングリスト</div>
               <table className="w-full text-sm">
                 <thead className="text-xs text-black border-b border-slate-100">
                   <tr>
@@ -3159,7 +3152,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
     }
   };
 
-  const suggestions = ['在庫切れの部品は？', '発注中の部品一覧', '製造指図の進捗は？', 'メーカー欠品の状況', '発注点割れの部品', '最近の入庫履歴'];
+  const suggestions = ['在庫切れの部品は？', '発注中の部品一覧', '受注/製造の進捗は？', 'メーカー欠品の状況', '発注点割れの部品', '最近の入庫履歴'];
   const isNoResult = (content: string) => content.includes('該当する情報が見つかりませんでした') || content.includes('見つかりません');
 
   return (
@@ -4221,7 +4214,7 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
         <div className="flex border-b border-slate-200 px-2">
           {[
             { id: 'parts' as const, label: '部品QR', icon: Package },
-            { id: 'locations' as const, label: 'ロケーションQR', icon: MapPin },
+            { id: 'locations' as const, label: '保管場所QR', icon: MapPin },
             { id: 'scan' as const, label: 'スキャン', icon: ScanLine },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
@@ -4272,7 +4265,7 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
           <div>
             <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
               <Btn size="sm" icon={Printer} variant="primary" onClick={() => handlePrintSelected('location')} disabled={selectedLocs.size === 0}>選択を印刷 ({selectedLocs.size})</Btn>
-              <Btn size="sm" icon={Printer} variant="secondary" onClick={() => handlePrintAll('locations')}>全ロケーション一括印刷</Btn>
+              <Btn size="sm" icon={Printer} variant="secondary" onClick={() => handlePrintAll('locations')}>全保管場所一括印刷</Btn>
               <button onClick={() => setSelectedLocs(new Set(locations.map(l => l.id)))} className="text-xs text-blue-600 hover:underline ml-auto">全選択</button>
               <button onClick={() => setSelectedLocs(new Set())} className="text-xs text-black hover:underline">全解除</button>
             </div>
@@ -4280,7 +4273,7 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
               <thead className="bg-white text-xs text-black border-b border-slate-100">
                 <tr>
                   <th className="px-3 py-2 w-8"><input type="checkbox" checked={selectedLocs.size === locations.length} onChange={() => setSelectedLocs(selectedLocs.size === locations.length ? new Set() : new Set(locations.map(l => l.id)))} /></th>
-                  <th className="text-left px-3 py-2 font-medium">ロケーションID</th>
+                  <th className="text-left px-3 py-2 font-medium">保管場所ID</th>
                   <th className="text-left px-3 py-2 font-medium">倉庫</th>
                   <th className="text-left px-3 py-2 font-medium">名称</th>
                   <th className="text-left px-3 py-2 font-medium">タイプ</th>
@@ -4318,7 +4311,7 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
               <div className="flex gap-2">
                 <input value={scanInput} onChange={e => setScanInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleScan()}
-                  placeholder="品番 (PT00012345) またはロケーションID (A-03-2-L)"
+                  placeholder="品番 (PT00012345) または保管場所ID (A-03-2-L)"
                   className={`${inputClass} flex-1 font-mono`} />
                 <Btn variant="primary" icon={Search} onClick={handleScan}>検索</Btn>
               </div>
@@ -5735,13 +5728,13 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: 'ダッシュボード', subtitle: '在庫状況の概要' },
   master: { title: '部品マスタ', subtitle: '部品情報の登録・編集' },
   products: { title: '製品マスタ・BOM', subtitle: '製品構成部品の管理' },
-  inventory: { title: '在庫一覧', subtitle: 'ロケーション別の在庫状況' },
-  locations: { title: 'ロケーション', subtitle: '棚位置の管理' },
+  inventory: { title: '在庫一覧', subtitle: '在庫状況の確認' },
+  locations: { title: '保管場所', subtitle: '棚位置の管理' },
   suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・客先の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
   production: { title: '受注管理／製造管理', subtitle: '工番管理・受注登録・進捗管理' },
-  issue: { title: '出庫処理', subtitle: '製造指図に基づく部品払出' },
+  issue: { title: '出庫処理', subtitle: '受注に基づく部品払出' },
   stocktake: { title: '棚卸し', subtitle: '実地棚卸しの管理' },
   reports: { title: 'レポート', subtitle: '在庫分析・統計' },
   logs: { title: '履歴・ログ', subtitle: '操作履歴の検索・閲覧' },

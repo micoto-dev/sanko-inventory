@@ -81,7 +81,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         }
       }
 
-      await tx.tLog.create({ data: { category: "production", action: "update", targetType: "TProdOrder", targetId: id, userId: 1, description: `製造指図 ${order.prodNo} を更新` } });
+      await tx.tLog.create({ data: { category: "production", action: "update", targetType: "TProdOrder", targetId: id, userId: 1, description: `受注 ${order.prodNo} を更新` } });
       return order;
     });
     return Response.json(updated);
@@ -115,7 +115,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       }
       await tx.tProdOrderBomSnapshot.deleteMany({ where: { prodOrderId: numId } });
       await tx.tProdOrder.delete({ where: { id: numId } });
-      await tx.tLog.create({ data: { category: "production", action: "delete", targetType: "TProdOrder", targetId: id, userId: 1, description: `製造指図 ${order.prodNo} を削除（引当解除）` } });
+      await tx.tLog.create({ data: { category: "production", action: "delete", targetType: "TProdOrder", targetId: id, userId: 1, description: `受注 ${order.prodNo} を削除（引当解除）` } });
     });
     return Response.json({ success: true });
   } catch (e) {

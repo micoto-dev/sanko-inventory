@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const typeLabel = type === "parts" ? "部品" : "ロケーション";
+    const typeLabel = type === "parts" ? "部品" : "保管場所";
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>QRラベル一括 - ${typeLabel}</title>
 <style>
   @media print { body { margin: 0; } .no-print { display: none; } }
