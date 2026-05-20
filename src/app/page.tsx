@@ -213,7 +213,7 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
 
         <div className="bg-white rounded-lg border border-slate-200">
           <div className="px-4 py-3 border-b border-slate-200">
-            <h2 className="font-bold text-sm flex items-center gap-2"><Factory size={15} /> 進行中の製造指図</h2>
+            <h2 className="font-bold text-sm flex items-center gap-2"><Factory size={15} /> 進行中の製造</h2>
           </div>
           <div className="divide-y divide-slate-100">
             {prodOrders.filter(m => m.status !== 'completed').map(m => (

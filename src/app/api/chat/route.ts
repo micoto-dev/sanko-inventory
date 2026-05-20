@@ -57,7 +57,7 @@ async function gatherContext(message: string) {
       orderBy: { createdAt: 'desc' },
       take: 10,
     });
-    context.push(`[進行中の製造指図] ${prodOrders.length}件:`);
+    context.push(`[進行中の製造] ${prodOrders.length}件:`);
     prodOrders.forEach(po => {
       context.push(`  ${po.prodNo} - ${po.product?.name || po.customer || ''} x${po.qty} - ステータス:${po.status} - 納期:${po.dueDate?.toISOString().slice(0,10) || '未定'}`);
     });
