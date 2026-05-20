@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         targetType: "MCustomer",
         targetId: "batch",
         userId: 1,
-        description: `顧客CSVインポート: ${created}件登録, ${skipped}件スキップ`,
+        description: `客先CSVインポート: ${created}件登録, ${skipped}件スキップ`,
       },
     });
 

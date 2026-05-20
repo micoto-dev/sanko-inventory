@@ -1881,7 +1881,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                 <th className="text-left px-3 py-2 font-medium">工番</th>
                 <th className="text-left px-3 py-2 font-medium">製品名</th>
                 <th className="text-left px-3 py-2 font-medium">区分</th>
-                <th className="text-left px-3 py-2 font-medium">顧客</th>
+                <th className="text-left px-3 py-2 font-medium">客先</th>
                 <th className="text-right px-3 py-2 font-medium">数量</th>
                 <th className="text-right px-3 py-2 font-medium">受注金額</th>
                 <th className="text-left px-3 py-2 font-medium">出荷納期</th>
@@ -2265,7 +2265,7 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search size={14} className="absolute left-2.5 top-2 text-slate-400" />
-                  <input value={copySearch} onChange={e => setCopySearch(e.target.value)} placeholder="工番・製品名・顧客で検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-full bg-white" autoFocus />
+                  <input value={copySearch} onChange={e => setCopySearch(e.target.value)} placeholder="工番・製品名・客先で検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-full bg-white" autoFocus />
                 </div>
                 <button onClick={() => { setShowCopySearch(false); setCopySearch(''); }} className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5">閉じる</button>
               </div>
@@ -2273,7 +2273,7 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
                 <div className="max-h-48 overflow-auto bg-white rounded border border-slate-200">
                   {copyResults.length > 0 ? (
                     <table className="w-full text-xs">
-                      <thead className="bg-slate-50 sticky top-0"><tr><th className="text-left px-2 py-1">工番</th><th className="text-left px-2 py-1">製品名</th><th className="text-left px-2 py-1">区分</th><th className="text-left px-2 py-1">顧客</th><th className="px-2 py-1"></th></tr></thead>
+                      <thead className="bg-slate-50 sticky top-0"><tr><th className="text-left px-2 py-1">工番</th><th className="text-left px-2 py-1">製品名</th><th className="text-left px-2 py-1">区分</th><th className="text-left px-2 py-1">客先</th><th className="px-2 py-1"></th></tr></thead>
                       <tbody className="divide-y divide-slate-100">
                         {copyResults.map((o: any) => (
                           <tr key={o.id} className="hover:bg-blue-50 cursor-pointer" onClick={() => applyCopy(o)}>
@@ -2303,9 +2303,9 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
             {['A', 'B', 'C', 'D', 'E', 'F', 'AA'].map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </Field>
-        <Field label="顧客*">
+        <Field label="客先*">
           <select value={form.customer || ''} onChange={e => upd('customer', e.target.value)} className={inputClass}>
-            <option value="">-- 顧客を選択 --</option>
+            <option value="">-- 客先を選択 --</option>
             {customers.map((c: any) => <option key={c.id} value={c.name}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
           </select>
         </Field>
@@ -5198,7 +5198,7 @@ const SuppliersScreen = ({ toast }: { toast: (msg: string) => void }) => {
   return (
     <div className="p-5 space-y-3">
       <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
-        {([['suppliers', '仕入先管理'], ['makers', 'メーカー管理'], ['customers', '顧客管理']] as const).map(([k, label]) => (
+        {([['suppliers', '仕入先管理'], ['makers', 'メーカー管理'], ['customers', '客先管理']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setSuppTab(k)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${suppTab === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
         ))}
       </div>
@@ -5491,15 +5491,15 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
 
   const handleSave = async (form: any, isNew: boolean) => {
     try {
-      if (isNew) { await api.createCustomer(form); toast(`顧客「${form.name}」を登録しました`); }
-      else { await api.updateCustomer(form.id, form); toast(`顧客「${form.name}」を更新しました`); }
+      if (isNew) { await api.createCustomer(form); toast(`客先「${form.name}」を登録しました`); }
+      else { await api.updateCustomer(form.id, form); toast(`客先「${form.name}」を更新しました`); }
       setEditCustomer(null); setNewCustomer(null); fetchCustomers();
     } catch (e: any) { toast(`エラー: ${e.message}`); }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    try { await api.deleteCustomer(deleteTarget.id); toast(`顧客「${deleteTarget.name}」を無効化しました`); setDeleteTarget(null); fetchCustomers(); }
+    try { await api.deleteCustomer(deleteTarget.id); toast(`客先「${deleteTarget.name}」を無効化しました`); setDeleteTarget(null); fetchCustomers(); }
     catch (e: any) { toast(`エラー: ${e.message}`); }
   };
 
@@ -5514,7 +5514,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">顧客一覧 ({filteredCustAll.length}件)</h2>
+          <h2 className="font-bold text-sm">客先一覧 ({filteredCustAll.length}件)</h2>
           <div className="flex items-center gap-2">
             <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchCust} onChange={e => { setSearchCust(e.target.value); setCustPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn variant="secondary" icon={Upload} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
@@ -5526,7 +5526,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
             <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">コード</th>
-                <th className="text-left px-3 py-2 font-medium">顧客名</th>
+                <th className="text-left px-3 py-2 font-medium">客先名</th>
                 <th className="text-left px-3 py-2 font-medium">電話番号</th>
                 <th className="text-left px-3 py-2 font-medium">FAX</th>
                 <th className="text-left px-3 py-2 font-medium">メール</th>
@@ -5552,7 +5552,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
                   </td>
                 </tr>
               ))}
-              {filteredCust.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">{qc ? '該当する顧客がありません' : '顧客が登録されていません'}</td></tr>}
+              {filteredCust.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-black">{qc ? '該当する客先がありません' : '客先が登録されていません'}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -5576,8 +5576,8 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
         <CustomerFormModal customer={formCustomer} isNew={!!newCustomer} onClose={() => { setEditCustomer(null); setNewCustomer(null); }} onSave={handleSave} />
       )}
       {deleteTarget && (
-        <Modal open onClose={() => setDeleteTarget(null)} title="顧客の無効化確認" size="sm">
-          <div className="text-sm mb-4"><p>以下の顧客を無効化しますか？</p><div className="mt-2 bg-slate-50 rounded p-3">{deleteTarget.code && <div className="font-mono text-xs text-black">{deleteTarget.code}</div>}<div className="font-semibold">{deleteTarget.name}</div></div></div>
+        <Modal open onClose={() => setDeleteTarget(null)} title="客先の無効化確認" size="sm">
+          <div className="text-sm mb-4"><p>以下の客先を無効化しますか？</p><div className="mt-2 bg-slate-50 rounded p-3">{deleteTarget.code && <div className="font-mono text-xs text-black">{deleteTarget.code}</div>}<div className="font-semibold">{deleteTarget.name}</div></div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>無効化する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
@@ -5604,11 +5604,11 @@ const CSV_CONFIGS: Record<string, { label: string; headers: string[]; example: s
     importFn: (rows) => api.importMakers(rows),
   },
   customer: {
-    label: '顧客', headers: ['コード','顧客名','郵便番号','住所','電話番号','FAX','メール','担当者','業種','備考'],
+    label: '客先', headers: ['コード','客先名','郵便番号','住所','電話番号','FAX','メール','担当者','業種','備考'],
     example: 'CUS001,○○造船株式会社,123-4567,広島県尾道市...,0848-XX-XXXX,0848-XX-XXXX,info@example.com,山田太郎,造船業,',
     fileName: 'customers_import_template.csv',
-    fields: [{ key: 'code', labels: ['コード','code'] },{ key: 'name', labels: ['顧客名','name'] },{ key: 'postalCode', labels: ['郵便番号','postalCode'] },{ key: 'address', labels: ['住所','address'] },{ key: 'tel', labels: ['電話番号','tel'] },{ key: 'fax', labels: ['FAX','fax'] },{ key: 'email', labels: ['メール','email'] },{ key: 'contactPerson', labels: ['担当者','contactPerson'] },{ key: 'industry', labels: ['業種','industry'] },{ key: 'notes', labels: ['備考','notes'] }],
-    previewCols: ['コード', '顧客名', '住所', '電話番号'],
+    fields: [{ key: 'code', labels: ['コード','code'] },{ key: 'name', labels: ['客先名','name'] },{ key: 'postalCode', labels: ['郵便番号','postalCode'] },{ key: 'address', labels: ['住所','address'] },{ key: 'tel', labels: ['電話番号','tel'] },{ key: 'fax', labels: ['FAX','fax'] },{ key: 'email', labels: ['メール','email'] },{ key: 'contactPerson', labels: ['担当者','contactPerson'] },{ key: 'industry', labels: ['業種','industry'] },{ key: 'notes', labels: ['備考','notes'] }],
+    previewCols: ['コード', '客先名', '住所', '電話番号'],
     importFn: (rows) => api.importCustomers(rows),
   },
 };
@@ -5709,10 +5709,10 @@ const CustomerFormModal = ({ customer, isNew, onClose, onSave }: { customer: any
   const [form, setForm] = useState(() => ({ ...customer }));
   const upd = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
   return (
-    <Modal open onClose={onClose} title={isNew ? '顧客 新規登録' : `顧客編集: ${customer.name}`} size="lg">
+    <Modal open onClose={onClose} title={isNew ? '客先 新規登録' : `客先編集: ${customer.name}`} size="lg">
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <Field label="顧客名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
-        <Field label="顧客コード"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} placeholder="例: CUS001" /></Field>
+        <Field label="客先名*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
+        <Field label="客先コード"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} placeholder="例: CUS001" /></Field>
         <Field label="業種"><input value={form.industry || ''} onChange={e => upd('industry', e.target.value)} className={inputClass} placeholder="例: 造船業" /></Field>
         <Field label="担当者"><input value={form.contactPerson || ''} onChange={e => upd('contactPerson', e.target.value)} className={inputClass} /></Field>
         <Field label="郵便番号"><input value={form.postalCode || ''} onChange={e => upd('postalCode', e.target.value)} className={inputClass} placeholder="例: 123-4567" /></Field>
@@ -5737,7 +5737,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   products: { title: '製品マスタ・BOM', subtitle: '製品構成部品の管理' },
   inventory: { title: '在庫一覧', subtitle: 'ロケーション別の在庫状況' },
   locations: { title: 'ロケーション', subtitle: '棚位置の管理' },
-  suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・顧客の登録・編集' },
+  suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・客先の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
   production: { title: '受注管理／製造管理', subtitle: '工番管理・受注登録・進捗管理' },
