@@ -85,7 +85,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { supplierId, desiredDate, deliveryAddr, paymentTerms, notes, createdById, details } = body;
+    const { supplierId, orderDate, desiredDate, deliveryAddr, paymentTerms, notes, createdById, details } = body;
 
     const userId = createdById || 1; // Default to admin user
     if (!supplierId || !details?.length) {
@@ -126,6 +126,7 @@ export async function POST(request: Request) {
         data: {
           orderNo,
           supplierId,
+          orderDate: orderDate ? new Date(orderDate) : undefined,
           desiredDate: desiredDate ? new Date(desiredDate) : undefined,
           deliveryAddr,
           paymentTerms,
