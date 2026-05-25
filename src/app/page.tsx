@@ -2910,6 +2910,7 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
   onUpdateStage: (orderId: number, stageId: number, data: { startDate?: string | null; dueDate?: string | null }) => Promise<void>;
 }) => {
   const [period, setPeriod] = useState<'2w' | '1m' | '3m' | '6m' | '1y'>('3m');
+  const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('week');
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const chartRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<null | { orderId: number; stageId: number; mode: 'move' | 'resize-l' | 'resize-r'; startX: number; startStartDay: number; startEndDay: number }>(null);
@@ -2983,6 +2984,52 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
     };
   }, [drag, dragOffset, totalDays, onUpdateStage]);
 
+  // Auto-pick granularity when period changes
+  useEffect(() => {
+    if (period === '2w' || period === '1m') setGranularity('day');
+    else if (period === '3m') setGranularity('week');
+    else setGranularity('month');
+  }, [period]);
+
+  // Build header cells based on granularity (cells aggregate days)
+  type HeaderCell = { label: string; subLabel?: string; spanDays: number; isWeekend?: boolean };
+  const headerCells: HeaderCell[] = (() => {
+    if (granularity === 'day') {
+      return dateRange.map(d => ({
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+        spanDays: 1,
+        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      }));
+    }
+    if (granularity === 'week') {
+      const cells: HeaderCell[] = [];
+      let i = 0;
+      while (i < dateRange.length) {
+        const d = dateRange[i];
+        const dayOfWeek = d.getDay();
+        const daysToNextSunday = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
+        const span = Math.min(daysToNextSunday, dateRange.length - i);
+        const weekOfMonth = Math.ceil(d.getDate() / 7);
+        cells.push({ label: `${d.getMonth() + 1}月`, subLabel: `W${weekOfMonth}`, spanDays: span });
+        i += span;
+      }
+      return cells;
+    }
+    const cells: HeaderCell[] = [];
+    let i = 0;
+    while (i < dateRange.length) {
+      const d = dateRange[i];
+      const m = d.getMonth();
+      const y = d.getFullYear();
+      let span = 0;
+      while (i + span < dateRange.length && dateRange[i + span].getMonth() === m && dateRange[i + span].getFullYear() === y) span++;
+      cells.push({ label: `${y}`, subLabel: `${m + 1}月`, spanDays: span });
+      i += span;
+    }
+    return cells;
+  })();
+  const headerGridCols = headerCells.map(c => `${c.spanDays}fr`).join(' ');
+
   return (
     <div className="bg-white border border-slate-200 rounded-lg">
       <div className="flex items-center justify-between p-3 border-b border-slate-200">
@@ -2990,21 +3037,32 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
           <h2 className="font-bold text-base">ガントチャート</h2>
           <p className="text-sm text-black mt-0.5">バーをドラッグで日程変更、両端をドラッグで開始/終了のみ変更、クリックで詳細表示</p>
         </div>
-        <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m' | '6m' | '1y')} className="text-sm border border-slate-300 rounded px-2 py-1">
-          <option value="2w">2週間</option>
-          <option value="1m">1ヶ月</option>
-          <option value="3m">3ヶ月</option>
-          <option value="6m">6ヶ月</option>
-          <option value="1y">1年</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded">
+            {(['day', 'week', 'month'] as const).map(g => (
+              <button key={g} onClick={() => setGranularity(g)}
+                className={`px-3 py-1 text-sm rounded transition ${granularity === g ? 'bg-white shadow-sm font-semibold text-slate-900' : 'text-black hover:text-slate-700'}`}>
+                {g === 'day' ? '日' : g === 'week' ? '週' : '月'}
+              </button>
+            ))}
+          </div>
+          <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m' | '6m' | '1y')} className="text-sm border border-slate-300 rounded px-2 py-1">
+            <option value="2w">2週間</option>
+            <option value="1m">1ヶ月</option>
+            <option value="3m">3ヶ月</option>
+            <option value="6m">6ヶ月</option>
+            <option value="1y">1年</option>
+          </select>
+        </div>
       </div>
       <div className="grid" style={{ gridTemplateColumns: '240px minmax(0, 1fr)' }}>
         {/* Header */}
         <div className="px-3 py-1.5 border-r border-b border-slate-200 bg-slate-50 text-sm font-bold flex items-center">工番 / 製品 / 工程</div>
-        <div ref={chartRef} className="grid border-b border-slate-200 bg-slate-50 text-sm" style={{ gridTemplateColumns: `repeat(${totalDays}, minmax(0, 1fr))` }}>
-          {dateRange.map((d, i) => (
-            <div key={i} className={`text-center py-1 border-r border-slate-100 ${d.getDay() === 0 ? 'bg-rose-50/50 text-rose-700' : d.getDay() === 6 ? 'bg-blue-50/50 text-blue-700' : ''}`}>
-              {d.getMonth() + 1}/{d.getDate()}
+        <div ref={chartRef} className="grid border-b border-slate-200 bg-slate-50 text-sm" style={{ gridTemplateColumns: headerGridCols }}>
+          {headerCells.map((c, i) => (
+            <div key={i} className={`text-center py-1 border-r border-slate-100 ${c.isWeekend ? 'bg-slate-100/60' : ''}`}>
+              <div className="font-semibold leading-tight">{c.label}</div>
+              {c.subLabel && <div className="text-xs text-slate-500 leading-tight">{c.subLabel}</div>}
             </div>
           ))}
         </div>
