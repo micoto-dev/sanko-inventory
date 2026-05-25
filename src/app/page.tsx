@@ -989,7 +989,10 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
               const isMfrShortage = it.remarks === 'manufacturer_shortage';
               const shortages = it.shortages || [];
               const shortageTotal = shortages.reduce((sum, s) => sum + s.qty, 0);
-              const canReplace = !!it.id && remaining > 0 && (isMfrShortage || shortageTotal > 0);
+              // 振替発注は「別仕入先で再調達が必要な事象」のときだけ提案する
+              const REPLACEABLE_REASONS = ['shortage', 'defective', 'damaged'];
+              const hasReplaceableShortage = shortages.some(s => REPLACEABLE_REASONS.includes(s.reason));
+              const canReplace = !!it.id && remaining > 0 && (isMfrShortage || hasReplaceableShortage);
               return (
                 <React.Fragment key={i}>
                   <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
