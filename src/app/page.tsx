@@ -746,7 +746,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   };
 
   // Pending detail changes (local only until save)
-  const [pendingDetailChanges, setPendingDetailChanges] = useState<Record<number, { action: 'shortage' | 'cancel' }>>({});
+  const [pendingDetailChanges, setPendingDetailChanges] = useState<Record<number, { action: 'cancel' }>>({});
 
   // Per-detail receive inputs (qty=合格分, shortageQty=不足/不良数, reason, expectedDate)
   type ReceiveInput = { qty: number; shortageQty: number; reason: string; expectedDate: string };
@@ -760,14 +760,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   };
 
   const hasReceiveInputs = () => Object.values(receiveInputs).some(i => i.qty > 0 || i.shortageQty > 0);
-
-  const handleItemShortage = (_orderId: number, detailId: number) => {
-    setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'shortage' } }));
-    setShowDetail((prev: any) => prev ? {
-      ...prev,
-      details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: 'manufacturer_shortage' } : d),
-    } : prev);
-  };
 
   const handleItemShortageCancel = (_orderId: number, detailId: number) => {
     setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'cancel' } }));
@@ -823,12 +815,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
         }
       }
 
-      // 2. Save pending detail changes (shortage/cancel marking)
+      // 2. Save pending detail changes (cancel manufacturer_shortage marking)
       for (const [detailIdStr, change] of Object.entries(pendingDetailChanges)) {
         const detailId = Number(detailIdStr);
-        if (change.action === 'shortage') {
-          await api.markItemShortage(showDetail.id, detailId);
-        } else if (change.action === 'cancel') {
+        if (change.action === 'cancel') {
           await api.cancelItemShortage(showDetail.id, detailId);
         }
       }
@@ -1074,13 +1064,9 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                           </>
                         )}
                         <td className="py-2 px-3">
-                          <div className="flex gap-1.5 justify-center whitespace-nowrap">
-                            {it.id && isMfrShortage ? (
-                              <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">欠品取消</button>
-                            ) : it.id && remaining > 0 ? (
-                              <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 whitespace-nowrap">全量欠品</button>
-                            ) : null}
-                          </div>
+                          {it.id && isMfrShortage && (
+                            <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">欠品取消</button>
+                          )}
                         </td>
                       </tr>
                       {shortages.length > 0 && (
