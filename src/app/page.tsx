@@ -2430,17 +2430,16 @@ const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast,
   let ganttStart: Date | null = null;
   let ganttEnd: Date | null = null;
   let ganttDays = 0;
-  let ganttDayWidth = 0;
   if (allDates.length > 0) {
     ganttStart = new Date(Math.min(...allDates));
     ganttEnd = new Date(Math.max(...allDates));
     ganttStart.setHours(0, 0, 0, 0);
     ganttEnd.setHours(0, 0, 0, 0);
     ganttDays = Math.max(1, Math.floor((ganttEnd.getTime() - ganttStart.getTime()) / 86400000) + 1);
-    ganttDayWidth = Math.max(8, Math.min(40, Math.floor(800 / ganttDays)));
   }
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayPos = ganttStart ? Math.floor((today.getTime() - ganttStart.getTime()) / 86400000) : -1;
+  const pct = (idx: number) => ganttDays > 0 ? (idx / ganttDays) * 100 : 0;
 
   return (
     <Modal open onClose={onClose} title={`製造詳細: ${detail.prodNo}`} size="xl">
@@ -2476,32 +2475,31 @@ const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast,
             ) : (
               <div className="space-y-2">
                 {orderStages.map(os => {
-                  const stageInfo = sortedStages.find(s => s.id === os.stageId);
                   const startIdx = os.startDate && ganttStart ? Math.floor((new Date(os.startDate).getTime() - ganttStart.getTime()) / 86400000) : -1;
                   const endIdx = os.dueDate && ganttStart ? Math.floor((new Date(os.dueDate).getTime() - ganttStart.getTime()) / 86400000) : -1;
                   const hasSchedule = startIdx >= 0 && endIdx >= startIdx;
-                  const barLeft = hasSchedule ? startIdx * ganttDayWidth : 0;
-                  const barWidth = hasSchedule ? (endIdx - startIdx + 1) * ganttDayWidth : 0;
+                  const barLeftPct = hasSchedule ? pct(startIdx) : 0;
+                  const barWidthPct = hasSchedule ? pct(endIdx - startIdx + 1) : 0;
                   const barBg = stageBarColor(os.stageColor);
                   return (
-                    <div key={os.stageId} className="grid grid-cols-[160px_120px_120px_1fr] gap-2 items-center text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`inline-block text-xs px-2 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
+                    <div key={os.stageId} className="grid grid-cols-[140px_115px_115px_minmax(0,1fr)] gap-2 items-center text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`inline-block text-xs px-2 py-0.5 rounded truncate ${os.stageColor}`}>{os.stageName}</span>
                       </div>
                       <input type="date" value={os.startDate || ''}
                         onChange={e => handleStageField(os.stageId, 'startDate', e.target.value || null)}
-                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs" />
+                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs min-w-0" />
                       <input type="date" value={os.dueDate || ''}
                         onChange={e => handleStageField(os.stageId, 'dueDate', e.target.value || null)}
-                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs" />
-                      <div className="relative h-6 bg-slate-50 rounded">
+                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs min-w-0" />
+                      <div className="relative h-6 bg-slate-50 rounded overflow-hidden">
                         {todayPos >= 0 && todayPos <= ganttDays && (
-                          <div className="absolute top-0 bottom-0 w-px bg-rose-500" style={{ left: todayPos * ganttDayWidth + ganttDayWidth / 2 }} />
+                          <div className="absolute top-0 bottom-0 w-px bg-rose-500" style={{ left: `${pct(todayPos)}%` }} />
                         )}
                         {hasSchedule && (
-                          <div className={`absolute top-0.5 bottom-0.5 ${barBg} rounded text-white text-[10px] flex items-center px-1.5`}
-                            style={{ left: barLeft, width: Math.max(barWidth, 16) }}>
-                            <span className="truncate">{os.startDate}〜{os.dueDate}</span>
+                          <div className={`absolute top-0.5 bottom-0.5 ${barBg} rounded text-white text-[10px] flex items-center px-1.5 overflow-hidden`}
+                            style={{ left: `${barLeftPct}%`, width: `${barWidthPct}%`, minWidth: 16 }}>
+                            <span className="truncate">{os.startDate?.slice(5)}〜{os.dueDate?.slice(5)}</span>
                           </div>
                         )}
                       </div>
