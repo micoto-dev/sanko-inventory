@@ -1912,6 +1912,8 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
   const pendingOrders = useMemo(() => orders.filter(o => o.status === 'awaiting' || o.status === 'partial'), [orders]);
   const [selectedPO, setSelectedPO] = useState<number | ''>('');
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'awaiting' | 'partial'>('all');
 
   const selectedOrder = useMemo(
     () => orders.find(o => o.id === selectedPO) || null,
@@ -1929,14 +1931,26 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
     else toast('該当する未完納の発注が見つかりません');
   };
 
-  return (
-    <div className="p-5 max-w-5xl">
-      <div className="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 className="font-bold mb-1">入庫処理</h2>
-        <p className="text-xs text-black mb-4">発注書のQRコードを読み取るか、発注番号を選択すると、発注管理と同じ詳細画面で入庫・欠品・コメント・キャンセル等が行えます</p>
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pendingOrders.filter(o => {
+      if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+      if (!q) return true;
+      const haystack = `${o.orderNo} ${o.supplier} ${o.desiredDate || ''} ${o.expectedDeliveryDate || ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [pendingOrders, search, statusFilter]);
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100"
+  return (
+    <div className="p-5 space-y-4">
+      <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
+        <div>
+          <h2 className="font-bold">入庫処理</h2>
+          <p className="text-xs text-black mt-1">QRを読み取るか検索して発注を選択すると、発注管理と同じ詳細画面で入庫・欠品・コメント・キャンセル等を行えます。</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3">
+          <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-4 text-center cursor-pointer hover:bg-blue-100"
             onClick={() => setShowQrScanner(true)}>
             {showQrScanner ? (
               <div>
@@ -1945,25 +1959,86 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
               </div>
             ) : (
               <>
-                <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
+                <QrCode size={24} className="mx-auto mb-1.5 text-blue-600" />
                 <div className="text-sm font-bold text-blue-900">発注QRを読取</div>
-                <div className="text-xs text-blue-600 mt-1">納品書の発注番号QR</div>
+                <div className="text-[11px] text-blue-600 mt-0.5">納品書の発注番号QR</div>
               </>
             )}
           </div>
-          <div className="border border-slate-200 rounded-lg p-3">
-            <div className="text-xs text-black mb-2">未完納の発注から選択（納品待ち / 一部入庫）</div>
-            <select value={selectedPO} onChange={e => setSelectedPO(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded px-2 py-2 text-sm">
-              <option value="">-- 発注を選択 --</option>
-              {pendingOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo} / {o.supplier} / {o.desiredDate || '-'} / {ORDER_STATUS[o.status]?.label || o.status}</option>)}
-            </select>
-            <div className="mt-2 text-[11px] text-black">{pendingOrders.length}件</div>
+
+          <div className="border border-slate-200 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Search size={14} className="text-slate-400" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="工番・仕入先・納期で検索..."
+                className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | 'awaiting' | 'partial')} className="text-xs border border-slate-300 rounded px-1.5 py-1.5 text-black">
+                <option value="all">全て</option>
+                <option value="awaiting">納品待ち</option>
+                <option value="partial">一部入庫</option>
+              </select>
+              {search && (
+                <button onClick={() => setSearch('')} className="text-xs text-slate-500 hover:text-slate-700">クリア</button>
+              )}
+            </div>
+            <div className="text-[11px] text-black">{filteredOrders.length} / {pendingOrders.length} 件</div>
           </div>
         </div>
+      </div>
 
-        <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 flex items-start gap-2">
-          <AlertCircle size={13} className="mt-0.5" />
-          <div>発注を選ぶと発注管理と同じ詳細画面が開きます。「今回入庫数」「不足/不良数」を入力して「変更を保存」で確定すると、在庫加算・発注残減算が行われ、全数入庫なら完納、未達なら一部入庫ステータスになります。</div>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">工番</th>
+                <th className="text-left px-3 py-2 font-medium">仕入先</th>
+                <th className="text-left px-3 py-2 font-medium">発注日</th>
+                <th className="text-left px-3 py-2 font-medium">希望納期</th>
+                <th className="text-left px-3 py-2 font-medium">納品予定</th>
+                <th className="text-right px-3 py-2 font-medium">明細</th>
+                <th className="text-right px-3 py-2 font-medium">入庫済 / 発注</th>
+                <th className="text-left px-3 py-2 font-medium">ステータス</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredOrders.map(o => {
+                const totalQty = (o.details || []).reduce((s, d) => s + d.qty, 0);
+                const recvQty = (o.details || []).reduce((s, d) => s + d.receivedQty, 0);
+                const remaining = totalQty - recvQty;
+                return (
+                  <tr key={o.id} className="hover:bg-blue-50 cursor-pointer" onClick={() => setSelectedPO(o.id)}>
+                    <td className="px-3 py-2 font-mono text-xs font-semibold">{o.orderNo}</td>
+                    <td className="px-3 py-2 text-sm">{o.supplier}</td>
+                    <td className="px-3 py-2 text-xs">{o.orderDate || '-'}</td>
+                    <td className="px-3 py-2 text-xs">{o.desiredDate || '-'}</td>
+                    <td className="px-3 py-2 text-xs">{o.expectedDeliveryDate || '-'}</td>
+                    <td className="px-3 py-2 text-right text-xs font-mono">{(o.details || []).length}</td>
+                    <td className="px-3 py-2 text-right text-xs font-mono">
+                      <span className="text-emerald-700 font-semibold">{recvQty}</span>
+                      <span className="text-slate-300 mx-1">/</span>
+                      <span>{totalQty}</span>
+                      {remaining > 0 && <span className="ml-1.5 text-amber-700">(残 {remaining})</span>}
+                    </td>
+                    <td className="px-3 py-2"><StatusBadge statusKey={o.status} statusMap={ORDER_STATUS} /></td>
+                    <td className="px-3 py-2 text-right">
+                      <ChevronRight size={14} className="text-slate-400 inline" />
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredOrders.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-3 py-8 text-center text-sm text-black">
+                    {search || statusFilter !== 'all' ? '該当する発注がありません' : '未完納の発注はありません'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
