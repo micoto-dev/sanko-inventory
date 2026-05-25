@@ -23,6 +23,8 @@ export async function GET(request: Request) {
           bomSnapshot: {
             include: { part: { select: { id: true, code: true, name: true, unit: true } } },
           },
+          taskChecks: { select: { taskId: true, isChecked: true } },
+          orderStages: { include: { stage: true } },
         },
       }),
       prisma.tProdOrder.count({ where }),
@@ -42,6 +44,18 @@ export async function GET(request: Request) {
       dueDate: o.dueDate?.toISOString?.()?.slice(0, 10) || '',
       customer: o.customer || '',
       amount: o.amount ? Number(o.amount) : null,
+      taskChecks: (o.taskChecks || []).map((tc: any) => ({ taskId: tc.taskId, isChecked: tc.isChecked })),
+      orderStages: (o.orderStages || []).map((os: any) => ({
+        id: os.id,
+        stageId: os.stageId,
+        stageKey: os.stage?.key,
+        stageName: os.stage?.name,
+        stageColor: os.stage?.color,
+        stageSortOrder: os.stage?.sortOrder,
+        startDate: os.startDate ? os.startDate.toISOString().slice(0, 10) : '',
+        dueDate: os.dueDate ? os.dueDate.toISOString().slice(0, 10) : '',
+        status: os.status,
+      })),
     }));
 
     return Response.json({

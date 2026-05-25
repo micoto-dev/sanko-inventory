@@ -32,7 +32,18 @@ interface Order {
   orderDate: string; desiredDate?: string; expectedDeliveryDate?: string;
   status: string; totalAmount: number; notes?: string;
   comments?: { text: string; ts: string; user?: string }[];
-  details: { id?: number; partId: string; partName?: string; qty: number; receivedQty: number; unitPrice: number; remarks?: string; shortages?: Shortage[] }[];
+  details: {
+    id?: number;
+    partId: string;
+    partName?: string;
+    qty: number;
+    receivedQty: number;
+    unitPrice: number;
+    remarks?: string;
+    shortages?: Shortage[];
+    replacesDetail?: { detailId: number; lineNo: number; orderId: number; orderNo: string; supplier: string; status: string } | null;
+    replacements?: { detailId: number; lineNo: number; qty: number; receivedQty: number; orderId: number; orderNo: string; supplier: string; status: string }[];
+  }[];
 }
 
 interface Shortage {
@@ -50,6 +61,8 @@ interface ProdOrder {
   id: number; prodNo: string; productCode?: string; productName?: string;
   productId: number; qty: number; status: string; startDate?: string; dueDate?: string;
   customer?: string;
+  taskChecks?: { taskId: number; isChecked: boolean }[];
+  orderStages?: OrderStage[];
 }
 
 interface Location {
@@ -666,10 +679,110 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
 // ========================== Order Detail Panel (shared) ==========================
 type ReceiveInput = { qty: number; shortageQty: number; reason: string; expectedDate: string };
 
-const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toast, userName, userId, onShowPdf }: {
+const OrderReplaceModal = ({ orderId, detail, currentSupplierId, currentDesiredDate, onClose, onSuccess, toast, userId }: {
+  orderId: number;
+  detail: Order['details'][number];
+  currentSupplierId: number;
+  currentDesiredDate?: string;
+  onClose: () => void;
+  onSuccess: (newOrderNo: string) => void;
+  toast: (msg: string) => void;
+  userId?: number;
+}) => {
+  const remaining = detail.qty - detail.receivedQty;
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string; code?: string }[]>([]);
+  const [supplierId, setSupplierId] = useState<number | ''>('');
+  const [qty, setQty] = useState<number>(remaining);
+  const [unitPrice, setUnitPrice] = useState<number>(detail.unitPrice);
+  const [desiredDate, setDesiredDate] = useState<string>(currentDesiredDate || '');
+  const [notes, setNotes] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getSuppliers().then(res => {
+      const list = (res.data || res || []).filter((s: any) => s.id !== currentSupplierId);
+      setSuppliers(list);
+    }).catch(() => toast('仕入先の取得に失敗しました'));
+  }, [currentSupplierId, toast]);
+
+  const handleSubmit = async () => {
+    if (!supplierId) { toast('振替先の仕入先を選択してください'); return; }
+    if (qty <= 0 || qty > remaining) { toast(`数量は1〜${remaining}の範囲で指定してください`); return; }
+    setSaving(true);
+    try {
+      const res = await api.replaceOrderDetail(orderId, detail.id!, {
+        supplierId: Number(supplierId),
+        qty,
+        unitPrice,
+        desiredDate: desiredDate || undefined,
+        notes: notes || undefined,
+        createdById: userId,
+      });
+      toast(`振替発注 ${res.orderNo} を作成しました`);
+      onSuccess(res.orderNo);
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`別会社へ振替発注: ${detail.partName || detail.partId}`} size="md">
+      <div className="space-y-4">
+        <div className="bg-rose-50 border border-rose-200 rounded p-3 text-xs">
+          <div className="font-semibold text-rose-800 mb-1">振替元</div>
+          <div className="text-rose-700">
+            {detail.partId} {detail.partName} — 発注 {detail.qty} / 入庫済 {detail.receivedQty} / 残 <span className="font-bold">{remaining}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="振替先 仕入先*" full>
+            <select value={supplierId} onChange={e => setSupplierId(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
+              <option value="">-- 仕入先を選択 --</option>
+              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+          <Field label="数量*">
+            <input type="number" min={1} max={remaining} value={qty}
+              onChange={e => setQty(Math.max(1, Math.min(remaining, Number(e.target.value) || 1)))}
+              className={`${inputClass} text-right font-mono`} />
+          </Field>
+          <Field label="単価">
+            <input type="number" min={0} value={unitPrice}
+              onChange={e => setUnitPrice(Math.max(0, Number(e.target.value) || 0))}
+              className={`${inputClass} text-right font-mono`} />
+          </Field>
+          <Field label="希望納期">
+            <input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)} className={inputClass} />
+          </Field>
+          <Field label="備考" full>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="（未入力の場合は振替元の情報を自動記載）" className={`${inputClass} h-14`} />
+          </Field>
+        </div>
+
+        <div className="text-xs text-black bg-slate-50 rounded p-2">
+          振替発注は <span className="font-semibold">未発注（draft）</span> として作成されます。発注管理から内容を確認・承認してください。元の明細はメーカー欠品マークが付き、双方向にリンクされます。
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-slate-100">
+          <Btn variant="primary" icon={Save} onClick={handleSubmit} disabled={saving || !supplierId}>
+            {saving ? '作成中...' : '振替発注を作成'}
+          </Btn>
+          <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toast, userName, userId, onShowPdf, onJumpToOrder }: {
   order: Order; parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void;
   userName?: string; userId?: number; onShowPdf?: (order: Order) => void;
+  onJumpToOrder?: (orderId: number) => void;
 }) => {
+  const [replaceTarget, setReplaceTarget] = useState<Order['details'][number] | null>(null);
   const buildInitialInputs = (o: Order): Record<number, ReceiveInput> => {
     const init: Record<number, ReceiveInput> = {};
     (o.details || []).forEach(d => {
@@ -883,11 +996,38 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                       <div className="text-xs font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
                       {isMfrShortage && (
-                        <div className="mt-1 flex items-center gap-1.5">
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
+                          {it.id && (it.qty - it.receivedQty) > 0 && (
+                            <button onClick={() => setReplaceTarget(it)} className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold inline-flex items-center gap-0.5">
+                              <RefreshCw size={10} /> 別会社へ振替発注
+                            </button>
+                          )}
                           {it.id && (
                             <button onClick={() => handleItemShortageCancel(it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
                           )}
+                        </div>
+                      )}
+                      {it.replacements && it.replacements.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {it.replacements.map(r => (
+                            <button key={r.detailId}
+                              onClick={() => onJumpToOrder?.(r.orderId)}
+                              disabled={!onJumpToOrder}
+                              className="text-[10px] text-blue-700 hover:underline disabled:no-underline disabled:cursor-default flex items-center gap-1">
+                              <Link2 size={10} /> 振替先: {r.orderNo} ({r.supplier}) — {r.qty}個 / {ORDER_STATUS[r.status]?.label || r.status}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {it.replacesDetail && (
+                        <div className="mt-1">
+                          <button
+                            onClick={() => onJumpToOrder?.(it.replacesDetail!.orderId)}
+                            disabled={!onJumpToOrder}
+                            className="text-[10px] text-slate-600 hover:underline disabled:no-underline disabled:cursor-default flex items-center gap-1">
+                            <Link2 size={10} /> 振替元: {it.replacesDetail.orderNo} ({it.replacesDetail.supplier}) — {ORDER_STATUS[it.replacesDetail.status]?.label || it.replacesDetail.status}
+                          </button>
                         </div>
                       )}
                     </td>
@@ -1123,6 +1263,19 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
           </div>
         </Modal>
       )}
+
+      {replaceTarget && (
+        <OrderReplaceModal
+          orderId={order.id}
+          detail={replaceTarget}
+          currentSupplierId={order.supplierId}
+          currentDesiredDate={order.desiredDate}
+          onClose={() => setReplaceTarget(null)}
+          onSuccess={() => { setReplaceTarget(null); onRefresh(); }}
+          toast={toast}
+          userId={userId}
+        />
+      )}
     </Modal>
   );
 };
@@ -1252,7 +1405,21 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
       </div>
 
       {showDetail && (
-        <OrderDetailPanel order={showDetail} parts={parts} onClose={() => setShowDetail(null)} onRefresh={onRefresh} toast={toast} userName={userName} userId={userId} onShowPdf={handleViewPdf} />
+        <OrderDetailPanel
+          order={showDetail}
+          parts={parts}
+          onClose={() => setShowDetail(null)}
+          onRefresh={onRefresh}
+          toast={toast}
+          userName={userName}
+          userId={userId}
+          onShowPdf={handleViewPdf}
+          onJumpToOrder={(oid) => {
+            const found = orders.find(o => o.id === oid);
+            if (found) setShowDetail(found);
+            else toast('対象の発注が一覧にありません');
+          }}
+        />
       )}
 
       {showNew && (
@@ -2043,7 +2210,19 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
       </div>
 
       {selectedOrder && (
-        <OrderDetailPanel order={selectedOrder} parts={parts} onClose={() => setSelectedPO('')} onRefresh={onRefresh} toast={toast} userName={userName} userId={userId} />
+        <OrderDetailPanel
+          order={selectedOrder}
+          parts={parts}
+          onClose={() => setSelectedPO('')}
+          onRefresh={onRefresh}
+          toast={toast}
+          userName={userName}
+          userId={userId}
+          onJumpToOrder={(oid) => {
+            if (orders.some(o => o.id === oid)) setSelectedPO(oid);
+            else toast('対象の発注が一覧にありません');
+          }}
+        />
       )}
     </div>
   );
@@ -2078,10 +2257,23 @@ const buildStageMap = (stages: ProductionStage[]) =>
     return acc;
   }, {});
 
-const PRODUCTION_NEXT_STATUS: Record<string, { next: string; label: string }> = {
-  planned: { next: 'allocated', label: '引当開始' },
-  allocated: { next: 'picking', label: 'ピッキング開始' },
-  picking: { next: 'completed', label: '完了' },
+interface OrderStage {
+  id?: number;
+  stageId: number;
+  stageKey: string;
+  stageName: string;
+  stageColor: string;
+  stageSortOrder: number;
+  startDate?: string;
+  dueDate?: string;
+  status: string; // pending | in_progress | done
+}
+
+const taskProgress = (taskChecks: { taskId: number; isChecked: boolean }[] | undefined, stages: ProductionStage[]) => {
+  const allTaskIds = new Set(stages.flatMap(s => (s.tasks || []).map(t => t.id)));
+  const total = allTaskIds.size;
+  const checked = (taskChecks || []).filter(c => c.isChecked && allTaskIds.has(c.taskId)).length;
+  return { checked, total };
 };
 
 const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
@@ -2166,9 +2358,249 @@ const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
   );
 };
 
-const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, toast }: {
+const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast, onEditFull }: {
+  prodOrderId: number; stages: ProductionStage[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onEditFull: () => void;
+}) => {
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'manager' | 'worker'>('manager');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const d = await api.getProductionOrder(prodOrderId);
+      setDetail(d);
+    } catch (e: any) { toast(`取得エラー: ${e.message}`); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [prodOrderId]);
+
+  const handleStageField = async (stageId: number, field: 'startDate' | 'dueDate' | 'status', value: string | null) => {
+    try {
+      await api.updateProductionOrderStage(prodOrderId, stageId, { [field]: value });
+      setDetail((prev: any) => prev ? {
+        ...prev,
+        orderStages: (prev.orderStages || []).map((os: any) => os.stageId === stageId ? { ...os, [field]: value || '' } : os),
+      } : prev);
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleTaskCheck = async (taskId: number, isChecked: boolean) => {
+    setDetail((prev: any) => prev ? {
+      ...prev,
+      taskChecks: prev.taskChecks?.some((c: any) => c.taskId === taskId)
+        ? prev.taskChecks.map((c: any) => c.taskId === taskId ? { ...c, isChecked } : c)
+        : [...(prev.taskChecks || []), { taskId, isChecked }],
+    } : prev);
+    try {
+      await api.toggleProductionOrderTaskCheck(prodOrderId, taskId, isChecked);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+      setDetail((prev: any) => prev ? {
+        ...prev,
+        taskChecks: prev.taskChecks.map((c: any) => c.taskId === taskId ? { ...c, isChecked: !isChecked } : c),
+      } : prev);
+    }
+  };
+
+  if (loading) {
+    return <Modal open onClose={onClose} title="読み込み中" size="md"><div className="flex items-center justify-center py-8"><Loader2 size={24} className="animate-spin" /></div></Modal>;
+  }
+  if (!detail) {
+    return <Modal open onClose={onClose} title="エラー" size="md"><div className="text-sm text-rose-600 py-4">取得失敗しました</div></Modal>;
+  }
+
+  const checks: Record<number, boolean> = {};
+  (detail.taskChecks || []).forEach((c: any) => { checks[c.taskId] = c.isChecked; });
+  const orderStages: OrderStage[] = (detail.orderStages || []).slice().sort((a: OrderStage, b: OrderStage) => a.stageSortOrder - b.stageSortOrder);
+  const sortedStages = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+  const currentStage = sortedStages.find(s => s.key === detail.status);
+  const progress = taskProgress(detail.taskChecks, stages);
+
+  // Compute mini-gantt date range based on order stage dates
+  const allDates: number[] = [];
+  orderStages.forEach(os => {
+    if (os.startDate) allDates.push(new Date(os.startDate).getTime());
+    if (os.dueDate) allDates.push(new Date(os.dueDate).getTime());
+  });
+  if (detail.startDate) allDates.push(new Date(detail.startDate).getTime());
+  if (detail.dueDate) allDates.push(new Date(detail.dueDate).getTime());
+  let ganttStart: Date | null = null;
+  let ganttEnd: Date | null = null;
+  let ganttDays = 0;
+  let ganttDayWidth = 0;
+  if (allDates.length > 0) {
+    ganttStart = new Date(Math.min(...allDates));
+    ganttEnd = new Date(Math.max(...allDates));
+    ganttStart.setHours(0, 0, 0, 0);
+    ganttEnd.setHours(0, 0, 0, 0);
+    ganttDays = Math.max(1, Math.floor((ganttEnd.getTime() - ganttStart.getTime()) / 86400000) + 1);
+    ganttDayWidth = Math.max(8, Math.min(40, Math.floor(800 / ganttDays)));
+  }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayPos = ganttStart ? Math.floor((today.getTime() - ganttStart.getTime()) / 86400000) : -1;
+
+  return (
+    <Modal open onClose={onClose} title={`製造詳細: ${detail.prodNo}`} size="xl">
+      {/* Header */}
+      <div className="grid grid-cols-5 gap-3 mb-3 text-sm pb-3 border-b border-slate-200">
+        <div><div className="text-xs text-black">製品</div><div className="font-semibold">{detail.productName || '-'}</div></div>
+        <div><div className="text-xs text-black">客先</div><div>{detail.customer || '-'}</div></div>
+        <div><div className="text-xs text-black">数量</div><div className="font-mono">{detail.qty}</div></div>
+        <div><div className="text-xs text-black">現在工程</div>{currentStage && <span className={`inline-block text-xs px-2 py-0.5 rounded ${currentStage.color}`}>{currentStage.name}</span>}</div>
+        <div><div className="text-xs text-black">タスク進捗</div><div className="font-mono text-sm">{progress.checked}/{progress.total}</div></div>
+      </div>
+
+      {/* View toggle */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <button onClick={() => setViewMode('manager')} className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${viewMode === 'manager' ? 'bg-white shadow-sm font-semibold' : 'text-black'}`}>
+            <BarChart3 size={11} />管理者ビュー
+          </button>
+          <button onClick={() => setViewMode('worker')} className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${viewMode === 'worker' ? 'bg-white shadow-sm font-semibold' : 'text-black'}`}>
+            <ClipboardCheck size={11} />作業者ビュー
+          </button>
+        </div>
+        <Btn variant="ghost" size="sm" icon={Edit} onClick={onEditFull}>指図情報を編集</Btn>
+      </div>
+
+      {viewMode === 'manager' && (
+        <div className="space-y-4">
+          {/* Mini Gantt of stages */}
+          <div className="bg-white border border-slate-200 rounded p-3">
+            <div className="text-xs font-semibold text-black mb-2 flex items-center gap-2"><BarChart3 size={12} />工程スケジュール</div>
+            {orderStages.length === 0 ? (
+              <div className="text-xs text-slate-400 py-4 text-center">工程が定義されていません</div>
+            ) : (
+              <div className="space-y-2">
+                {orderStages.map(os => {
+                  const stageInfo = sortedStages.find(s => s.id === os.stageId);
+                  const startIdx = os.startDate && ganttStart ? Math.floor((new Date(os.startDate).getTime() - ganttStart.getTime()) / 86400000) : -1;
+                  const endIdx = os.dueDate && ganttStart ? Math.floor((new Date(os.dueDate).getTime() - ganttStart.getTime()) / 86400000) : -1;
+                  const hasSchedule = startIdx >= 0 && endIdx >= startIdx;
+                  const barLeft = hasSchedule ? startIdx * ganttDayWidth : 0;
+                  const barWidth = hasSchedule ? (endIdx - startIdx + 1) * ganttDayWidth : 0;
+                  const barBg = stageBarColor(os.stageColor);
+                  return (
+                    <div key={os.stageId} className="grid grid-cols-[160px_120px_120px_1fr] gap-2 items-center text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-block text-xs px-2 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
+                      </div>
+                      <input type="date" value={os.startDate || ''}
+                        onChange={e => handleStageField(os.stageId, 'startDate', e.target.value || null)}
+                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs" />
+                      <input type="date" value={os.dueDate || ''}
+                        onChange={e => handleStageField(os.stageId, 'dueDate', e.target.value || null)}
+                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs" />
+                      <div className="relative h-6 bg-slate-50 rounded">
+                        {todayPos >= 0 && todayPos <= ganttDays && (
+                          <div className="absolute top-0 bottom-0 w-px bg-rose-500" style={{ left: todayPos * ganttDayWidth + ganttDayWidth / 2 }} />
+                        )}
+                        {hasSchedule && (
+                          <div className={`absolute top-0.5 bottom-0.5 ${barBg} rounded text-white text-[10px] flex items-center px-1.5`}
+                            style={{ left: barLeft, width: Math.max(barWidth, 16) }}>
+                            <span className="truncate">{os.startDate}〜{os.dueDate}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {ganttStart && ganttEnd && (
+                  <div className="text-[10px] text-slate-400 text-right pt-1">期間: {ganttStart.toISOString().slice(0,10)} 〜 {ganttEnd.toISOString().slice(0,10)} ({ganttDays}日)</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Mini Kanban of tasks by stage */}
+          <div className="bg-white border border-slate-200 rounded p-3">
+            <div className="text-xs font-semibold text-black mb-2 flex items-center gap-2"><LayoutDashboard size={12} />工程別タスクボード</div>
+            <div className="overflow-x-auto">
+              <div className="grid gap-3 min-w-max" style={{ gridTemplateColumns: `repeat(${sortedStages.length}, 220px)` }}>
+                {sortedStages.map(s => {
+                  const tasks = s.tasks || [];
+                  const checkedCount = tasks.filter(t => checks[t.id]).length;
+                  const isCurrent = s.key === detail.status;
+                  return (
+                    <div key={s.id} className={`bg-slate-50 rounded-lg p-2 min-h-[160px] ${isCurrent ? 'ring-2 ring-blue-300' : ''}`}>
+                      <div className="flex items-center justify-between mb-2 px-1">
+                        <span className={`inline-block text-[11px] px-2 py-0.5 rounded font-bold ${s.color}`}>{s.name}</span>
+                        <span className="text-[10px] text-black font-mono">{checkedCount}/{tasks.length}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {tasks.map(t => (
+                          <label key={t.id} className="flex items-center gap-2 cursor-pointer hover:bg-white px-2 py-1 rounded bg-white border border-slate-100">
+                            <input type="checkbox" checked={!!checks[t.id]} onChange={e => handleTaskCheck(t.id, e.target.checked)} className="rounded" />
+                            <span className={`text-[11px] ${checks[t.id] ? 'line-through text-slate-400' : ''}`}>{t.name}</span>
+                          </label>
+                        ))}
+                        {tasks.length === 0 && <div className="text-[10px] text-slate-400 px-2 py-1">(タスクなし)</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'worker' && (
+        <div className="space-y-3">
+          {currentStage ? (
+            <div className="bg-blue-50/60 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`inline-block text-sm px-3 py-1 rounded font-bold ${currentStage.color}`}>{currentStage.name}</span>
+                <span className="text-sm text-black">が現在の工程です</span>
+              </div>
+              {currentStage.tasks && currentStage.tasks.length > 0 ? (
+                <div className="space-y-1.5">
+                  {currentStage.tasks.map(t => (
+                    <label key={t.id} className="flex items-center gap-3 cursor-pointer bg-white p-3 rounded border border-blue-100 hover:border-blue-300">
+                      <input type="checkbox" checked={!!checks[t.id]} onChange={e => handleTaskCheck(t.id, e.target.checked)} className="w-5 h-5 rounded" />
+                      <span className={`text-sm ${checks[t.id] ? 'line-through text-slate-400' : 'font-medium'}`}>{t.name}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500 py-4 text-center bg-white rounded">この工程にはタスクが登録されていません</div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-slate-500 py-8 text-center">現在の工程が特定できません</div>
+          )}
+          {/* Other stages collapsed view */}
+          <div className="bg-white border border-slate-200 rounded p-3">
+            <div className="text-xs font-semibold text-black mb-2">他の工程</div>
+            <div className="space-y-1">
+              {sortedStages.filter(s => s.key !== detail.status).map(s => {
+                const tasks = s.tasks || [];
+                const checkedCount = tasks.filter(t => checks[t.id]).length;
+                return (
+                  <div key={s.id} className="flex items-center gap-2 text-xs py-1 px-2 hover:bg-slate-50 rounded">
+                    <span className={`inline-block text-[11px] px-2 py-0.5 rounded ${s.color}`}>{s.name}</span>
+                    <span className="text-black">{checkedCount} / {tasks.length} 完了</span>
+                    <div className="ml-auto h-1.5 w-20 bg-slate-200 rounded-full overflow-hidden">
+                      <div className={stageBarColor(s.color)} style={{ width: `${tasks.length > 0 ? (checkedCount / tasks.length) * 100 : 0}%`, height: '100%' }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, toast }: {
   prodOrders: ProdOrder[]; stages: ProductionStage[];
   onEdit: (m: ProdOrder) => void; onAdvance: (m: ProdOrder) => void;
+  onOpenDetail: (m: ProdOrder) => void;
   toast: (msg: string) => void;
 }) => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -2266,7 +2698,8 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, toast }: {
                     <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={stageMap} /></td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {nextStage && <Btn variant="primary" size="sm" icon={ChevronRight} onClick={() => onAdvance(m)}>{nextStage.name}へ</Btn>}
+                        <Btn variant="primary" size="sm" onClick={() => onOpenDetail(m)}>詳細</Btn>
+                        {nextStage && <Btn variant="ghost" size="sm" icon={ChevronRight} onClick={() => onAdvance(m)}>{nextStage.name}へ</Btn>}
                         <Btn variant="ghost" size="sm" icon={Edit} onClick={() => onEdit(m)}>編集</Btn>
                       </div>
                     </td>
@@ -2359,10 +2792,11 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, toast }: {
   );
 };
 
-const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatus }: {
+const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatus, onOpenDetail }: {
   prodOrders: ProdOrder[]; stages: ProductionStage[];
   onEdit: (m: ProdOrder) => void; onAdvance: (m: ProdOrder) => void;
   onChangeStatus: (m: ProdOrder, key: string) => void;
+  onOpenDetail: (m: ProdOrder) => void;
 }) => {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -2398,23 +2832,33 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
               <div className="space-y-2">
                 {items.map(m => {
                   const nextStage = getNextStage(m.status);
+                  const progress = taskProgress(m.taskChecks, stages);
                   return (
                     <div key={m.id} draggable
                       onDragStart={e => { e.dataTransfer.setData('id', String(m.id)); setDraggingId(m.id); }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                      className={`bg-white border border-slate-200 rounded p-2 cursor-move hover:border-blue-300 ${draggingId === m.id ? 'opacity-50' : ''}`}>
+                      onClick={() => onOpenDetail(m)}
+                      className={`bg-white border border-slate-200 rounded p-2 cursor-pointer hover:border-blue-300 ${draggingId === m.id ? 'opacity-50' : ''}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[11px] font-mono font-bold text-slate-900">{m.prodNo}</span>
-                        <button onClick={() => onEdit(m)} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
+                        <button onClick={e => { e.stopPropagation(); onEdit(m); }} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
                       </div>
                       <div className="text-sm font-semibold mb-0.5 truncate">{(m as any).productName || '-'}</div>
                       <div className="text-xs text-black flex items-center gap-2 mb-1">
                         <span className="truncate">{m.customer || '-'}</span>
                         <span className="font-mono whitespace-nowrap">×{m.qty}</span>
                       </div>
-                      <div className="text-[11px] text-black mb-1.5">納期: {m.dueDate || '-'}</div>
+                      <div className="text-[11px] text-black mb-1">納期: {m.dueDate || '-'}</div>
+                      {progress.total > 0 && (
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500" style={{ width: `${(progress.checked / progress.total) * 100}%` }} />
+                          </div>
+                          <span className="text-[10px] text-black font-mono">{progress.checked}/{progress.total}</span>
+                        </div>
+                      )}
                       {nextStage && (
-                        <button onClick={() => onAdvance(m)} className="w-full text-[11px] py-1 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-1">
+                        <button onClick={e => { e.stopPropagation(); onAdvance(m); }} className="w-full text-[11px] py-1 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-1">
                           <ChevronRight size={11} /> {nextStage.name}へ
                         </button>
                       )}
@@ -2431,10 +2875,11 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
   );
 };
 
-const ProductionGantt = ({ prodOrders, stages, onEdit }: {
-  prodOrders: ProdOrder[]; stages: ProductionStage[]; onEdit: (m: ProdOrder) => void;
+const ProductionGantt = ({ prodOrders, stages, onOpenDetail }: {
+  prodOrders: ProdOrder[]; stages: ProductionStage[]; onOpenDetail: (m: ProdOrder) => void;
 }) => {
   const [period, setPeriod] = useState<'2w' | '1m' | '3m'>('1m');
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const config = period === '2w' ? { days: 14, dayWidth: 32, before: 3 }
               : period === '1m' ? { days: 30, dayWidth: 22, before: 5 }
@@ -2453,10 +2898,14 @@ const ProductionGantt = ({ prodOrders, stages, onEdit }: {
   };
   const todayIdx = Math.floor((today.getTime() - startDate.getTime()) / 86400000);
   const totalWidth = dateRange.length * config.dayWidth;
+  const toggleCollapse = (id: number) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
   return (
     <div className="bg-white border border-slate-200 rounded-lg">
       <div className="flex items-center justify-between p-3 border-b border-slate-200">
-        <h2 className="font-bold text-sm">ガントチャート</h2>
+        <div>
+          <h2 className="font-bold text-sm">ガントチャート</h2>
+          <p className="text-[11px] text-black mt-0.5">工程ごとのバーをクリックで該当指図の詳細を開きます</p>
+        </div>
         <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m')} className="text-xs border border-slate-300 rounded px-2 py-1">
           <option value="2w">2週間</option>
           <option value="1m">1ヶ月</option>
@@ -2465,8 +2914,8 @@ const ProductionGantt = ({ prodOrders, stages, onEdit }: {
       </div>
       <div className="overflow-x-auto">
         <div style={{ minWidth: 240 + totalWidth }}>
-          <div className="flex border-b border-slate-200 bg-slate-50 text-[10px]">
-            <div className="w-60 px-3 py-1.5 border-r border-slate-200 font-bold flex items-center flex-shrink-0">工番 / 製品</div>
+          <div className="flex border-b border-slate-200 bg-slate-50 text-[10px] sticky top-0 z-20">
+            <div className="w-60 px-3 py-1.5 border-r border-slate-200 font-bold flex items-center flex-shrink-0">工番 / 製品 / 工程</div>
             <div className="flex">
               {dateRange.map((d, i) => (
                 <div key={i} className={`text-center py-1 border-r border-slate-100 ${d.getDay() === 0 ? 'bg-rose-50/50 text-rose-700' : d.getDay() === 6 ? 'bg-blue-50/50 text-blue-700' : ''}`} style={{ width: config.dayWidth }}>
@@ -2476,36 +2925,75 @@ const ProductionGantt = ({ prodOrders, stages, onEdit }: {
             </div>
           </div>
           {prodOrders.map(m => {
-            const startIdx = dayIndex(m.startDate);
-            const endIdx = dayIndex(m.dueDate);
-            const hasSchedule = startIdx !== null && endIdx !== null && endIdx >= startIdx;
-            const clampedStart = hasSchedule ? Math.max(0, startIdx) : 0;
-            const clampedEnd = hasSchedule ? Math.min(dateRange.length - 1, endIdx) : 0;
-            const barWidth = hasSchedule ? (clampedEnd - clampedStart + 1) * config.dayWidth : 0;
-            const barLeft = clampedStart * config.dayWidth;
-            const stage = stages.find(s => s.key === m.status);
-            const barBg = stage ? stageBarColor(stage.color) : 'bg-slate-400';
+            const orderStages = (m.orderStages || []).slice().sort((a, b) => a.stageSortOrder - b.stageSortOrder);
+            const isCollapsed = collapsed[m.id];
+            const overallStartIdx = dayIndex(m.startDate);
+            const overallEndIdx = dayIndex(m.dueDate);
+            const overallHas = overallStartIdx !== null && overallEndIdx !== null && overallEndIdx >= overallStartIdx;
+            const overallLeft = overallHas ? Math.max(0, overallStartIdx) * config.dayWidth : 0;
+            const overallRight = overallHas ? Math.min(dateRange.length - 1, overallEndIdx) : 0;
+            const overallWidth = overallHas ? (overallRight - overallStartIdx + 1) * config.dayWidth : 0;
+            const curStage = stages.find(s => s.key === m.status);
+            const overallBg = curStage ? stageBarColor(curStage.color) : 'bg-slate-400';
             return (
-              <div key={m.id} className="flex border-b border-slate-100 hover:bg-slate-50">
-                <div className="w-60 px-3 py-2 border-r border-slate-200 text-xs flex-shrink-0">
-                  <div className="font-mono font-bold">{m.prodNo}</div>
-                  <div className="text-black truncate">{(m as any).productName || '-'}</div>
-                </div>
-                <div className="relative flex-shrink-0" style={{ width: totalWidth, height: 44 }}>
-                  {todayIdx >= 0 && todayIdx <= dateRange.length && (
-                    <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: todayIdx * config.dayWidth + config.dayWidth / 2 }} />
-                  )}
-                  {hasSchedule ? (
-                    <button onClick={() => onEdit(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
-                      className={`absolute top-2 bottom-2 ${barBg} text-white text-[10px] font-bold rounded px-1.5 flex items-center hover:opacity-80 shadow-sm`}
-                      style={{ left: barLeft, width: Math.max(barWidth, 24) }}>
-                      <span className="truncate">{m.prodNo}</span>
+              <React.Fragment key={m.id}>
+                {/* Summary row */}
+                <div className="flex border-b border-slate-200 hover:bg-slate-50 bg-slate-50/40">
+                  <div className="w-60 px-3 py-2 border-r border-slate-200 text-xs flex-shrink-0 flex items-center gap-1.5">
+                    <button onClick={() => toggleCollapse(m.id)} className="text-slate-400 hover:text-blue-600">
+                      {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
                     </button>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center px-3 text-[10px] text-slate-400">(日程未設定)</div>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono font-bold">{m.prodNo}</div>
+                      <div className="text-black truncate">{(m as any).productName || '-'}</div>
+                    </div>
+                  </div>
+                  <div className="relative flex-shrink-0" style={{ width: totalWidth, height: 36 }}>
+                    {todayIdx >= 0 && todayIdx <= dateRange.length && (
+                      <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: todayIdx * config.dayWidth + config.dayWidth / 2 }} />
+                    )}
+                    {overallHas && (
+                      <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
+                        className={`absolute top-1 bottom-1 ${overallBg} opacity-60 text-white text-[10px] font-bold rounded px-1.5 flex items-center hover:opacity-90 shadow-sm`}
+                        style={{ left: overallLeft, width: Math.max(overallWidth, 24) }}>
+                        <span className="truncate">{m.prodNo} 全体</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+                {/* Stage rows (when expanded) */}
+                {!isCollapsed && orderStages.map(os => {
+                  const startIdx = dayIndex(os.startDate);
+                  const endIdx = dayIndex(os.dueDate);
+                  const hasSchedule = startIdx !== null && endIdx !== null && endIdx >= startIdx;
+                  const clampedStart = hasSchedule ? Math.max(0, startIdx) : 0;
+                  const clampedEnd = hasSchedule ? Math.min(dateRange.length - 1, endIdx) : 0;
+                  const barWidth = hasSchedule ? (clampedEnd - clampedStart + 1) * config.dayWidth : 0;
+                  const barLeft = clampedStart * config.dayWidth;
+                  const barBg = stageBarColor(os.stageColor);
+                  return (
+                    <div key={os.stageId} className="flex border-b border-slate-100 hover:bg-slate-50/50">
+                      <div className="w-60 px-3 py-1.5 border-r border-slate-200 text-xs flex-shrink-0 flex items-center gap-2 pl-8">
+                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
+                      </div>
+                      <div className="relative flex-shrink-0" style={{ width: totalWidth, height: 28 }}>
+                        {todayIdx >= 0 && todayIdx <= dateRange.length && (
+                          <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: todayIdx * config.dayWidth + config.dayWidth / 2 }} />
+                        )}
+                        {hasSchedule ? (
+                          <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} / ${os.stageName} (${os.startDate} 〜 ${os.dueDate})`}
+                            className={`absolute top-1 bottom-1 ${barBg} text-white text-[9px] font-bold rounded px-1.5 flex items-center hover:opacity-80`}
+                            style={{ left: barLeft, width: Math.max(barWidth, 12) }}>
+                            <span className="truncate">{os.stageName}</span>
+                          </button>
+                        ) : (
+                          <div className="absolute inset-0 flex items-center px-3 text-[9px] text-slate-300">(未設定)</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </React.Fragment>
             );
           })}
           {prodOrders.length === 0 && <div className="text-xs text-slate-400 text-center py-8">製造指図がありません</div>}
@@ -2663,6 +3151,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
   const [view, setView] = useState<'list' | 'kanban' | 'gantt' | 'stages'>('list');
   const [stages, setStages] = useState<ProductionStage[]>([]);
   const [editMo, setEditMo] = useState<ProdOrder | null>(null);
+  const [detailMoId, setDetailMoId] = useState<number | null>(null);
   const [products, setProducts] = useState<any[]>([]);
 
   const refreshStages = async () => {
@@ -2694,6 +3183,8 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
     await handleChangeStatus(mo, next.key);
   };
 
+  const openDetail = (mo: ProdOrder) => setDetailMoId(mo.id);
+
   const tabs = [
     { id: 'list' as const,   label: '一覧',           icon: ClipboardCheck },
     { id: 'kanban' as const, label: 'カンバン',       icon: LayoutDashboard },
@@ -2711,10 +3202,17 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
           </button>
         ))}
       </div>
-      {view === 'list' && <ProductionList prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} toast={toast} />}
-      {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onChangeStatus={handleChangeStatus} />}
-      {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onEdit={setEditMo} />}
+      {view === 'list' && <ProductionList prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onOpenDetail={openDetail} toast={toast} />}
+      {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onChangeStatus={handleChangeStatus} onOpenDetail={openDetail} />}
+      {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onOpenDetail={openDetail} />}
       {view === 'stages' && <ProductionStagesAdmin stages={stages} onRefresh={refreshStages} toast={toast} />}
+      {detailMoId !== null && (
+        <ProductionDetailModal prodOrderId={detailMoId} stages={stages} onClose={() => setDetailMoId(null)} onRefresh={onRefresh} toast={toast}
+          onEditFull={() => {
+            const mo = prodOrders.find(m => m.id === detailMoId);
+            if (mo) { setDetailMoId(null); setEditMo(mo); }
+          }} />
+      )}
       {editMo && (
         <Modal open onClose={() => setEditMo(null)} title={`製造編集: ${editMo?.prodNo}`} size="md">
           <ProdOrderForm prodOrder={editMo} isNew={false} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => setEditMo(null)} onSave={async (form: any) => {

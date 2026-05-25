@@ -3,8 +3,22 @@ import { prisma } from "@/server/db";
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    const numId = Number(id);
+
+    // Auto-init missing TProdOrderStage rows for active stages
+    const stages = await prisma.mProductionStage.findMany({ where: { isActive: true } });
+    const existingOrderStages = await prisma.tProdOrderStage.findMany({ where: { prodOrderId: numId } });
+    const existingStageIds = new Set(existingOrderStages.map(e => e.stageId));
+    const missing = stages.filter(s => !existingStageIds.has(s.id));
+    if (missing.length > 0) {
+      await prisma.tProdOrderStage.createMany({
+        data: missing.map(s => ({ prodOrderId: numId, stageId: s.id })),
+        skipDuplicates: true,
+      });
+    }
+
     const prodOrder = await prisma.tProdOrder.findUnique({
-      where: { id: Number(id) },
+      where: { id: numId },
       include: {
         product: true,
         createdBy: { select: { id: true, name: true } },
@@ -19,6 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           orderBy: { issuedAt: "desc" },
         },
         taskChecks: { include: { checkedBy: { select: { id: true, name: true } } } },
+        orderStages: { include: { stage: true } },
       },
     });
     if (!prodOrder) {
@@ -38,6 +53,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         part: bs.part
           ? { ...bs.part, unitPrice: Number(bs.part.unitPrice) }
           : bs.part,
+      })),
+      orderStages: ((prodOrder as any).orderStages || []).map((os: any) => ({
+        id: os.id,
+        stageId: os.stageId,
+        stageKey: os.stage?.key,
+        stageName: os.stage?.name,
+        stageColor: os.stage?.color,
+        stageSortOrder: os.stage?.sortOrder,
+        startDate: os.startDate ? os.startDate.toISOString().slice(0, 10) : '',
+        dueDate: os.dueDate ? os.dueDate.toISOString().slice(0, 10) : '',
+        status: os.status,
       })),
     };
     return Response.json(serialized);
