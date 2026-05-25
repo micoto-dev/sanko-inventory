@@ -663,23 +663,474 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
   );
 };
 
+// ========================== Order Detail Panel (shared) ==========================
+type ReceiveInput = { qty: number; shortageQty: number; reason: string; expectedDate: string };
+
+const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toast, userName, userId, onShowPdf }: {
+  order: Order; parts: Part[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void;
+  userName?: string; userId?: number; onShowPdf?: (order: Order) => void;
+}) => {
+  const buildInitialInputs = (o: Order): Record<number, ReceiveInput> => {
+    const init: Record<number, ReceiveInput> = {};
+    (o.details || []).forEach(d => {
+      if (d.id && d.qty - d.receivedQty > 0) {
+        init[d.id] = { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
+      }
+    });
+    return init;
+  };
+
+  const [order, setOrder] = useState<Order>(initialOrder);
+  const [editStatus, setEditStatus] = useState(initialOrder.status);
+  const [editExpDate, setEditExpDate] = useState(initialOrder.expectedDeliveryDate || '');
+  const [editComment, setEditComment] = useState('');
+  const [commentHistory, setCommentHistory] = useState(initialOrder.comments || []);
+  const [pendingDetailChanges, setPendingDetailChanges] = useState<Record<number, { action: 'cancel' }>>({});
+  const [receiveInputs, setReceiveInputs] = useState<Record<number, ReceiveInput>>(() => buildInitialInputs(initialOrder));
+  const [editingShortageId, setEditingShortageId] = useState<number | null>(null);
+  const [editingShortageDraft, setEditingShortageDraft] = useState<{ qty: number; reason: string; expectedDate: string }>({ qty: 0, reason: 'shortage', expectedDate: '' });
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  useEffect(() => {
+    setOrder(initialOrder);
+    setEditStatus(initialOrder.status);
+    setEditExpDate(initialOrder.expectedDeliveryDate || '');
+    setCommentHistory(initialOrder.comments || []);
+    setReceiveInputs(buildInitialInputs(initialOrder));
+    setPendingDetailChanges({});
+  }, [initialOrder]);
+
+  const hasReceiveInputs = () => Object.values(receiveInputs).some(i => i.qty > 0 || i.shortageQty > 0);
+
+  const hasChanges = () => editStatus !== order.status
+    || editExpDate !== (order.expectedDeliveryDate || '')
+    || Object.keys(pendingDetailChanges).length > 0
+    || hasReceiveInputs();
+
+  const handleClose = () => {
+    if (hasChanges()) setConfirmClose(true);
+    else onClose();
+  };
+
+  const updateReceiveInput = (detailId: number, patch: Partial<ReceiveInput>) => {
+    setReceiveInputs(prev => {
+      const current: ReceiveInput = prev[detailId] ?? { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
+      return { ...prev, [detailId]: { ...current, ...patch } };
+    });
+  };
+
+  const handleItemShortageCancel = (detailId: number) => {
+    setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'cancel' } }));
+    setOrder(prev => ({
+      ...prev,
+      details: prev.details.map(d => d.id === detailId ? { ...d, remarks: undefined } : d),
+    }));
+  };
+
+  const handleApprove = async () => {
+    try {
+      await api.approveOrder(order.id);
+      toast('発注を承認しました');
+      onClose();
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleSaveDetail = async () => {
+    for (const [detailIdStr, inp] of Object.entries(receiveInputs)) {
+      const detailId = Number(detailIdStr);
+      const detail = order.details.find(d => d.id === detailId);
+      if (!detail) continue;
+      const remaining = detail.qty - detail.receivedQty;
+      if ((inp.qty || 0) + (inp.shortageQty || 0) > remaining) {
+        toast(`${detail.partName || detail.partId}: 入庫数+不足数が残数(${remaining})を超えています`);
+        return;
+      }
+    }
+    try {
+      const receivedById = userId || 1;
+      for (const [detailIdStr, inp] of Object.entries(receiveInputs)) {
+        const detailId = Number(detailIdStr);
+        const detail = order.details.find(d => d.id === detailId);
+        if (!detail) continue;
+
+        if ((inp.qty || 0) > 0) {
+          const locationId = parts.find(p => p.id === detail.partId)?.location || 'A-03-2-L';
+          await api.createReceive({
+            receivedById,
+            items: [{
+              orderId: order.id,
+              orderDetailId: detailId,
+              partId: detail.partId,
+              locationId,
+              qty: inp.qty,
+              result: 'ok',
+            }],
+          });
+        }
+        if ((inp.shortageQty || 0) > 0) {
+          await api.createShortageRecord(order.id, detailId, {
+            qty: inp.shortageQty,
+            reason: inp.reason || 'shortage',
+            expectedDate: inp.expectedDate || undefined,
+            createdById: receivedById,
+          });
+        }
+      }
+      for (const [detailIdStr, change] of Object.entries(pendingDetailChanges)) {
+        const detailId = Number(detailIdStr);
+        if (change.action === 'cancel') {
+          await api.cancelItemShortage(order.id, detailId);
+        }
+      }
+      const data: any = {};
+      if (!hasReceiveInputs() && editStatus !== order.status) data.status = editStatus;
+      if (editExpDate && editExpDate !== (order.expectedDeliveryDate || '')) data.expectedDeliveryDate = editExpDate;
+      if (Object.keys(data).length > 0) await api.updateOrder(order.id, data);
+
+      toast('発注情報を保存しました');
+      setPendingDetailChanges({});
+      setReceiveInputs({});
+      onClose();
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const startEditShortage = (s: Shortage) => {
+    setEditingShortageId(s.id);
+    setEditingShortageDraft({ qty: s.qty, reason: s.reason, expectedDate: s.expectedDate || '' });
+  };
+  const cancelEditShortage = () => setEditingShortageId(null);
+  const saveEditShortage = async (detailId: number, shortageId: number) => {
+    if (editingShortageDraft.qty <= 0) { toast('数量は1以上を入力してください'); return; }
+    try {
+      await api.updateShortageRecord(order.id, detailId, shortageId, {
+        qty: editingShortageDraft.qty,
+        reason: editingShortageDraft.reason,
+        expectedDate: editingShortageDraft.expectedDate || null,
+      });
+      toast('不足/不良履歴を更新しました');
+      setEditingShortageId(null);
+      onRefresh();
+      setOrder(prev => ({
+        ...prev,
+        details: prev.details.map(d => d.id === detailId ? {
+          ...d,
+          shortages: (d.shortages || []).map(s => s.id === shortageId ? { ...s, qty: editingShortageDraft.qty, reason: editingShortageDraft.reason, expectedDate: editingShortageDraft.expectedDate } : s),
+        } : d),
+      }));
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const handleDeleteShortage = async (detailId: number, shortageId: number) => {
+    try {
+      await api.deleteShortageRecord(order.id, detailId, shortageId);
+      toast('削除しました');
+      onRefresh();
+      setOrder(prev => ({
+        ...prev,
+        details: prev.details.map(d => d.id === detailId ? {
+          ...d,
+          shortages: (d.shortages || []).filter(s => s.id !== shortageId),
+        } : d),
+      }));
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  return (
+    <Modal open onClose={handleClose} title={`発注詳細: ${order.orderNo}`} size="xl">
+      <div className="grid grid-cols-4 gap-3 mb-4 text-sm">
+        <div><div className="text-xs text-black">仕入先</div><div className="font-semibold">{order.supplier}</div></div>
+        <div><div className="text-xs text-black">発注日</div><div>{order.orderDate}</div></div>
+        <div><div className="text-xs text-black">希望納期</div><div>{order.desiredDate}</div></div>
+        <div>
+          <div className="text-xs text-black">ステータス</div>
+          <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full">
+            {Object.entries(ORDER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <div className="text-xs text-black">納品予定日</div>
+          <input type="date" value={editExpDate} onChange={e => setEditExpDate(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full" />
+        </div>
+        <div><div className="text-xs text-black">明細数</div><div className="font-mono">{order.details?.length || 0}</div></div>
+        <div><div className="text-xs text-black">入庫済合計</div><div className="font-mono">{(order.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-black text-xs">/ {(order.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
+        <div><div className="text-xs text-black">合計金額</div><div className="font-mono font-bold">{yen(order.totalAmount)}</div></div>
+      </div>
+      <div className="bg-white border border-slate-200 rounded p-3 mb-4">
+        <div className="text-xs font-semibold text-black mb-2">明細</div>
+        <table className="w-full text-sm">
+          <thead className="text-xs text-black">
+            <tr>
+              <th className="text-left py-2 px-3">品名</th>
+              <th className="text-right py-2 px-3 w-20">発注</th>
+              <th className="text-right py-2 px-3 w-20">入庫済</th>
+              <th className="text-right py-2 px-3 w-16">残</th>
+              <th className="text-right py-2 px-3 w-24">単価</th>
+              <th className="text-right py-2 px-3 w-28">小計</th>
+              <th className="text-left py-2 px-3 w-40">不足/不良</th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.details?.map((it, i) => {
+              const remaining = it.qty - it.receivedQty;
+              const isMfrShortage = it.remarks === 'manufacturer_shortage';
+              const shortages = it.shortages || [];
+              const shortageTotal = shortages.reduce((sum, s) => sum + s.qty, 0);
+              return (
+                <React.Fragment key={i}>
+                  <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
+                    <td className="py-2 px-3">
+                      <div className="text-xs font-mono text-black">{it.partId}</div>
+                      <div>{it.partName || it.partId}</div>
+                      {isMfrShortage && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
+                          {it.id && (
+                            <button onClick={() => handleItemShortageCancel(it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
+                    <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
+                    <td className="text-right py-2 px-3 font-mono font-semibold">{remaining}</td>
+                    <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
+                    <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
+                    <td className="py-2 px-3">
+                      {shortageTotal > 0 ? (
+                        <span className="inline-block text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">合計 {shortageTotal} 個</span>
+                      ) : <span className="text-xs text-black">-</span>}
+                    </td>
+                  </tr>
+                  {shortages.length > 0 && (
+                    <tr className="bg-slate-50">
+                      <td colSpan={7} className="px-3 py-2">
+                        <div className="pl-3 border-l-2 border-amber-300">
+                          <table className="w-full text-xs">
+                            <thead className="text-[10px] text-black">
+                              <tr className="border-b border-slate-200">
+                                <th className="text-right py-1 px-2 w-16">数量</th>
+                                <th className="text-left py-1 px-2 w-24">理由</th>
+                                <th className="text-left py-1 px-2 w-32">納期見込み</th>
+                                <th className="text-left py-1 px-2">登録日</th>
+                                <th className="py-1 px-2 w-20 text-center"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {shortages.map(s => {
+                                const isEditing = editingShortageId === s.id;
+                                return (
+                                  <tr key={s.id} className={`border-b border-slate-100 last:border-0 ${isEditing ? 'bg-blue-50' : ''}`}>
+                                    <td className="text-right py-1 px-2 font-mono font-semibold">
+                                      {isEditing ? (
+                                        <input type="number" min={1} value={editingShortageDraft.qty}
+                                          onChange={e => setEditingShortageDraft(d => ({ ...d, qty: Math.max(1, Number(e.target.value) || 1) }))}
+                                          className="w-14 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
+                                      ) : s.qty}
+                                    </td>
+                                    <td className="py-1 px-2">
+                                      {isEditing ? (
+                                        <select value={editingShortageDraft.reason}
+                                          onChange={e => setEditingShortageDraft(d => ({ ...d, reason: e.target.value }))}
+                                          className="text-[10px] border border-slate-300 rounded px-1 py-0.5">
+                                          {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                                        </select>
+                                      ) : (
+                                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-1 px-2 text-black">
+                                      {isEditing ? (
+                                        <input type="date" value={editingShortageDraft.expectedDate}
+                                          onChange={e => setEditingShortageDraft(d => ({ ...d, expectedDate: e.target.value }))}
+                                          className="text-[10px] border border-slate-300 rounded px-1 py-0.5 w-full" />
+                                      ) : (s.expectedDate || '-')}
+                                    </td>
+                                    <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
+                                    <td className="py-1 px-2">
+                                      <div className="flex gap-1 justify-center">
+                                        {isEditing ? (
+                                          <>
+                                            <button onClick={() => saveEditShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+                                            <button onClick={cancelEditShortage} className="text-[10px] px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 rounded">取消</button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <button onClick={() => startEditShortage(s)} className="text-[10px] p-0.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="編集"><Edit size={11} /></button>
+                                            <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="削除"><Trash2 size={11} /></button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {(editStatus === 'awaiting' || editStatus === 'partial') && (() => {
+        const receivableItems = (order.details || []).filter(d => d.id && d.qty - d.receivedQty > 0 && d.remarks !== 'manufacturer_shortage');
+        if (receivableItems.length === 0) return null;
+        return (
+          <div className="bg-blue-50/60 border border-blue-200 rounded p-3 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Truck size={14} className="text-blue-700" />
+              <span className="text-sm font-bold text-blue-900">今回の入庫処理</span>
+              <span className="text-[11px] text-blue-700">納品分は「今回入庫数」、不足/不良分は「不足/不良数」と理由を入力</span>
+            </div>
+            <div className="space-y-2">
+              {receivableItems.map(it => {
+                const remaining = it.qty - it.receivedQty;
+                const inp = receiveInputs[it.id!];
+                const hasShortage = (inp?.shortageQty || 0) > 0;
+                return (
+                  <div key={it.id} className="bg-white border border-blue-100 rounded p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <div className="text-[11px] font-mono text-black">{it.partId}</div>
+                        <div className="text-sm font-semibold">{it.partName || it.partId}</div>
+                      </div>
+                      <div className="text-xs text-black">
+                        発注 <span className="font-mono font-bold text-base text-slate-800">{it.qty}</span>
+                        <span className="mx-1.5 text-slate-300">/</span>
+                        残 <span className="font-mono font-bold text-base text-amber-700">{remaining}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3 items-end">
+                      <div>
+                        <div className="text-[11px] text-black mb-0.5">今回入庫数</div>
+                        <input type="number" min={0} max={remaining} placeholder="0"
+                          value={inp?.qty || ''}
+                          onChange={e => updateReceiveInput(it.id!, { qty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
+                          className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-black mb-0.5">不足/不良数</div>
+                        <input type="number" min={0} max={remaining} placeholder="0"
+                          value={inp?.shortageQty || ''}
+                          onChange={e => updateReceiveInput(it.id!, { shortageQty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
+                          className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-black mb-0.5">理由</div>
+                        <select value={inp?.reason || 'shortage'} onChange={e => updateReceiveInput(it.id!, { reason: e.target.value })}
+                          disabled={!hasShortage}
+                          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400">
+                          {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-black mb-0.5">納期見込み</div>
+                        <input type="date" value={inp?.expectedDate || ''}
+                          onChange={e => updateReceiveInput(it.id!, { expectedDate: e.target.value })}
+                          disabled={!hasShortage}
+                          className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className="mb-4">
+        <Field label="コメント" full>
+          <div className="flex gap-2">
+            <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12 flex-1`} />
+            <Btn variant="primary" icon={Send} disabled={!editComment.trim()} onClick={async () => {
+              if (!editComment.trim()) return;
+              const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '', userId: userId || 1 };
+              try {
+                await api.updateOrder(order.id, { newComment });
+                setCommentHistory(prev => [newComment, ...prev]);
+                setEditComment('');
+                toast('コメントを投稿しました');
+                onRefresh();
+              } catch (e: any) { toast(`エラー: ${e.message}`); }
+            }}>投稿</Btn>
+          </div>
+        </Field>
+      </div>
+      {commentHistory.length > 0 && (
+        <div className="mb-4 bg-slate-50 rounded p-3">
+          <div className="text-xs font-semibold text-black mb-2">コメント履歴</div>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {commentHistory.map((c, i) => (
+              <div key={i} className="text-xs border-l-2 border-blue-300 pl-2 flex items-start gap-2">
+                <div className="flex-1">
+                  <div className="text-black">{c.user || ''} - {new Date(c.ts).toLocaleString('ja-JP')}</div>
+                  <div className="text-black">{c.text}</div>
+                </div>
+                <button onClick={async () => {
+                  const updated = commentHistory.filter((_, j) => j !== i);
+                  try {
+                    await api.updateOrder(order.id, { replaceComments: updated });
+                    setCommentHistory(updated);
+                    toast('コメントを削除しました');
+                    onRefresh();
+                  } catch (e: any) { toast(`エラー: ${e.message}`); }
+                }} className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-rose-50 flex-shrink-0 mt-0.5" title="削除"><Trash2 size={12} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2 pt-3 border-t border-slate-100">
+        <Btn variant="primary" icon={Save} onClick={handleSaveDetail}>変更を保存</Btn>
+        {order.status === 'draft' && (
+          <Btn variant="success" icon={CheckCircle2} onClick={handleApprove}>発注確定（納品待ちへ）</Btn>
+        )}
+        {(order.status === 'draft' || order.status === 'awaiting') && (
+          <Btn variant="danger" onClick={async () => {
+            try {
+              await api.updateOrder(order.id, { status: 'cancelled' });
+              toast('発注をキャンセルしました');
+              onClose();
+              onRefresh();
+            } catch (e: any) { toast(`エラー: ${e.message}`); }
+          }}>キャンセル</Btn>
+        )}
+        {onShowPdf && (
+          <Btn variant="secondary" icon={FileText} onClick={() => onShowPdf(order)}>発注書PDF</Btn>
+        )}
+        <Btn variant="secondary" onClick={handleClose} className="ml-auto">閉じる</Btn>
+      </div>
+
+      {confirmClose && (
+        <Modal open onClose={() => setConfirmClose(false)} title="変更の破棄" size="sm">
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+            <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-800">変更が保存されていません</p>
+              <p className="text-amber-700 mt-1">変更内容を破棄して閉じますか？</p>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Btn variant="secondary" onClick={() => setConfirmClose(false)}>戻る</Btn>
+            <Btn variant="danger" onClick={() => { setConfirmClose(false); onClose(); }}>破棄して閉じる</Btn>
+          </div>
+        </Modal>
+      )}
+    </Modal>
+  );
+};
+
 // ========================== Orders ==========================
 const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   parts: Part[]; orders: Order[]; onRefresh: () => void; toast: (msg: string) => void; userName?: string; userId?: number;
 }) => {
-  const [confirmClose, setConfirmClose] = useState(false);
-
-  const hasChanges = () => {
-    if (!showDetail) return false;
-    return editStatus !== showDetail.status
-      || editExpDate !== (showDetail.expectedDeliveryDate || '')
-      || Object.keys(pendingDetailChanges).length > 0
-      || hasReceiveInputs();
-  };
-
-  const handleClose = () => {
-    if (hasChanges()) { setConfirmClose(true); } else { setShowDetail(null); }
-  };
   const [tab, setTab] = useState('all');
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(20);
@@ -687,26 +1138,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   const [showDetail, setShowDetail] = useState<Order | null>(null);
   const [pdfOrder, setPdfOrder] = useState<Order | null>(null);
   const [pdfQueue, setPdfQueue] = useState<Order[]>([]);
-  const [editStatus, setEditStatus] = useState('');
-  const [editExpDate, setEditExpDate] = useState('');
-  const [editComment, setEditComment] = useState('');
-  const [commentHistory, setCommentHistory] = useState<{ text: string; ts: string; user?: string }[]>([]);
 
-  const openDetail = (o: Order) => {
-    setShowDetail(o);
-    setEditStatus(o.status);
-    setEditExpDate(o.expectedDeliveryDate || '');
-    setEditComment('');
-    setCommentHistory(o.comments || []);
-    setPendingDetailChanges({});
-    const init: Record<number, ReceiveInput> = {};
-    (o.details || []).forEach(d => {
-      if (d.id && d.qty - d.receivedQty > 0) {
-        init[d.id] = { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
-      }
-    });
-    setReceiveInputs(init);
-  };
+  const openDetail = (o: Order) => setShowDetail(o);
 
   const lowStockParts = useMemo(() => parts.filter(p => {
     const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
@@ -722,173 +1155,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   const orderSafePage = Math.min(orderPage, orderTotalPages);
   const pagedOrders = useMemo(() => filtered.slice((orderSafePage - 1) * orderPageSize, orderSafePage * orderPageSize), [filtered, orderSafePage, orderPageSize]);
   useEffect(() => { setOrderPage(1); }, [tab, orderPageSize]);
-
-  const handleApprove = async (orderId: number) => {
-    try {
-      await api.approveOrder(orderId);
-      toast('発注を承認しました');
-      setShowDetail(null);
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
-  };
-
-  const handleMfrShortage = async (orderId: number) => {
-    try {
-      await api.markManufacturerShortage(orderId);
-      toast('メーカー欠品としてマークしました。発注残から除外されました');
-      setShowDetail(null);
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
-  };
-
-  // Pending detail changes (local only until save)
-  const [pendingDetailChanges, setPendingDetailChanges] = useState<Record<number, { action: 'cancel' }>>({});
-
-  // Per-detail receive inputs (qty=合格分, shortageQty=不足/不良数, reason, expectedDate)
-  type ReceiveInput = { qty: number; shortageQty: number; reason: string; expectedDate: string };
-  const [receiveInputs, setReceiveInputs] = useState<Record<number, ReceiveInput>>({});
-
-  const updateReceiveInput = (detailId: number, patch: Partial<ReceiveInput>) => {
-    setReceiveInputs(prev => {
-      const current: ReceiveInput = prev[detailId] ?? { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
-      return { ...prev, [detailId]: { ...current, ...patch } };
-    });
-  };
-
-  const hasReceiveInputs = () => Object.values(receiveInputs).some(i => i.qty > 0 || i.shortageQty > 0);
-
-  const handleItemShortageCancel = (_orderId: number, detailId: number) => {
-    setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'cancel' } }));
-    setShowDetail((prev: any) => prev ? {
-      ...prev,
-      details: prev.details.map((d: any) => d.id === detailId ? { ...d, remarks: null } : d),
-    } : prev);
-  };
-
-  const handleSaveDetail = async () => {
-    if (!showDetail) return;
-    // Validate: qty + shortageQty must not exceed remaining
-    for (const [detailIdStr, inp] of Object.entries(receiveInputs)) {
-      const detailId = Number(detailIdStr);
-      const detail = showDetail.details.find(d => d.id === detailId);
-      if (!detail) continue;
-      const remaining = detail.qty - detail.receivedQty;
-      if ((inp.qty || 0) + (inp.shortageQty || 0) > remaining) {
-        toast(`${detail.partName || detail.partId}: 入庫数+不足数が残数(${remaining})を超えています`);
-        return;
-      }
-    }
-    try {
-      // 1. Process receive inputs (good qty + shortages) per detail
-      const receivedById = userId || 1;
-      for (const [detailIdStr, inp] of Object.entries(receiveInputs)) {
-        const detailId = Number(detailIdStr);
-        const detail = showDetail.details.find(d => d.id === detailId);
-        if (!detail) continue;
-
-        if ((inp.qty || 0) > 0) {
-          const locationId = parts.find(p => p.id === detail.partId)?.location || 'A-03-2-L';
-          await api.createReceive({
-            receivedById,
-            items: [{
-              orderId: showDetail.id,
-              orderDetailId: detailId,
-              partId: detail.partId,
-              locationId,
-              qty: inp.qty,
-              result: 'ok',
-            }],
-          });
-        }
-
-        if ((inp.shortageQty || 0) > 0) {
-          await api.createShortageRecord(showDetail.id, detailId, {
-            qty: inp.shortageQty,
-            reason: inp.reason || 'shortage',
-            expectedDate: inp.expectedDate || undefined,
-            createdById: receivedById,
-          });
-        }
-      }
-
-      // 2. Save pending detail changes (cancel manufacturer_shortage marking)
-      for (const [detailIdStr, change] of Object.entries(pendingDetailChanges)) {
-        const detailId = Number(detailIdStr);
-        if (change.action === 'cancel') {
-          await api.cancelItemShortage(showDetail.id, detailId);
-        }
-      }
-
-      // 3. Save order-level changes (status/exp date) - skip status if receive happened
-      // (receives API auto-updates status to partial/completed)
-      const data: any = {};
-      if (!hasReceiveInputs() && editStatus !== showDetail.status) data.status = editStatus;
-      if (editExpDate && editExpDate !== (showDetail.expectedDeliveryDate || '')) data.expectedDeliveryDate = editExpDate;
-      if (Object.keys(data).length > 0) await api.updateOrder(showDetail.id, data);
-
-      toast('発注情報を保存しました');
-      setPendingDetailChanges({});
-      setReceiveInputs({});
-      setShowDetail(null);
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
-  };
-
-  const [editingShortageId, setEditingShortageId] = useState<number | null>(null);
-  const [editingShortageDraft, setEditingShortageDraft] = useState<{ qty: number; reason: string; expectedDate: string }>({ qty: 0, reason: 'shortage', expectedDate: '' });
-
-  const startEditShortage = (s: Shortage) => {
-    setEditingShortageId(s.id);
-    setEditingShortageDraft({ qty: s.qty, reason: s.reason, expectedDate: s.expectedDate || '' });
-  };
-
-  const cancelEditShortage = () => {
-    setEditingShortageId(null);
-  };
-
-  const saveEditShortage = async (detailId: number, shortageId: number) => {
-    if (!showDetail) return;
-    if (editingShortageDraft.qty <= 0) { toast('数量は1以上を入力してください'); return; }
-    try {
-      await api.updateShortageRecord(showDetail.id, detailId, shortageId, {
-        qty: editingShortageDraft.qty,
-        reason: editingShortageDraft.reason,
-        expectedDate: editingShortageDraft.expectedDate || null,
-      });
-      toast('不足/不良履歴を更新しました');
-      setEditingShortageId(null);
-      onRefresh();
-      setShowDetail(prev => prev ? {
-        ...prev,
-        details: prev.details.map(d => d.id === detailId ? {
-          ...d,
-          shortages: (d.shortages || []).map(s => s.id === shortageId ? { ...s, qty: editingShortageDraft.qty, reason: editingShortageDraft.reason, expectedDate: editingShortageDraft.expectedDate } : s),
-        } : d),
-      } : prev);
-    } catch (e: any) { toast(`エラー: ${e.message}`); }
-  };
-
-  const handleDeleteShortage = async (detailId: number, shortageId: number) => {
-    if (!showDetail) return;
-    try {
-      await api.deleteShortageRecord(showDetail.id, detailId, shortageId);
-      toast('削除しました');
-      onRefresh();
-      setShowDetail(prev => prev ? {
-        ...prev,
-        details: prev.details.map(d => d.id === detailId ? {
-          ...d,
-          shortages: (d.shortages || []).filter(s => s.id !== shortageId),
-        } : d),
-      } : prev);
-    } catch (e: any) { toast(`エラー: ${e.message}`); }
-  };
 
   const handleViewPdf = (o: Order) => {
     setPdfOrder(o);
@@ -986,276 +1252,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
       </div>
 
       {showDetail && (
-        <Modal open onClose={handleClose} title={`発注詳細: ${showDetail.orderNo}`} size="xl">
-          <div className="grid grid-cols-4 gap-3 mb-4 text-sm">
-            <div><div className="text-xs text-black">仕入先</div><div className="font-semibold">{showDetail.supplier}</div></div>
-            <div><div className="text-xs text-black">発注日</div><div>{showDetail.orderDate}</div></div>
-            <div><div className="text-xs text-black">希望納期</div><div>{showDetail.desiredDate}</div></div>
-            <div>
-              <div className="text-xs text-black">ステータス</div>
-              <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full">
-                {Object.entries(ORDER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <div className="text-xs text-black">納品予定日</div>
-              <input type="date" value={editExpDate} onChange={e => setEditExpDate(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full" />
-            </div>
-            <div><div className="text-xs text-black">明細数</div><div className="font-mono">{showDetail.details?.length || 0}</div></div>
-            <div><div className="text-xs text-black">入庫済合計</div><div className="font-mono">{(showDetail.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-black text-xs">/ {(showDetail.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
-            <div><div className="text-xs text-black">合計金額</div><div className="font-mono font-bold">{yen(showDetail.totalAmount)}</div></div>
-          </div>
-          {/* 明細（読み取り表示） */}
-          <div className="bg-white border border-slate-200 rounded p-3 mb-4">
-            <div className="text-xs font-semibold text-black mb-2">明細</div>
-            <table className="w-full text-sm">
-              <thead className="text-xs text-black">
-                <tr>
-                  <th className="text-left py-2 px-3">品名</th>
-                  <th className="text-right py-2 px-3 w-20">発注</th>
-                  <th className="text-right py-2 px-3 w-20">入庫済</th>
-                  <th className="text-right py-2 px-3 w-16">残</th>
-                  <th className="text-right py-2 px-3 w-24">単価</th>
-                  <th className="text-right py-2 px-3 w-28">小計</th>
-                  <th className="text-left py-2 px-3 w-40">不足/不良</th>
-                </tr>
-              </thead>
-              <tbody>
-                {showDetail.details?.map((it, i) => {
-                  const remaining = it.qty - it.receivedQty;
-                  const isMfrShortage = it.remarks === 'manufacturer_shortage';
-                  const shortages = it.shortages || [];
-                  const shortageTotal = shortages.reduce((sum, s) => sum + s.qty, 0);
-                  return (
-                    <React.Fragment key={i}>
-                      <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
-                        <td className="py-2 px-3">
-                          <div className="text-xs font-mono text-black">{it.partId}</div>
-                          <div>{it.partName || it.partId}</div>
-                          {isMfrShortage && (
-                            <div className="mt-1 flex items-center gap-1.5">
-                              <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
-                              {it.id && (
-                                <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
-                        <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
-                        <td className="text-right py-2 px-3 font-mono font-semibold">{remaining}</td>
-                        <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
-                        <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
-                        <td className="py-2 px-3">
-                          {shortageTotal > 0 ? (
-                            <span className="inline-block text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">合計 {shortageTotal} 個</span>
-                          ) : <span className="text-xs text-black">-</span>}
-                        </td>
-                      </tr>
-                      {shortages.length > 0 && (
-                        <tr className="bg-slate-50">
-                          <td colSpan={7} className="px-3 py-2">
-                            <div className="pl-3 border-l-2 border-amber-300">
-                              <table className="w-full text-xs">
-                                <thead className="text-[10px] text-black">
-                                  <tr className="border-b border-slate-200">
-                                    <th className="text-right py-1 px-2 w-16">数量</th>
-                                    <th className="text-left py-1 px-2 w-24">理由</th>
-                                    <th className="text-left py-1 px-2 w-32">納期見込み</th>
-                                    <th className="text-left py-1 px-2">登録日</th>
-                                    <th className="py-1 px-2 w-20 text-center"></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {shortages.map(s => {
-                                    const isEditing = editingShortageId === s.id;
-                                    return (
-                                      <tr key={s.id} className={`border-b border-slate-100 last:border-0 ${isEditing ? 'bg-blue-50' : ''}`}>
-                                        <td className="text-right py-1 px-2 font-mono font-semibold">
-                                          {isEditing ? (
-                                            <input type="number" min={1} value={editingShortageDraft.qty}
-                                              onChange={e => setEditingShortageDraft(d => ({ ...d, qty: Math.max(1, Number(e.target.value) || 1) }))}
-                                              className="w-14 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
-                                          ) : s.qty}
-                                        </td>
-                                        <td className="py-1 px-2">
-                                          {isEditing ? (
-                                            <select value={editingShortageDraft.reason}
-                                              onChange={e => setEditingShortageDraft(d => ({ ...d, reason: e.target.value }))}
-                                              className="text-[10px] border border-slate-300 rounded px-1 py-0.5">
-                                              {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                                            </select>
-                                          ) : (
-                                            <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
-                                          )}
-                                        </td>
-                                        <td className="py-1 px-2 text-black">
-                                          {isEditing ? (
-                                            <input type="date" value={editingShortageDraft.expectedDate}
-                                              onChange={e => setEditingShortageDraft(d => ({ ...d, expectedDate: e.target.value }))}
-                                              className="text-[10px] border border-slate-300 rounded px-1 py-0.5 w-full" />
-                                          ) : (s.expectedDate || '-')}
-                                        </td>
-                                        <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
-                                        <td className="py-1 px-2">
-                                          <div className="flex gap-1 justify-center">
-                                            {isEditing ? (
-                                              <>
-                                                <button onClick={() => saveEditShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
-                                                <button onClick={cancelEditShortage} className="text-[10px] px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 rounded">取消</button>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <button onClick={() => startEditShortage(s)} className="text-[10px] p-0.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="編集"><Edit size={11} /></button>
-                                                <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="削除"><Trash2 size={11} /></button>
-                                              </>
-                                            )}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 今回の入庫処理（残あり明細のみカード） */}
-          {(editStatus === 'awaiting' || editStatus === 'partial') && (() => {
-            const receivableItems = (showDetail.details || []).filter(d => d.id && d.qty - d.receivedQty > 0 && d.remarks !== 'manufacturer_shortage');
-            if (receivableItems.length === 0) return null;
-            return (
-              <div className="bg-blue-50/60 border border-blue-200 rounded p-3 mb-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Truck size={14} className="text-blue-700" />
-                  <span className="text-sm font-bold text-blue-900">今回の入庫処理</span>
-                  <span className="text-[11px] text-blue-700">納品分は「今回入庫数」、不足/不良分は「不足/不良数」と理由を入力</span>
-                </div>
-                <div className="space-y-2">
-                  {receivableItems.map(it => {
-                    const remaining = it.qty - it.receivedQty;
-                    const inp = receiveInputs[it.id!];
-                    const hasShortage = (inp?.shortageQty || 0) > 0;
-                    return (
-                      <div key={it.id} className="bg-white border border-blue-100 rounded p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <div className="text-[11px] font-mono text-black">{it.partId}</div>
-                            <div className="text-sm font-semibold">{it.partName || it.partId}</div>
-                          </div>
-                          <div className="text-xs text-black">
-                            発注 <span className="font-mono font-bold text-base text-slate-800">{it.qty}</span>
-                            <span className="mx-1.5 text-slate-300">/</span>
-                            残 <span className="font-mono font-bold text-base text-amber-700">{remaining}</span>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-4 gap-3 items-end">
-                          <div>
-                            <div className="text-[11px] text-black mb-0.5">今回入庫数</div>
-                            <input type="number" min={0} max={remaining} placeholder="0"
-                              value={inp?.qty || ''}
-                              onChange={e => updateReceiveInput(it.id!, { qty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
-                              className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-black mb-0.5">不足/不良数</div>
-                            <input type="number" min={0} max={remaining} placeholder="0"
-                              value={inp?.shortageQty || ''}
-                              onChange={e => updateReceiveInput(it.id!, { shortageQty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
-                              className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-black mb-0.5">理由</div>
-                            <select value={inp?.reason || 'shortage'} onChange={e => updateReceiveInput(it.id!, { reason: e.target.value })}
-                              disabled={!hasShortage}
-                              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400">
-                              {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-black mb-0.5">納期見込み</div>
-                            <input type="date" value={inp?.expectedDate || ''}
-                              onChange={e => updateReceiveInput(it.id!, { expectedDate: e.target.value })}
-                              disabled={!hasShortage}
-                              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-          <div className="mb-4">
-            <Field label="コメント" full>
-              <div className="flex gap-2">
-                <textarea value={editComment} onChange={e => setEditComment(e.target.value)} placeholder="コメントを入力..." className={`${inputClass} h-12 flex-1`} />
-                <Btn variant="primary" icon={Send} disabled={!editComment.trim()} onClick={async () => {
-                  if (!editComment.trim() || !showDetail) return;
-                  const newComment = { text: editComment.trim(), ts: new Date().toISOString(), user: userName || '', userId: userId || 1 };
-                  try {
-                    await api.updateOrder(showDetail.id, { newComment });
-                    setCommentHistory(prev => [newComment, ...prev]);
-                    setEditComment('');
-                    toast('コメントを投稿しました');
-                    onRefresh();
-                  } catch (e: any) { toast(`エラー: ${e.message}`); }
-                }}>投稿</Btn>
-              </div>
-            </Field>
-          </div>
-          {commentHistory.length > 0 && (
-            <div className="mb-4 bg-slate-50 rounded p-3">
-              <div className="text-xs font-semibold text-black mb-2">コメント履歴</div>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {commentHistory.map((c, i) => (
-                  <div key={i} className="text-xs border-l-2 border-blue-300 pl-2 flex items-start gap-2">
-                    <div className="flex-1">
-                      <div className="text-black">{c.user || ''} - {new Date(c.ts).toLocaleString('ja-JP')}</div>
-                      <div className="text-black">{c.text}</div>
-                    </div>
-                    <button onClick={async () => {
-                      const updated = commentHistory.filter((_, j) => j !== i);
-                      try {
-                        await api.updateOrder(showDetail!.id, { replaceComments: updated });
-                        setCommentHistory(updated);
-                        toast('コメントを削除しました');
-                        onRefresh();
-                      } catch (e: any) { toast(`エラー: ${e.message}`); }
-                    }} className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-rose-50 flex-shrink-0 mt-0.5" title="削除"><Trash2 size={12} /></button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="flex gap-2 pt-3 border-t border-slate-100">
-            <Btn variant="primary" icon={Save} onClick={handleSaveDetail}>変更を保存</Btn>
-            {showDetail.status === 'draft' && (
-              <Btn variant="success" icon={CheckCircle2} onClick={() => handleApprove(showDetail.id)}>発注確定（納品待ちへ）</Btn>
-            )}
-            {(showDetail.status === 'draft' || showDetail.status === 'awaiting') && (
-              <Btn variant="danger" onClick={async () => {
-                try {
-                  await api.updateOrder(showDetail.id, { status: 'cancelled' });
-                  toast('発注をキャンセルしました');
-                  setShowDetail(null);
-                  onRefresh();
-                } catch (e: any) { toast(`エラー: ${e.message}`); }
-              }}>キャンセル</Btn>
-            )}
-            <Btn variant="secondary" icon={FileText} onClick={() => handleViewPdf(showDetail)}>発注書PDF</Btn>
-            <Btn variant="secondary" onClick={handleClose} className="ml-auto">閉じる</Btn>
-          </div>
-        </Modal>
+        <OrderDetailPanel order={showDetail} parts={parts} onClose={() => setShowDetail(null)} onRefresh={onRefresh} toast={toast} userName={userName} userId={userId} onShowPdf={handleViewPdf} />
       )}
 
       {showNew && (
@@ -1267,21 +1264,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
         else setPdfOrder(null);
       }} />}
 
-      {confirmClose && (
-        <Modal open onClose={() => setConfirmClose(false)} title="変更の破棄" size="sm">
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-            <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-amber-800">変更が保存されていません</p>
-              <p className="text-amber-700 mt-1">変更内容を破棄して閉じますか？</p>
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Btn variant="secondary" onClick={() => setConfirmClose(false)}>戻る</Btn>
-            <Btn variant="danger" onClick={() => { setConfirmClose(false); setShowDetail(null); }}>破棄して閉じる</Btn>
-          </div>
-        </Modal>
-      )}
 
     </div>
   );
@@ -1926,97 +1908,39 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
 };
 
 // ========================== Other Screens ==========================
-const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; parts: Part[]; onRefresh: () => void; toast: (msg: string) => void }) => {
-  const pendingOrders = orders.filter(o => o.status === 'awaiting');
+const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { orders: Order[]; parts: Part[]; onRefresh: () => void; toast: (msg: string) => void; userName?: string; userId?: number }) => {
+  const pendingOrders = useMemo(() => orders.filter(o => o.status === 'awaiting' || o.status === 'partial'), [orders]);
   const [selectedPO, setSelectedPO] = useState<number | ''>('');
   const [showQrScanner, setShowQrScanner] = useState(false);
-  const [receiveQty, setReceiveQty] = useState<Record<string, number>>({});
-  const [inspection, setInspection] = useState<Record<string, string>>({});
 
-  const order = pendingOrders.find(o => o.id === selectedPO) || null;
+  const selectedOrder = useMemo(
+    () => orders.find(o => o.id === selectedPO) || null,
+    [orders, selectedPO]
+  );
 
-  useEffect(() => {
-    if (order) {
-      const qty: Record<string, number> = {};
-      const ins: Record<string, string> = {};
-      (order.details || []).filter(d => d.qty - d.receivedQty > 0).forEach(d => {
-        qty[d.partId] = d.qty - d.receivedQty;
-        ins[d.partId] = '合格';
-      });
-      setReceiveQty(qty);
-      setInspection(ins);
-    }
-  }, [selectedPO]);
-
-  const handleReceive = async () => {
-    if (!order) return;
-    const items = Object.entries(receiveQty)
-      .filter(([, q]) => q > 0)
-      .map(([partId, qty]) => {
-        const detail = order.details.find(d => d.partId === partId);
-        const insp = inspection[partId] || '合格';
-        const isReject = insp !== '合格';
-        const receiveQtyFinal = isReject ? 0 : qty;
-
-        return {
-          partId,
-          originalPartId: partId,
-          qty: receiveQtyFinal,
-          orderDetailId: detail?.id,
-          orderId: order.id,
-          locationId: parts.find(p => p.id === partId)?.location || 'A-03-2-L',
-          result: isReject ? 'reject' : 'ok',
-          rejectReason: isReject ? insp : undefined,
-        };
-      })
-      .filter(i => i.qty > 0);
-    if (items.length === 0) {
-      toast('入庫する品目がありません（不合格のみ）');
-      return;
-    }
+  const tryLocateOrder = (raw: string) => {
+    let candidate: string | number = raw;
     try {
-      await api.createReceive({ receivedById: 1, items });
-      toast(`入庫を確定しました（${items.length}品目）`);
-      setSelectedPO('');
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
+      const data = JSON.parse(raw);
+      if (data?.type === 'order' && data.id) candidate = data.id;
+    } catch { /* not JSON */ }
+    const found = pendingOrders.find(o => o.orderNo === candidate || o.id === Number(candidate));
+    if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
+    else toast('該当する未完納の発注が見つかりません');
   };
-
-  const allDetails = order?.details || [];
-  const remainingDetails = allDetails.filter(d => d.qty - d.receivedQty > 0);
 
   return (
     <div className="p-5 max-w-5xl">
       <div className="bg-white rounded-lg border border-slate-200 p-5">
         <h2 className="font-bold mb-1">入庫処理</h2>
-        <p className="text-xs text-black mb-4">発注書のQRコードを読み取るか、発注番号を選択してください</p>
+        <p className="text-xs text-black mb-4">発注書のQRコードを読み取るか、発注番号を選択すると、発注管理と同じ詳細画面で入庫・欠品・コメント・キャンセル等が行えます</p>
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-2 gap-3">
           <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100"
             onClick={() => setShowQrScanner(true)}>
             {showQrScanner ? (
               <div>
-                <QrCameraScanner onScan={(text) => {
-                  setShowQrScanner(false);
-                  try {
-                    const data = JSON.parse(text);
-                    if (data.type === 'order' && data.id) {
-                      const found = pendingOrders.find(o => o.orderNo === data.id || o.id === Number(data.id));
-                      if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
-                      else toast('該当する納品待ち発注が見つかりません');
-                    } else {
-                      const found = pendingOrders.find(o => o.orderNo === text || o.id === Number(text));
-                      if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
-                      else toast('該当する納品待ち発注が見つかりません');
-                    }
-                  } catch {
-                    const found = pendingOrders.find(o => o.orderNo === text);
-                    if (found) { setSelectedPO(found.id); toast(`発注 ${found.orderNo} を読み取りました`); }
-                    else toast('該当する納品待ち発注が見つかりません');
-                  }
-                }} />
+                <QrCameraScanner onScan={(text) => { setShowQrScanner(false); tryLocateOrder(text); }} />
                 <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-xs text-blue-600 hover:underline">キャンセル</button>
               </div>
             ) : (
@@ -2028,88 +1952,56 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
             )}
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
-            <div className="text-xs text-black mb-2">納品待ち発注から選択</div>
+            <div className="text-xs text-black mb-2">未完納の発注から選択（納品待ち / 一部入庫）</div>
             <select value={selectedPO} onChange={e => setSelectedPO(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded px-2 py-2 text-sm">
               <option value="">-- 発注を選択 --</option>
-              {pendingOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo} / {o.supplier} / {o.desiredDate || '-'}</option>)}
+              {pendingOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo} / {o.supplier} / {o.desiredDate || '-'} / {ORDER_STATUS[o.status]?.label || o.status}</option>)}
             </select>
+            <div className="mt-2 text-[11px] text-black">{pendingOrders.length}件</div>
           </div>
         </div>
 
-        {order && (
-          <>
-            <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
-              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="font-mono text-xs text-black">{order.orderNo}</div>
-                  <div className="font-bold">{order.supplier}</div>
-                </div>
-                <StatusBadge statusKey={order.status} statusMap={ORDER_STATUS} />
-              </div>
-              <table className="w-full text-sm">
-                <thead className="bg-white border-b border-slate-100 text-xs text-black">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium">品番</th>
-                    <th className="text-left px-3 py-2 font-medium">品名</th>
-                    <th className="text-left px-3 py-2 font-medium">状態</th>
-                    <th className="text-right px-3 py-2 font-medium">発注</th>
-                    <th className="text-right px-3 py-2 font-medium">入庫済</th>
-                    <th className="text-right px-3 py-2 font-medium">今回入庫</th>
-                    <th className="text-left px-3 py-2 font-medium">検査</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {allDetails.map(d => {
-                    const remaining = d.qty - d.receivedQty;
-                    const isShortage = d.remarks === 'manufacturer_shortage';
-                    return (
-                      <tr key={d.partId} className={isShortage ? 'bg-rose-50/50' : remaining <= 0 ? 'bg-emerald-50/30' : ''}>
-                        <td className="px-3 py-2 font-mono text-xs">{d.partId}</td>
-                        <td className="px-3 py-2">{d.partName || d.partId}</td>
-                        <td className="px-3 py-2">
-                          {isShortage && <span className="text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
-                          {!isShortage && remaining <= 0 && <span className="text-xs text-emerald-600 font-semibold">入庫済</span>}
-                          {!isShortage && remaining > 0 && <span className="text-xs text-black">未入庫</span>}
-                        </td>
-                        <td className="px-3 py-2 text-right">{d.qty}</td>
-                        <td className="px-3 py-2 text-right">{d.receivedQty}</td>
-                        <td className="px-3 py-2 text-right">
-                          {remaining > 0 && !isShortage ? (
-                            <input type="number" value={receiveQty[d.partId] || 0} max={remaining}
-                              onChange={e => setReceiveQty(s => ({ ...s, [d.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
-                              className="w-20 border border-slate-300 rounded px-2 py-1 text-right" />
-                          ) : <span className="text-xs text-black">-</span>}
-                        </td>
-                        <td className="px-3 py-2">
-                          {remaining > 0 && !isShortage ? (
-                            <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-300 rounded px-2 py-1">
-                              <option>合格</option><option>不良</option><option>破損</option><option>欠品</option><option>その他</option>
-                            </select>
-                          ) : <span className="text-xs text-black">-</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex gap-2">
-              <Btn variant="success" icon={CheckCircle2} onClick={handleReceive}>入庫を確定（在庫加算・現品票発行）</Btn>
-              <Btn variant="secondary" onClick={() => setSelectedPO('')}>キャンセル</Btn>
-            </div>
-
-            <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 flex items-start gap-2">
-              <AlertCircle size={13} className="mt-0.5" />
-              <div>確定すると、検査合格分が在庫に加算され、発注残が減算されます。全数入庫で完納、未達なら一部入庫ステータスになります。</div>
-            </div>
-          </>
-        )}
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 flex items-start gap-2">
+          <AlertCircle size={13} className="mt-0.5" />
+          <div>発注を選ぶと発注管理と同じ詳細画面が開きます。「今回入庫数」「不足/不良数」を入力して「変更を保存」で確定すると、在庫加算・発注残減算が行われ、全数入庫なら完納、未達なら一部入庫ステータスになります。</div>
+        </div>
       </div>
 
+      {selectedOrder && (
+        <OrderDetailPanel order={selectedOrder} parts={parts} onClose={() => setSelectedPO('')} onRefresh={onRefresh} toast={toast} userName={userName} userId={userId} />
+      )}
     </div>
   );
 };
+
+interface ProductionStage {
+  id: number;
+  key: string;
+  name: string;
+  color: string; // e.g. 'bg-blue-100 text-blue-800'
+  sortOrder: number;
+  isActive: boolean;
+  tasks: { id: number; name: string; sortOrder: number }[];
+}
+
+const STAGE_COLOR_PRESETS: { label: string; badge: string; bar: string }[] = [
+  { label: 'グレー',    badge: 'bg-slate-100 text-slate-900',     bar: 'bg-slate-500' },
+  { label: 'ブルー',    badge: 'bg-blue-100 text-blue-800',       bar: 'bg-blue-500' },
+  { label: 'アンバー',  badge: 'bg-amber-100 text-amber-800',     bar: 'bg-amber-500' },
+  { label: 'グリーン',  badge: 'bg-emerald-100 text-emerald-800', bar: 'bg-emerald-500' },
+  { label: 'ローズ',    badge: 'bg-rose-100 text-rose-800',       bar: 'bg-rose-500' },
+  { label: 'パープル',  badge: 'bg-purple-100 text-purple-800',   bar: 'bg-purple-500' },
+  { label: 'シアン',    badge: 'bg-cyan-100 text-cyan-800',       bar: 'bg-cyan-500' },
+  { label: 'オレンジ',  badge: 'bg-orange-100 text-orange-800',   bar: 'bg-orange-500' },
+];
+
+const stageBarColor = (badgeColor: string) => STAGE_COLOR_PRESETS.find(p => p.badge === badgeColor)?.bar || 'bg-slate-500';
+
+const buildStageMap = (stages: ProductionStage[]) =>
+  stages.reduce<Record<string, { label: string; color: string }>>((acc, s) => {
+    acc[s.key] = { label: s.name, color: s.color };
+    return acc;
+  }, {});
 
 const PRODUCTION_NEXT_STATUS: Record<string, { next: string; label: string }> = {
   planned: { next: 'allocated', label: '引当開始' },
@@ -6222,7 +6114,7 @@ export default function AppPage() {
           {view === 'locations' && <LocationsScreen locations={locations} onRefresh={fetchAll} toast={toast} />}
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
-          {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
+          {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
           {view === 'sales' && <SalesOrderScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
