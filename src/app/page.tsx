@@ -753,10 +753,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   const [receiveInputs, setReceiveInputs] = useState<Record<number, ReceiveInput>>({});
 
   const updateReceiveInput = (detailId: number, patch: Partial<ReceiveInput>) => {
-    setReceiveInputs(prev => ({
-      ...prev,
-      [detailId]: { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '', ...prev[detailId], ...patch },
-    }));
+    setReceiveInputs(prev => {
+      const current: ReceiveInput = prev[detailId] ?? { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
+      return { ...prev, [detailId]: { ...current, ...patch } };
+    });
   };
 
   const hasReceiveInputs = () => Object.values(receiveInputs).some(i => i.qty > 0 || i.shortageQty > 0);
