@@ -989,21 +989,24 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
               const isMfrShortage = it.remarks === 'manufacturer_shortage';
               const shortages = it.shortages || [];
               const shortageTotal = shortages.reduce((sum, s) => sum + s.qty, 0);
+              const canReplace = !!it.id && remaining > 0 && (isMfrShortage || shortageTotal > 0);
               return (
                 <React.Fragment key={i}>
                   <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
                     <td className="py-2 px-3">
                       <div className="text-xs font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
-                      {isMfrShortage && (
+                      {(isMfrShortage || canReplace) && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
-                          {it.id && (it.qty - it.receivedQty) > 0 && (
+                          {isMfrShortage && (
+                            <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
+                          )}
+                          {canReplace && (
                             <button onClick={() => setReplaceTarget(it)} className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold inline-flex items-center gap-0.5">
                               <RefreshCw size={10} /> 別会社へ振替発注
                             </button>
                           )}
-                          {it.id && (
+                          {isMfrShortage && it.id && (
                             <button onClick={() => handleItemShortageCancel(it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
                           )}
                         </div>
@@ -2898,15 +2901,20 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
   );
 };
 
-const ProductionGantt = ({ prodOrders, stages, onOpenDetail }: {
+const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
   prodOrders: ProdOrder[]; stages: ProductionStage[]; onOpenDetail: (m: ProdOrder) => void;
+  onUpdateStage: (orderId: number, stageId: number, data: { startDate?: string | null; dueDate?: string | null }) => Promise<void>;
 }) => {
   const [period, setPeriod] = useState<'2w' | '1m' | '3m'>('1m');
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<null | { orderId: number; stageId: number; mode: 'move' | 'resize-l' | 'resize-r'; startX: number; startStartDay: number; startEndDay: number }>(null);
+  const [dragOffset, setDragOffset] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const config = period === '2w' ? { days: 14, dayWidth: 32, before: 3 }
-              : period === '1m' ? { days: 30, dayWidth: 22, before: 5 }
-              : { days: 90, dayWidth: 12, before: 7 };
+  const config = period === '2w' ? { days: 14, before: 3 }
+              : period === '1m' ? { days: 30, before: 5 }
+              : { days: 90, before: 7 };
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - config.before);
   const dateRange: Date[] = [];
@@ -2914,113 +2922,157 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail }: {
     const d = new Date(startDate); d.setDate(d.getDate() + i);
     dateRange.push(d);
   }
+  const totalDays = dateRange.length;
   const dayIndex = (dateStr: string | undefined) => {
     if (!dateStr) return null;
     const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
     return Math.floor((d.getTime() - startDate.getTime()) / 86400000);
   };
+  const dateAt = (dayIdx: number) => {
+    const d = new Date(startDate); d.setDate(d.getDate() + dayIdx);
+    return d.toISOString().slice(0, 10);
+  };
   const todayIdx = Math.floor((today.getTime() - startDate.getTime()) / 86400000);
-  const totalWidth = dateRange.length * config.dayWidth;
+  const pct = (idx: number) => (idx / totalDays) * 100;
   const toggleCollapse = (id: number) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const startDrag = (e: React.MouseEvent, orderId: number, stageId: number, mode: 'move' | 'resize-l' | 'resize-r', startStartDay: number, startEndDay: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDrag({ orderId, stageId, mode, startX: e.clientX, startStartDay, startEndDay });
+    setDragOffset({ start: 0, end: 0 });
+  };
+
+  useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: MouseEvent) => {
+      if (!chartRef.current) return;
+      const rect = chartRef.current.getBoundingClientRect();
+      const deltaDays = Math.round(((e.clientX - drag.startX) / rect.width) * totalDays);
+      if (drag.mode === 'move') setDragOffset({ start: deltaDays, end: deltaDays });
+      else if (drag.mode === 'resize-l') setDragOffset({ start: deltaDays, end: 0 });
+      else setDragOffset({ start: 0, end: deltaDays });
+    };
+    const onUp = async () => {
+      const newStartDay = drag.startStartDay + dragOffset.start;
+      const newEndDay = drag.startEndDay + dragOffset.end;
+      const dragSnap = drag;
+      const offSnap = dragOffset;
+      setDrag(null);
+      setDragOffset({ start: 0, end: 0 });
+      if (offSnap.start === 0 && offSnap.end === 0) return;
+      if (newEndDay < newStartDay) return;
+      try {
+        await onUpdateStage(dragSnap.orderId, dragSnap.stageId, {
+          startDate: dateAt(newStartDay),
+          dueDate: dateAt(newEndDay),
+        });
+      } catch { /* parent handles toast */ }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [drag, dragOffset, totalDays, onUpdateStage]);
+
   return (
     <div className="bg-white border border-slate-200 rounded-lg">
       <div className="flex items-center justify-between p-3 border-b border-slate-200">
         <div>
-          <h2 className="font-bold text-sm">ガントチャート</h2>
-          <p className="text-[11px] text-black mt-0.5">工程ごとのバーをクリックで該当指図の詳細を開きます</p>
+          <h2 className="font-bold text-base">ガントチャート</h2>
+          <p className="text-xs text-black mt-0.5">バーをドラッグで日程変更、両端をドラッグで開始/終了のみ変更、クリックで詳細表示</p>
         </div>
-        <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m')} className="text-xs border border-slate-300 rounded px-2 py-1">
+        <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m')} className="text-sm border border-slate-300 rounded px-2 py-1">
           <option value="2w">2週間</option>
           <option value="1m">1ヶ月</option>
           <option value="3m">3ヶ月</option>
         </select>
       </div>
-      <div className="overflow-x-auto">
-        <div style={{ minWidth: 240 + totalWidth }}>
-          <div className="flex border-b border-slate-200 bg-slate-50 text-[10px] sticky top-0 z-20">
-            <div className="w-60 px-3 py-1.5 border-r border-slate-200 font-bold flex items-center flex-shrink-0">工番 / 製品 / 工程</div>
-            <div className="flex">
-              {dateRange.map((d, i) => (
-                <div key={i} className={`text-center py-1 border-r border-slate-100 ${d.getDay() === 0 ? 'bg-rose-50/50 text-rose-700' : d.getDay() === 6 ? 'bg-blue-50/50 text-blue-700' : ''}`} style={{ width: config.dayWidth }}>
-                  {d.getMonth() + 1}/{d.getDate()}
-                </div>
-              ))}
+      <div className="grid" style={{ gridTemplateColumns: '240px minmax(0, 1fr)' }}>
+        {/* Header */}
+        <div className="px-3 py-1.5 border-r border-b border-slate-200 bg-slate-50 text-xs font-bold flex items-center">工番 / 製品 / 工程</div>
+        <div ref={chartRef} className="grid border-b border-slate-200 bg-slate-50 text-[11px]" style={{ gridTemplateColumns: `repeat(${totalDays}, minmax(0, 1fr))` }}>
+          {dateRange.map((d, i) => (
+            <div key={i} className={`text-center py-1 border-r border-slate-100 ${d.getDay() === 0 ? 'bg-rose-50/50 text-rose-700' : d.getDay() === 6 ? 'bg-blue-50/50 text-blue-700' : ''}`}>
+              {d.getMonth() + 1}/{d.getDate()}
             </div>
-          </div>
-          {prodOrders.map(m => {
-            const orderStages = (m.orderStages || []).slice().sort((a, b) => a.stageSortOrder - b.stageSortOrder);
-            const isCollapsed = collapsed[m.id];
-            const overallStartIdx = dayIndex(m.startDate);
-            const overallEndIdx = dayIndex(m.dueDate);
-            const overallHas = overallStartIdx !== null && overallEndIdx !== null && overallEndIdx >= overallStartIdx;
-            const overallLeft = overallHas ? Math.max(0, overallStartIdx) * config.dayWidth : 0;
-            const overallRight = overallHas ? Math.min(dateRange.length - 1, overallEndIdx) : 0;
-            const overallWidth = overallHas ? (overallRight - overallStartIdx + 1) * config.dayWidth : 0;
-            const curStage = stages.find(s => s.key === m.status);
-            const overallBg = curStage ? stageBarColor(curStage.color) : 'bg-slate-400';
-            return (
-              <React.Fragment key={m.id}>
-                {/* Summary row */}
-                <div className="flex border-b border-slate-200 hover:bg-slate-50 bg-slate-50/40">
-                  <div className="w-60 px-3 py-2 border-r border-slate-200 text-xs flex-shrink-0 flex items-center gap-1.5">
-                    <button onClick={() => toggleCollapse(m.id)} className="text-slate-400 hover:text-blue-600">
-                      {isCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-mono font-bold">{m.prodNo}</div>
-                      <div className="text-black truncate">{(m as any).productName || '-'}</div>
-                    </div>
-                  </div>
-                  <div className="relative flex-shrink-0" style={{ width: totalWidth, height: 36 }}>
-                    {todayIdx >= 0 && todayIdx <= dateRange.length && (
-                      <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: todayIdx * config.dayWidth + config.dayWidth / 2 }} />
-                    )}
-                    {overallHas && (
-                      <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
-                        className={`absolute top-1 bottom-1 ${overallBg} opacity-60 text-white text-[10px] font-bold rounded px-1.5 flex items-center hover:opacity-90 shadow-sm`}
-                        style={{ left: overallLeft, width: Math.max(overallWidth, 24) }}>
-                        <span className="truncate">{m.prodNo} 全体</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {/* Stage rows (when expanded) */}
-                {!isCollapsed && orderStages.map(os => {
-                  const startIdx = dayIndex(os.startDate);
-                  const endIdx = dayIndex(os.dueDate);
-                  const hasSchedule = startIdx !== null && endIdx !== null && endIdx >= startIdx;
-                  const clampedStart = hasSchedule ? Math.max(0, startIdx) : 0;
-                  const clampedEnd = hasSchedule ? Math.min(dateRange.length - 1, endIdx) : 0;
-                  const barWidth = hasSchedule ? (clampedEnd - clampedStart + 1) * config.dayWidth : 0;
-                  const barLeft = clampedStart * config.dayWidth;
-                  const barBg = stageBarColor(os.stageColor);
-                  return (
-                    <div key={os.stageId} className="flex border-b border-slate-100 hover:bg-slate-50/50">
-                      <div className="w-60 px-3 py-1.5 border-r border-slate-200 text-xs flex-shrink-0 flex items-center gap-2 pl-8">
-                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
-                      </div>
-                      <div className="relative flex-shrink-0" style={{ width: totalWidth, height: 28 }}>
-                        {todayIdx >= 0 && todayIdx <= dateRange.length && (
-                          <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: todayIdx * config.dayWidth + config.dayWidth / 2 }} />
-                        )}
-                        {hasSchedule ? (
-                          <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} / ${os.stageName} (${os.startDate} 〜 ${os.dueDate})`}
-                            className={`absolute top-1 bottom-1 ${barBg} text-white text-[9px] font-bold rounded px-1.5 flex items-center hover:opacity-80`}
-                            style={{ left: barLeft, width: Math.max(barWidth, 12) }}>
-                            <span className="truncate">{os.stageName}</span>
-                          </button>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center px-3 text-[9px] text-slate-300">(未設定)</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            );
-          })}
-          {prodOrders.length === 0 && <div className="text-xs text-slate-400 text-center py-8">製造指図がありません</div>}
+          ))}
         </div>
+        {prodOrders.map(m => {
+          const orderStages = (m.orderStages || []).slice().sort((a, b) => a.stageSortOrder - b.stageSortOrder);
+          const isCollapsed = collapsed[m.id];
+          const overallStartIdx = dayIndex(m.startDate);
+          const overallEndIdx = dayIndex(m.dueDate);
+          const overallHas = overallStartIdx !== null && overallEndIdx !== null && overallEndIdx >= overallStartIdx;
+          const curStage = stages.find(s => s.key === m.status);
+          const overallBg = curStage ? stageBarColor(curStage.color) : 'bg-slate-400';
+          const overallLeftPct = overallHas ? pct(Math.max(0, overallStartIdx)) : 0;
+          const overallWidthPct = overallHas ? pct(Math.min(totalDays - 1, overallEndIdx) - Math.max(0, overallStartIdx) + 1) : 0;
+          return (
+            <React.Fragment key={m.id}>
+              <div className="px-3 py-2 border-r border-b border-slate-200 text-sm flex items-center gap-2 bg-slate-50/40">
+                <button onClick={() => toggleCollapse(m.id)} className="text-slate-400 hover:text-blue-600">
+                  {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono font-bold">{m.prodNo}</div>
+                  <div className="text-black truncate text-xs">{(m as any).productName || '-'}</div>
+                </div>
+              </div>
+              <div className="relative border-b border-slate-200 bg-slate-50/40 overflow-hidden" style={{ height: 40 }}>
+                {todayIdx >= 0 && todayIdx <= totalDays && (
+                  <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: `${pct(todayIdx)}%` }} />
+                )}
+                {overallHas && (
+                  <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
+                    className={`absolute top-1 bottom-1 ${overallBg} opacity-60 text-white text-xs font-bold rounded px-1.5 flex items-center hover:opacity-90`}
+                    style={{ left: `${overallLeftPct}%`, width: `${overallWidthPct}%`, minWidth: 24 }}>
+                    <span className="truncate">{m.prodNo} 全体</span>
+                  </button>
+                )}
+              </div>
+              {!isCollapsed && orderStages.map(os => {
+                const isDragging = drag?.orderId === m.id && drag?.stageId === os.stageId;
+                const startIdx = dayIndex(os.startDate);
+                const endIdx = dayIndex(os.dueDate);
+                const startWithOffset = isDragging && startIdx !== null ? startIdx + dragOffset.start : startIdx;
+                const endWithOffset = isDragging && endIdx !== null ? endIdx + dragOffset.end : endIdx;
+                const hasSchedule = startWithOffset !== null && endWithOffset !== null && endWithOffset >= startWithOffset;
+                const barLeftPct = hasSchedule ? pct(Math.max(0, startWithOffset!)) : 0;
+                const barWidthPct = hasSchedule ? pct(Math.min(totalDays - 1, endWithOffset!) - Math.max(0, startWithOffset!) + 1) : 0;
+                const barBg = stageBarColor(os.stageColor);
+                return (
+                  <React.Fragment key={os.stageId}>
+                    <div className="px-3 py-1.5 border-r border-b border-slate-100 text-sm flex items-center gap-2 pl-10">
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
+                    </div>
+                    <div className="relative border-b border-slate-100 overflow-hidden" style={{ height: 32 }}>
+                      {todayIdx >= 0 && todayIdx <= totalDays && (
+                        <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: `${pct(todayIdx)}%` }} />
+                      )}
+                      {hasSchedule && startIdx !== null && endIdx !== null ? (
+                        <div className={`absolute top-1 bottom-1 ${barBg} text-white text-xs font-bold rounded flex items-center group cursor-grab hover:opacity-90 ${isDragging ? 'ring-2 ring-blue-400 cursor-grabbing' : ''}`}
+                          style={{ left: `${barLeftPct}%`, width: `${barWidthPct}%`, minWidth: 24 }}
+                          onMouseDown={e => startDrag(e, m.id, os.stageId, 'move', startIdx, endIdx)}
+                          onClick={e => { if (dragOffset.start === 0 && dragOffset.end === 0) { e.stopPropagation(); onOpenDetail(m); } }}
+                          title={`${os.stageName} ${dateAt(startWithOffset!)} 〜 ${dateAt(endWithOffset!)}`}>
+                          <div className="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-l" onMouseDown={e => startDrag(e, m.id, os.stageId, 'resize-l', startIdx, endIdx)} />
+                          <span className="flex-1 truncate px-1.5">{os.stageName}</span>
+                          <div className="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-r" onMouseDown={e => startDrag(e, m.id, os.stageId, 'resize-r', startIdx, endIdx)} />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center px-3 text-xs text-slate-300">(未設定)</div>
+                      )}
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+        {prodOrders.length === 0 && <div className="col-span-2 text-sm text-slate-400 text-center py-8">製造指図がありません</div>}
       </div>
     </div>
   );
@@ -3251,7 +3303,11 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
       </div>
       {view === 'list' && <ProductionList prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onOpenDetail={openDetail} toast={toast} />}
       {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onChangeStatus={handleChangeStatus} onOpenDetail={openDetail} />}
-      {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onOpenDetail={openDetail} />}
+      {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onOpenDetail={openDetail}
+        onUpdateStage={async (orderId, stageId, data) => {
+          try { await api.updateProductionOrderStage(orderId, stageId, data); toast('日程を更新しました'); onRefresh(); }
+          catch (e: any) { toast(`エラー: ${e.message}`); }
+        }} />}
       {view === 'stages' && <ProductionStagesAdmin stages={stages} onRefresh={refreshStages} toast={toast} />}
       {editMo && (
         <Modal open onClose={() => setEditMo(null)} title={`製造編集: ${editMo?.prodNo}`} size="md">
