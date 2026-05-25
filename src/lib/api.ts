@@ -45,6 +45,8 @@ export const api = {
   markManufacturerShortage: (id: number) => request<any>(`/orders/${id}/manufacturer-shortage`, { method: 'POST' }),
   markItemShortage: (orderId: number, detailId: number) => request<any>(`/orders/${orderId}/details/${detailId}/shortage`, { method: 'POST' }),
   cancelItemShortage: (orderId: number, detailId: number) => request<any>(`/orders/${orderId}/details/${detailId}/shortage`, { method: 'DELETE' }),
+  replaceOrderDetail: (orderId: number, detailId: number, data: { supplierId: number; qty?: number; unitPrice?: number; desiredDate?: string; orderDate?: string; createdById?: number; notes?: string }) =>
+    request<any>(`/orders/${orderId}/details/${detailId}/replace`, { method: 'POST', body: JSON.stringify(data) }),
   createShortageRecord: (orderId: number, detailId: number, data: { qty: number; reason: string; reasonNote?: string; expectedDate?: string; createdById?: number }) =>
     request<any>(`/orders/${orderId}/details/${detailId}/shortages`, { method: 'POST', body: JSON.stringify(data) }),
   updateShortageRecord: (orderId: number, detailId: number, shortageId: number, data: { qty?: number; reason?: string; expectedDate?: string | null }) =>
@@ -79,6 +81,10 @@ export const api = {
     request<any>(`/production-stages/${stageId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProductionTask: (stageId: number, taskId: number) =>
     request<any>(`/production-stages/${stageId}/tasks/${taskId}`, { method: 'DELETE' }),
+
+  // Production Order Stage (指図ごとの工程日程)
+  updateProductionOrderStage: (orderId: number, stageId: number, data: { startDate?: string | null; dueDate?: string | null; status?: string }) =>
+    request<any>(`/production-orders/${orderId}/stages/${stageId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Production Order Task Checks
   getProductionOrderTaskChecks: (id: number) => request<any>(`/production-orders/${id}/task-checks`),

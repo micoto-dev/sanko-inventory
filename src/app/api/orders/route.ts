@@ -25,6 +25,22 @@ export async function GET(request: Request) {
             include: {
               part: { select: { id: true, code: true, name: true, unit: true } },
               shortages: { orderBy: { createdAt: "desc" } },
+              replacesDetail: {
+                select: {
+                  id: true,
+                  lineNo: true,
+                  order: { select: { id: true, orderNo: true, status: true, supplier: { select: { name: true } } } },
+                },
+              },
+              replacements: {
+                select: {
+                  id: true,
+                  lineNo: true,
+                  qty: true,
+                  receivedQty: true,
+                  order: { select: { id: true, orderNo: true, status: true, supplier: { select: { name: true } } } },
+                },
+              },
             },
           },
         },
@@ -71,6 +87,24 @@ export async function GET(request: Request) {
           receivedQty: Number(d.receivedQty),
           unitPrice: Number(d.unitPrice),
           remarks: d.remarks || null,
+          replacesDetail: d.replacesDetail ? {
+            detailId: d.replacesDetail.id,
+            lineNo: d.replacesDetail.lineNo,
+            orderId: d.replacesDetail.order?.id,
+            orderNo: d.replacesDetail.order?.orderNo,
+            supplier: d.replacesDetail.order?.supplier?.name || '',
+            status: d.replacesDetail.order?.status,
+          } : null,
+          replacements: (d.replacements || []).map((r: any) => ({
+            detailId: r.id,
+            lineNo: r.lineNo,
+            qty: Number(r.qty),
+            receivedQty: Number(r.receivedQty),
+            orderId: r.order?.id,
+            orderNo: r.order?.orderNo,
+            supplier: r.order?.supplier?.name || '',
+            status: r.order?.status,
+          })),
           shortages: (d.shortages || []).map((s: any) => ({
             id: s.id,
             qty: Number(s.qty),

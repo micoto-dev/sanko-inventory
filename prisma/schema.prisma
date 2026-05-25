@@ -268,12 +268,17 @@ model TOrderDetail {
   receivedQty Int    @default(0) @map("received_qty")
   unitPrice   Int    @map("unit_price")
   remarks     String? @db.Text
+  // 振替元の発注明細ID（メーカー欠品時に別会社へ振替発注した場合、
+  // 振替先の新しい明細がこのフィールドで元明細を参照する）
+  replacesDetailId Int? @map("replaces_detail_id")
 
   // Relations
   order     TOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   part      MPart  @relation(fields: [partId], references: [id])
   receives  TReceive[]
   shortages TOrderDetailShortage[]
+  replacesDetail TOrderDetail?  @relation("OrderDetailReplacement", fields: [replacesDetailId], references: [id], onDelete: SetNull)
+  replacements   TOrderDetail[] @relation("OrderDetailReplacement")
 
   @@unique([orderId, lineNo])
   @@map("t_order_detail")
@@ -289,9 +294,27 @@ model MProductionStage {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
-  tasks MProductionTask[]
+  tasks            MProductionTask[]
+  prodOrderStages  TProdOrderStage[]
 
   @@map("m_production_stage")
+}
+
+model TProdOrderStage {
+  id          Int       @id @default(autoincrement())
+  prodOrderId Int       @map("prod_order_id")
+  stageId     Int       @map("stage_id")
+  startDate   DateTime? @map("start_date") @db.Date
+  dueDate     DateTime? @map("due_date") @db.Date
+  status      String    @default("pending") @db.VarChar(16) // pending | in_progress | done
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  prodOrder TProdOrder       @relation(fields: [prodOrderId], references: [id], onDelete: Cascade)
+  stage     MProductionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([prodOrderId, stageId])
+  @@map("t_prod_order_stage")
 }
 
 model MProductionTask {
@@ -393,6 +416,7 @@ model TProdOrder {
   bomSnapshot TProdOrderBomSnapshot[]
   issues      TIssue[]
   taskChecks  TProdOrderTaskCheck[]
+  orderStages TProdOrderStage[]
 
   @@map("t_prod_order")
 }
