@@ -2091,95 +2091,96 @@ const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
   );
 };
 
-const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
+const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, toast }: {
+  prodOrders: ProdOrder[]; stages: ProductionStage[];
+  onEdit: (m: ProdOrder) => void; onAdvance: (m: ProdOrder) => void;
+  toast: (msg: string) => void;
+}) => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [bomDetail, setBomDetail] = useState<any>(null);
-  const [bomLoading, setBomLoading] = useState(false);
-  const [editMo, setEditMo] = useState<ProdOrder | null>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('active');
-  const [products, setProducts] = useState<any[]>([]);
+  const [taskChecks, setTaskChecks] = useState<Record<number, boolean>>({});
 
-  useEffect(() => { api.getProducts().then(res => setProducts(res.data || [])).catch(() => {}); }, []);
+  const stageMap = useMemo(() => buildStageMap(stages), [stages]);
+  const completedKey = useMemo(() => {
+    const maxOrder = Math.max(0, ...stages.map(s => s.sortOrder));
+    return stages.find(s => s.sortOrder === maxOrder)?.key;
+  }, [stages]);
 
   const filteredOrders = useMemo(() => {
     if (statusFilter === 'all') return prodOrders;
-    if (statusFilter === 'active') return prodOrders.filter(m => m.status !== 'completed');
+    if (statusFilter === 'active') return prodOrders.filter(m => m.status !== completedKey);
     return prodOrders.filter(m => m.status === statusFilter);
-  }, [prodOrders, statusFilter]);
+  }, [prodOrders, statusFilter, completedKey]);
 
   const handleToggle = async (mo: ProdOrder) => {
-    if (expandedId === mo.id) {
-      setExpandedId(null);
-      setBomDetail(null);
-      return;
-    }
-    setExpandedId(mo.id);
-    setBomLoading(true);
+    if (expandedId === mo.id) { setExpandedId(null); setDetail(null); return; }
+    setExpandedId(mo.id); setLoading(true);
     try {
-      const detail = await api.getProductionOrder(mo.id);
-      setBomDetail(detail);
-    } catch {
-      toast('BOM詳細の取得に失敗しました');
-      setBomDetail(null);
-    } finally {
-      setBomLoading(false);
+      const d = await api.getProductionOrder(mo.id);
+      setDetail(d);
+      const checks: Record<number, boolean> = {};
+      (d.taskChecks || []).forEach((c: any) => { checks[c.taskId] = c.isChecked; });
+      setTaskChecks(checks);
+    } catch { toast('詳細の取得に失敗しました'); setDetail(null); }
+    finally { setLoading(false); }
+  };
+
+  const handleToggleTask = async (moId: number, taskId: number) => {
+    const next = !taskChecks[taskId];
+    setTaskChecks(prev => ({ ...prev, [taskId]: next }));
+    try {
+      await api.toggleProductionOrderTaskCheck(moId, taskId, next);
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+      setTaskChecks(prev => ({ ...prev, [taskId]: !next }));
     }
   };
 
-  const handleAdvanceStatus = async (mo: ProdOrder) => {
-    const ns = PRODUCTION_NEXT_STATUS[mo.status];
-    if (!ns) return;
-    try {
-      await api.updateProductionOrder(mo.id, { status: ns.next });
-      toast(`ステータスを「${MO_STATUS[ns.next]?.label || ns.next}」に変更しました`);
-      onRefresh();
-    } catch (e: any) {
-      toast(`エラー: ${e.message}`);
-    }
+  const getNextStage = (key: string) => {
+    const cur = stages.find(s => s.key === key);
+    if (!cur) return null;
+    return stages.filter(s => s.sortOrder > cur.sortOrder && s.isActive).sort((a, b) => a.sortOrder - b.sortOrder)[0] || null;
   };
 
   return (
-    <div className="p-5 space-y-3">
-      <div className="bg-white rounded-lg border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">製造一覧</h2>
-          <div className="flex items-center gap-2">
-            <Filter size={13} className="text-slate-500" />
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
-              <option value="active">進行中</option>
-              <option value="all">全て</option>
-              <option value="planned">計画</option>
-              <option value="allocated">引当済</option>
-              <option value="picking">ピッキング中</option>
-              <option value="completed">完了</option>
-            </select>
-          </div>
+    <div className="bg-white rounded-lg border border-slate-200">
+      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <h2 className="font-bold text-sm">製造一覧</h2>
+        <div className="flex items-center gap-2">
+          <Filter size={13} className="text-slate-500" />
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+            <option value="active">進行中</option>
+            <option value="all">全て</option>
+            {stages.map(s => <option key={s.id} value={s.key}>{s.name}</option>)}
+          </select>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase">
-              <tr>
-                <th className="px-3 py-2 w-8"></th>
-                <th className="text-left px-3 py-2 font-medium">工番</th>
-                <th className="text-left px-3 py-2 font-medium">製品名</th>
-                <th className="text-left px-3 py-2 font-medium">区分</th>
-                <th className="text-left px-3 py-2 font-medium">客先</th>
-                <th className="text-right px-3 py-2 font-medium">数量</th>
-                <th className="text-left px-3 py-2 font-medium">開始日</th>
-                <th className="text-left px-3 py-2 font-medium">納期</th>
-                <th className="text-left px-3 py-2 font-medium">ステータス</th>
-                <th className="px-3 py-2 font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrders.map(m => {
-                const nextStep = PRODUCTION_NEXT_STATUS[m.status];
-                return (
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs text-black uppercase">
+            <tr>
+              <th className="px-3 py-2 w-8"></th>
+              <th className="text-left px-3 py-2 font-medium">工番</th>
+              <th className="text-left px-3 py-2 font-medium">製品名</th>
+              <th className="text-left px-3 py-2 font-medium">区分</th>
+              <th className="text-left px-3 py-2 font-medium">客先</th>
+              <th className="text-right px-3 py-2 font-medium">数量</th>
+              <th className="text-left px-3 py-2 font-medium">開始日</th>
+              <th className="text-left px-3 py-2 font-medium">納期</th>
+              <th className="text-left px-3 py-2 font-medium">ステータス</th>
+              <th className="px-3 py-2 font-medium">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filteredOrders.map(m => {
+              const nextStage = getNextStage(m.status);
+              const curStage = stages.find(s => s.key === m.status);
+              return (
                 <React.Fragment key={m.id}>
                   <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => handleToggle(m)}>
-                    <td className="px-3 py-2 text-black">
-                      {expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </td>
+                    <td className="px-3 py-2 text-black">{expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                     <td className="px-3 py-2 font-mono text-xs font-semibold">{m.prodNo}</td>
                     <td className="px-3 py-2 text-xs">{(m as any).productName || '-'}</td>
                     <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
@@ -2187,53 +2188,60 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                     <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
                     <td className="px-3 py-2 text-xs">{m.startDate || '-'}</td>
                     <td className="px-3 py-2 text-xs">{m.dueDate || '-'}</td>
-                    <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
+                    <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={stageMap} /></td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {nextStep && (
-                          <Btn variant="primary" size="sm" icon={ChevronRight} onClick={() => handleAdvanceStatus(m)}>{nextStep.label}</Btn>
-                        )}
-                        <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMo(m)}>編集</Btn>
+                        {nextStage && <Btn variant="primary" size="sm" icon={ChevronRight} onClick={() => onAdvance(m)}>{nextStage.name}へ</Btn>}
+                        <Btn variant="ghost" size="sm" icon={Edit} onClick={() => onEdit(m)}>編集</Btn>
                       </div>
                     </td>
                   </tr>
                   {expandedId === m.id && (
                     <tr>
                       <td colSpan={10} className="bg-slate-50 px-4 py-3">
-                        {bomLoading ? (
-                          <div className="flex items-center gap-2 text-sm text-black py-4 justify-center">
-                            <Loader2 size={16} className="animate-spin" /> BOM情報を読み込み中...
-                          </div>
-                        ) : bomDetail ? (
+                        {loading ? (
+                          <div className="flex items-center gap-2 text-sm text-black py-4 justify-center"><Loader2 size={16} className="animate-spin" /> 読み込み中...</div>
+                        ) : detail ? (
                           <div className="space-y-3">
                             <div className="grid grid-cols-4 gap-3 text-xs">
-                              <div><span className="text-black">製品:</span> <span className="font-semibold">{bomDetail.productName || bomDetail.productCode}</span></div>
-                              <div><span className="text-black">数量:</span> <span className="font-mono">{bomDetail.qty}</span></div>
-                              <div><span className="text-black">開始日:</span> {bomDetail.startDate || m.startDate || '-'}</div>
-                              <div><span className="text-black">納期:</span> {bomDetail.dueDate || m.dueDate || '-'}</div>
+                              <div><span className="text-black">製品:</span> <span className="font-semibold">{detail.productName || detail.productCode}</span></div>
+                              <div><span className="text-black">数量:</span> <span className="font-mono">{detail.qty}</span></div>
+                              <div><span className="text-black">開始日:</span> {(typeof detail.startDate === 'string' ? detail.startDate.slice(0,10) : '') || m.startDate || '-'}</div>
+                              <div><span className="text-black">納期:</span> {(typeof detail.dueDate === 'string' ? detail.dueDate.slice(0,10) : '') || m.dueDate || '-'}</div>
                             </div>
-
-                            {bomDetail.bomSnapshot && bomDetail.bomSnapshot.length > 0 ? (
+                            {curStage && curStage.tasks && curStage.tasks.length > 0 && (
                               <div className="bg-white rounded border border-slate-200 overflow-hidden">
                                 <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-black flex items-center gap-2">
-                                  <Package size={12} /> BOM展開 ({bomDetail.bomSnapshot.length}部品)
+                                  <ClipboardCheck size={12} /> 「{curStage.name}」工程のチェックリスト ({curStage.tasks.length}件)
+                                </div>
+                                <div className="p-3 space-y-1">
+                                  {curStage.tasks.map(t => (
+                                    <label key={t.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                                      <input type="checkbox" checked={!!taskChecks[t.id]} onChange={() => handleToggleTask(m.id, t.id)} className="rounded" />
+                                      <span className={`text-xs ${taskChecks[t.id] ? 'line-through text-slate-400' : ''}`}>{t.name}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {detail.bomSnapshot && detail.bomSnapshot.length > 0 && (
+                              <div className="bg-white rounded border border-slate-200 overflow-hidden">
+                                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-black flex items-center gap-2">
+                                  <Package size={12} /> BOM展開 ({detail.bomSnapshot.length}部品)
                                 </div>
                                 <table className="w-full text-xs">
-                                  <thead className="bg-white text-black border-b border-slate-100">
-                                    <tr>
-                                      <th className="text-left px-3 py-1.5 font-medium">品番</th>
-                                      <th className="text-left px-3 py-1.5 font-medium">品名</th>
-                                      <th className="text-left px-3 py-1.5 font-medium">取付位置</th>
-                                      <th className="text-right px-3 py-1.5 font-medium">必要数</th>
-                                      <th className="text-right px-3 py-1.5 font-medium">ピッキング済</th>
-                                      <th className="text-left px-3 py-1.5 font-medium">引当状況</th>
-                                    </tr>
-                                  </thead>
+                                  <thead className="bg-white text-black border-b border-slate-100"><tr>
+                                    <th className="text-left px-3 py-1.5 font-medium">品番</th>
+                                    <th className="text-left px-3 py-1.5 font-medium">品名</th>
+                                    <th className="text-left px-3 py-1.5 font-medium">取付位置</th>
+                                    <th className="text-right px-3 py-1.5 font-medium">必要数</th>
+                                    <th className="text-right px-3 py-1.5 font-medium">ピッキング済</th>
+                                    <th className="text-left px-3 py-1.5 font-medium">引当状況</th>
+                                  </tr></thead>
                                   <tbody className="divide-y divide-slate-100">
-                                    {bomDetail.bomSnapshot.map((bs: any, idx: number) => {
-                                      const need = bs.qty * (bomDetail.qty || m.qty || 1);
+                                    {detail.bomSnapshot.map((bs: any, idx: number) => {
+                                      const need = bs.qty * (detail.qty || m.qty || 1);
                                       const picked = bs.pickedQty || 0;
-                                      const allocated = need;
                                       const pctPicked = need > 0 ? Math.round((picked / need) * 100) : 0;
                                       return (
                                         <tr key={idx} className="hover:bg-slate-50">
@@ -2250,13 +2258,9 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                                             )}
                                           </td>
                                           <td className="px-3 py-1.5">
-                                            {picked >= need ? (
-                                              <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px]">完了</span>
-                                            ) : picked > 0 ? (
-                                              <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[11px]">一部ピック</span>
-                                            ) : (
-                                              <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[11px]">引当済</span>
-                                            )}
+                                            {picked >= need ? <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px]">完了</span>
+                                            : picked > 0 ? <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[11px]">一部ピック</span>
+                                            : <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[11px]">引当済</span>}
                                           </td>
                                         </tr>
                                       );
@@ -2264,24 +2268,378 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                                   </tbody>
                                 </table>
                               </div>
-                            ) : (
-                              <div className="text-xs text-black text-center py-3">BOM情報がありません</div>
                             )}
                           </div>
-                        ) : (
-                          <div className="text-xs text-black text-center py-3">詳細を取得できませんでした</div>
-                        )}
+                        ) : <div className="text-xs text-black text-center py-3">詳細を取得できませんでした</div>}
                       </td>
                     </tr>
                   )}
                 </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatus }: {
+  prodOrders: ProdOrder[]; stages: ProductionStage[];
+  onEdit: (m: ProdOrder) => void; onAdvance: (m: ProdOrder) => void;
+  onChangeStatus: (m: ProdOrder, key: string) => void;
+}) => {
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const getNextStage = (key: string) => {
+    const cur = stages.find(s => s.key === key);
+    if (!cur) return null;
+    return stages.filter(s => s.sortOrder > cur.sortOrder && s.isActive).sort((a, b) => a.sortOrder - b.sortOrder)[0] || null;
+  };
+  const sortedStages = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+  return (
+    <div className="overflow-x-auto">
+      <div className="grid gap-3 min-w-max" style={{ gridTemplateColumns: `repeat(${sortedStages.length}, 280px)` }}>
+        {sortedStages.map(stage => {
+          const items = prodOrders.filter(m => m.status === stage.key);
+          const isDropTarget = dragOverCol === stage.key;
+          return (
+            <div key={stage.id}
+              className={`bg-slate-50 rounded-lg p-3 min-h-[400px] transition-colors ${isDropTarget ? 'bg-blue-100/60 ring-2 ring-blue-300' : ''}`}
+              onDragOver={e => { e.preventDefault(); setDragOverCol(stage.key); }}
+              onDragLeave={() => setDragOverCol(null)}
+              onDrop={e => {
+                e.preventDefault();
+                setDragOverCol(null);
+                const id = Number(e.dataTransfer.getData('id'));
+                const mo = prodOrders.find(m => m.id === id);
+                if (mo && mo.status !== stage.key) onChangeStatus(mo, stage.key);
+                setDraggingId(null);
+              }}>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className={`inline-block text-xs px-2 py-0.5 rounded font-bold ${stage.color}`}>{stage.name}</span>
+                <span className="text-xs bg-white px-2 py-0.5 rounded-full font-mono">{items.length}</span>
+              </div>
+              <div className="space-y-2">
+                {items.map(m => {
+                  const nextStage = getNextStage(m.status);
+                  return (
+                    <div key={m.id} draggable
+                      onDragStart={e => { e.dataTransfer.setData('id', String(m.id)); setDraggingId(m.id); }}
+                      onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                      className={`bg-white border border-slate-200 rounded p-2 cursor-move hover:border-blue-300 ${draggingId === m.id ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-mono font-bold text-slate-900">{m.prodNo}</span>
+                        <button onClick={() => onEdit(m)} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
+                      </div>
+                      <div className="text-sm font-semibold mb-0.5 truncate">{(m as any).productName || '-'}</div>
+                      <div className="text-xs text-black flex items-center gap-2 mb-1">
+                        <span className="truncate">{m.customer || '-'}</span>
+                        <span className="font-mono whitespace-nowrap">×{m.qty}</span>
+                      </div>
+                      <div className="text-[11px] text-black mb-1.5">納期: {m.dueDate || '-'}</div>
+                      {nextStage && (
+                        <button onClick={() => onAdvance(m)} className="w-full text-[11px] py-1 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-1">
+                          <ChevronRight size={11} /> {nextStage.name}へ
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {items.length === 0 && <div className="text-xs text-slate-400 text-center py-4">(なし)</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const ProductionGantt = ({ prodOrders, stages, onEdit }: {
+  prodOrders: ProdOrder[]; stages: ProductionStage[]; onEdit: (m: ProdOrder) => void;
+}) => {
+  const [period, setPeriod] = useState<'2w' | '1m' | '3m'>('1m');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const config = period === '2w' ? { days: 14, dayWidth: 32, before: 3 }
+              : period === '1m' ? { days: 30, dayWidth: 22, before: 5 }
+              : { days: 90, dayWidth: 12, before: 7 };
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - config.before);
+  const dateRange: Date[] = [];
+  for (let i = 0; i <= config.days; i++) {
+    const d = new Date(startDate); d.setDate(d.getDate() + i);
+    dateRange.push(d);
+  }
+  const dayIndex = (dateStr: string | undefined) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+    return Math.floor((d.getTime() - startDate.getTime()) / 86400000);
+  };
+  const todayIdx = Math.floor((today.getTime() - startDate.getTime()) / 86400000);
+  const totalWidth = dateRange.length * config.dayWidth;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg">
+      <div className="flex items-center justify-between p-3 border-b border-slate-200">
+        <h2 className="font-bold text-sm">ガントチャート</h2>
+        <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m')} className="text-xs border border-slate-300 rounded px-2 py-1">
+          <option value="2w">2週間</option>
+          <option value="1m">1ヶ月</option>
+          <option value="3m">3ヶ月</option>
+        </select>
+      </div>
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: 240 + totalWidth }}>
+          <div className="flex border-b border-slate-200 bg-slate-50 text-[10px]">
+            <div className="w-60 px-3 py-1.5 border-r border-slate-200 font-bold flex items-center flex-shrink-0">工番 / 製品</div>
+            <div className="flex">
+              {dateRange.map((d, i) => (
+                <div key={i} className={`text-center py-1 border-r border-slate-100 ${d.getDay() === 0 ? 'bg-rose-50/50 text-rose-700' : d.getDay() === 6 ? 'bg-blue-50/50 text-blue-700' : ''}`} style={{ width: config.dayWidth }}>
+                  {d.getMonth() + 1}/{d.getDate()}
+                </div>
+              ))}
+            </div>
+          </div>
+          {prodOrders.map(m => {
+            const startIdx = dayIndex(m.startDate);
+            const endIdx = dayIndex(m.dueDate);
+            const hasSchedule = startIdx !== null && endIdx !== null && endIdx >= startIdx;
+            const clampedStart = hasSchedule ? Math.max(0, startIdx) : 0;
+            const clampedEnd = hasSchedule ? Math.min(dateRange.length - 1, endIdx) : 0;
+            const barWidth = hasSchedule ? (clampedEnd - clampedStart + 1) * config.dayWidth : 0;
+            const barLeft = clampedStart * config.dayWidth;
+            const stage = stages.find(s => s.key === m.status);
+            const barBg = stage ? stageBarColor(stage.color) : 'bg-slate-400';
+            return (
+              <div key={m.id} className="flex border-b border-slate-100 hover:bg-slate-50">
+                <div className="w-60 px-3 py-2 border-r border-slate-200 text-xs flex-shrink-0">
+                  <div className="font-mono font-bold">{m.prodNo}</div>
+                  <div className="text-black truncate">{(m as any).productName || '-'}</div>
+                </div>
+                <div className="relative flex-shrink-0" style={{ width: totalWidth, height: 44 }}>
+                  {todayIdx >= 0 && todayIdx <= dateRange.length && (
+                    <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: todayIdx * config.dayWidth + config.dayWidth / 2 }} />
+                  )}
+                  {hasSchedule ? (
+                    <button onClick={() => onEdit(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
+                      className={`absolute top-2 bottom-2 ${barBg} text-white text-[10px] font-bold rounded px-1.5 flex items-center hover:opacity-80 shadow-sm`}
+                      style={{ left: barLeft, width: Math.max(barWidth, 24) }}>
+                      <span className="truncate">{m.prodNo}</span>
+                    </button>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center px-3 text-[10px] text-slate-400">(日程未設定)</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {prodOrders.length === 0 && <div className="text-xs text-slate-400 text-center py-8">製造指図がありません</div>}
         </div>
       </div>
+    </div>
+  );
+};
 
+const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
+  stages: ProductionStage[]; onRefresh: () => void; toast: (msg: string) => void;
+}) => {
+  const [editingStage, setEditingStage] = useState<number | null>(null);
+  const [stageDraft, setStageDraft] = useState<{ name: string; color: string }>({ name: '', color: '' });
+  const [newStageName, setNewStageName] = useState('');
+  const [expandedStage, setExpandedStage] = useState<number | null>(null);
+  const [newTaskName, setNewTaskName] = useState<Record<number, string>>({});
+  const [editingTask, setEditingTask] = useState<{ stageId: number; taskId: number } | null>(null);
+  const [taskDraft, setTaskDraft] = useState('');
+  const startEditStage = (s: ProductionStage) => { setEditingStage(s.id); setStageDraft({ name: s.name, color: s.color }); };
+  const saveStage = async (id: number) => {
+    try { await api.updateProductionStage(id, stageDraft); toast('工程を更新しました'); setEditingStage(null); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const deleteStage = async (id: number, name: string) => {
+    if (!confirm(`「${name}」を削除しますか？(配下のタスクも全て削除されます)`)) return;
+    try { await api.deleteProductionStage(id); toast('工程を削除しました'); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const moveStage = async (s: ProductionStage, dir: -1 | 1) => {
+    const sorted = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sorted.findIndex(x => x.id === s.id);
+    const target = sorted[idx + dir];
+    if (!target) return;
+    try {
+      await api.updateProductionStage(s.id, { sortOrder: target.sortOrder });
+      await api.updateProductionStage(target.id, { sortOrder: s.sortOrder });
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const addStage = async () => {
+    if (!newStageName.trim()) return;
+    try { await api.createProductionStage({ name: newStageName.trim(), color: STAGE_COLOR_PRESETS[0].badge }); setNewStageName(''); toast('工程を追加しました'); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const addTask = async (stageId: number) => {
+    const name = (newTaskName[stageId] || '').trim();
+    if (!name) return;
+    try { await api.createProductionTask(stageId, { name }); setNewTaskName(prev => ({ ...prev, [stageId]: '' })); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const saveTask = async (stageId: number, taskId: number) => {
+    if (!taskDraft.trim()) return;
+    try { await api.updateProductionTask(stageId, taskId, { name: taskDraft.trim() }); setEditingTask(null); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const deleteTask = async (stageId: number, taskId: number, name: string) => {
+    if (!confirm(`タスク「${name}」を削除しますか？`)) return;
+    try { await api.deleteProductionTask(stageId, taskId); onRefresh(); }
+    catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+  const sortedStages = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+  return (
+    <div className="bg-white rounded-lg border border-slate-200">
+      <div className="px-4 py-3 border-b border-slate-200">
+        <h2 className="font-bold text-sm">工程マスタ</h2>
+        <p className="text-xs text-black mt-0.5">カンバンの列・ガントの色・各工程のチェックリストを管理します</p>
+      </div>
+      <div className="p-4 space-y-2">
+        {sortedStages.map((s, idx) => {
+          const isEditing = editingStage === s.id;
+          const isExpanded = expandedStage === s.id;
+          return (
+            <div key={s.id} className="border border-slate-200 rounded">
+              <div className="flex items-center gap-2 p-3">
+                <div className="flex flex-col">
+                  <button onClick={() => moveStage(s, -1)} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-blue-600 disabled:opacity-30"><ChevronUp size={12} /></button>
+                  <button onClick={() => moveStage(s, 1)} disabled={idx === sortedStages.length - 1} className="p-0.5 text-slate-400 hover:text-blue-600 disabled:opacity-30"><ChevronDown size={12} /></button>
+                </div>
+                {isEditing ? (
+                  <>
+                    <input value={stageDraft.name} onChange={e => setStageDraft(d => ({ ...d, name: e.target.value }))} className="border border-slate-300 rounded px-2 py-1 text-sm" />
+                    <select value={stageDraft.color} onChange={e => setStageDraft(d => ({ ...d, color: e.target.value }))} className="border border-slate-300 rounded px-2 py-1 text-xs">
+                      {STAGE_COLOR_PRESETS.map(p => <option key={p.badge} value={p.badge}>{p.label}</option>)}
+                    </select>
+                    <span className={`inline-block text-xs px-2 py-0.5 rounded ${stageDraft.color}`}>{stageDraft.name || 'プレビュー'}</span>
+                    <div className="ml-auto flex gap-1">
+                      <Btn variant="primary" size="sm" onClick={() => saveStage(s.id)}>保存</Btn>
+                      <Btn variant="secondary" size="sm" onClick={() => setEditingStage(null)}>取消</Btn>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => setExpandedStage(isExpanded ? null : s.id)} className="text-slate-400 hover:text-blue-600">
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                    <span className={`inline-block text-xs px-2 py-0.5 rounded ${s.color}`}>{s.name}</span>
+                    <span className="text-xs text-black">タスク {s.tasks?.length || 0}件</span>
+                    <span className="text-[10px] font-mono text-slate-400">{s.key}</span>
+                    <div className="ml-auto flex gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => startEditStage(s)}>編集</Btn>
+                      <button onClick={() => deleteStage(s.id, s.name)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded"><Trash2 size={13} /></button>
+                    </div>
+                  </>
+                )}
+              </div>
+              {isExpanded && !isEditing && (
+                <div className="px-4 pb-3 border-t border-slate-100 bg-slate-50/50">
+                  <div className="text-[11px] text-black font-semibold mt-2 mb-1.5">チェックリスト/作業項目</div>
+                  <div className="space-y-1">
+                    {(s.tasks || []).map(t => {
+                      const isTaskEditing = editingTask?.taskId === t.id;
+                      return (
+                        <div key={t.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-1">
+                          {isTaskEditing ? (
+                            <>
+                              <input value={taskDraft} onChange={e => setTaskDraft(e.target.value)} className="flex-1 border border-slate-300 rounded px-2 py-0.5 text-xs" />
+                              <Btn variant="primary" size="sm" onClick={() => saveTask(s.id, t.id)}>保存</Btn>
+                              <button onClick={() => setEditingTask(null)} className="text-xs text-slate-500">取消</button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex-1 text-xs">{t.name}</span>
+                              <button onClick={() => { setEditingTask({ stageId: s.id, taskId: t.id }); setTaskDraft(t.name); }} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
+                              <button onClick={() => deleteTask(s.id, t.id, t.name)} className="text-slate-400 hover:text-rose-600 p-0.5"><Trash2 size={11} /></button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {(!s.tasks || s.tasks.length === 0) && <div className="text-[11px] text-slate-400 px-2 py-1">(タスクなし)</div>}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <input value={newTaskName[s.id] || ''} onChange={e => setNewTaskName(prev => ({ ...prev, [s.id]: e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter') addTask(s.id); }}
+                      placeholder="新しいタスク名" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs" />
+                    <Btn variant="secondary" size="sm" icon={Plus} onClick={() => addTask(s.id)}>追加</Btn>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-200">
+          <input value={newStageName} onChange={e => setNewStageName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addStage(); }}
+            placeholder="新しい工程名 (例: 切断 / 溶接 / 塗装)" className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm" />
+          <Btn variant="primary" icon={Plus} onClick={addStage}>工程を追加</Btn>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
+  const [view, setView] = useState<'list' | 'kanban' | 'gantt' | 'stages'>('list');
+  const [stages, setStages] = useState<ProductionStage[]>([]);
+  const [editMo, setEditMo] = useState<ProdOrder | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
+
+  const refreshStages = async () => {
+    try {
+      const res = await api.getProductionStages();
+      setStages(res.data || []);
+    } catch (e: any) { toast(`工程マスタ取得エラー: ${e.message}`); }
+  };
+
+  useEffect(() => {
+    refreshStages();
+    api.getProducts().then(r => setProducts(r.data || [])).catch(() => {});
+  }, []);
+
+  const handleChangeStatus = async (mo: ProdOrder, newKey: string) => {
+    try {
+      await api.updateProductionOrder(mo.id, { status: newKey });
+      const target = stages.find(s => s.key === newKey);
+      toast(`ステータスを「${target?.name || newKey}」に変更しました`);
+      onRefresh();
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleAdvance = async (mo: ProdOrder) => {
+    const cur = stages.find(s => s.key === mo.status);
+    if (!cur) return;
+    const next = stages.filter(s => s.sortOrder > cur.sortOrder && s.isActive).sort((a, b) => a.sortOrder - b.sortOrder)[0];
+    if (!next) return;
+    await handleChangeStatus(mo, next.key);
+  };
+
+  const tabs = [
+    { id: 'list' as const,   label: '一覧',           icon: ClipboardCheck },
+    { id: 'kanban' as const, label: 'カンバン',       icon: LayoutDashboard },
+    { id: 'gantt' as const,  label: 'ガントチャート', icon: BarChart3 },
+    { id: 'stages' as const, label: '工程マスタ',     icon: Settings },
+  ];
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200 px-2 flex">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setView(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-1.5 ${view === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-black hover:text-blue-600'}`}>
+            <t.icon size={13} />{t.label}
+          </button>
+        ))}
+      </div>
+      {view === 'list' && <ProductionList prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} toast={toast} />}
+      {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onChangeStatus={handleChangeStatus} />}
+      {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onEdit={setEditMo} />}
+      {view === 'stages' && <ProductionStagesAdmin stages={stages} onRefresh={refreshStages} toast={toast} />}
       {editMo && (
         <Modal open onClose={() => setEditMo(null)} title={`製造編集: ${editMo?.prodNo}`} size="md">
           <ProdOrderForm prodOrder={editMo} isNew={false} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => setEditMo(null)} onSave={async (form: any) => {

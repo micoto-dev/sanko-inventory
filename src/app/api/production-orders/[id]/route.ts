@@ -18,6 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         issues: {
           orderBy: { issuedAt: "desc" },
         },
+        taskChecks: { include: { checkedBy: { select: { id: true, name: true } } } },
       },
     });
     if (!prodOrder) {

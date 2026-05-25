@@ -66,6 +66,25 @@ export const api = {
   updateProductionOrder: (id: number, data: any) => request<any>(`/production-orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProductionOrder: (id: number) => request<any>(`/production-orders/${id}`, { method: 'DELETE' }),
 
+  // Production Stages (工程マスタ)
+  getProductionStages: () => request<any>('/production-stages'),
+  createProductionStage: (data: { name: string; color: string; key?: string; sortOrder?: number }) =>
+    request<any>('/production-stages', { method: 'POST', body: JSON.stringify(data) }),
+  updateProductionStage: (id: number, data: { name?: string; color?: string; sortOrder?: number; isActive?: boolean }) =>
+    request<any>(`/production-stages/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProductionStage: (id: number) => request<any>(`/production-stages/${id}`, { method: 'DELETE' }),
+  createProductionTask: (stageId: number, data: { name: string; sortOrder?: number }) =>
+    request<any>(`/production-stages/${stageId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
+  updateProductionTask: (stageId: number, taskId: number, data: { name?: string; sortOrder?: number }) =>
+    request<any>(`/production-stages/${stageId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProductionTask: (stageId: number, taskId: number) =>
+    request<any>(`/production-stages/${stageId}/tasks/${taskId}`, { method: 'DELETE' }),
+
+  // Production Order Task Checks
+  getProductionOrderTaskChecks: (id: number) => request<any>(`/production-orders/${id}/task-checks`),
+  toggleProductionOrderTaskCheck: (id: number, taskId: number, isChecked: boolean, checkedById?: number) =>
+    request<any>(`/production-orders/${id}/task-checks`, { method: 'POST', body: JSON.stringify({ taskId, isChecked, checkedById }) }),
+
   // Locations
   getLocations: () => request<any>('/locations'),
   createLocation: (data: any) => request<any>('/locations', { method: 'POST', body: JSON.stringify(data) }),
