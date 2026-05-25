@@ -992,7 +992,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                       <th className="py-2 px-2 w-32">納期見込み</th>
                     </>
                   )}
-                  <th className="py-2 px-3 w-32 text-center">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -1008,7 +1007,14 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                         <td className="py-2 px-3">
                           <div className="text-xs font-mono text-black">{it.partId}</div>
                           <div>{it.partName || it.partId}</div>
-                          {isMfrShortage && <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
+                          {isMfrShortage && (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
+                              {it.id && (
+                                <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
                         <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
@@ -1047,26 +1053,20 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                             </td>
                           </>
                         )}
-                        <td className="py-2 px-3">
-                          {it.id && isMfrShortage && (
-                            <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">欠品取消</button>
-                          )}
-                        </td>
                       </tr>
                       {shortages.length > 0 && (
                         <tr className="bg-slate-100/60">
-                          <td colSpan={(editStatus === 'awaiting' || editStatus === 'partial') ? 10 : 7} className="px-3 py-2">
+                          <td colSpan={(editStatus === 'awaiting' || editStatus === 'partial') ? 9 : 6} className="px-3 py-2">
                             <div className="pl-3 border-l-2 border-slate-300">
-                              <div className="text-[11px] text-black font-semibold mb-1.5">不足/不良履歴 ({shortages.length}件)</div>
+                              <div className="text-[11px] text-black font-semibold mb-1.5">不足/不良履歴（合計 {shortages.reduce((sum, s) => sum + s.qty, 0)} 個）</div>
                               <table className="w-full text-xs">
                                 <thead className="text-[10px] text-black">
                                   <tr className="border-b border-slate-200">
-                                    <th className="text-right py-1 px-2 w-16">残数</th>
+                                    <th className="text-right py-1 px-2 w-16">数量</th>
                                     <th className="text-left py-1 px-2 w-20">理由</th>
                                     <th className="text-left py-1 px-2 w-28">納期見込み</th>
-                                    <th className="text-left py-1 px-2">備考</th>
-                                    <th className="text-left py-1 px-2 w-32">登録日</th>
-                                    <th className="py-1 px-2 w-16 text-center">操作</th>
+                                    <th className="text-left py-1 px-2">登録日</th>
+                                    <th className="py-1 px-2 w-16 text-center"></th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1077,7 +1077,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                                         <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
                                       </td>
                                       <td className="py-1 px-2 text-black">{s.expectedDate || '-'}</td>
-                                      <td className="py-1 px-2 text-black truncate max-w-[200px]">{s.reasonNote || ''}</td>
                                       <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
                                       <td className="py-1 px-2">
                                         <div className="flex justify-center">
