@@ -840,6 +840,40 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
     }
   };
 
+  const [editingShortageId, setEditingShortageId] = useState<number | null>(null);
+  const [editingShortageDraft, setEditingShortageDraft] = useState<{ qty: number; reason: string; expectedDate: string }>({ qty: 0, reason: 'shortage', expectedDate: '' });
+
+  const startEditShortage = (s: Shortage) => {
+    setEditingShortageId(s.id);
+    setEditingShortageDraft({ qty: s.qty, reason: s.reason, expectedDate: s.expectedDate || '' });
+  };
+
+  const cancelEditShortage = () => {
+    setEditingShortageId(null);
+  };
+
+  const saveEditShortage = async (detailId: number, shortageId: number) => {
+    if (!showDetail) return;
+    if (editingShortageDraft.qty <= 0) { toast('数量は1以上を入力してください'); return; }
+    try {
+      await api.updateShortageRecord(showDetail.id, detailId, shortageId, {
+        qty: editingShortageDraft.qty,
+        reason: editingShortageDraft.reason,
+        expectedDate: editingShortageDraft.expectedDate || null,
+      });
+      toast('不足/不良履歴を更新しました');
+      setEditingShortageId(null);
+      onRefresh();
+      setShowDetail(prev => prev ? {
+        ...prev,
+        details: prev.details.map(d => d.id === detailId ? {
+          ...d,
+          shortages: (d.shortages || []).map(s => s.id === shortageId ? { ...s, qty: editingShortageDraft.qty, reason: editingShortageDraft.reason, expectedDate: editingShortageDraft.expectedDate } : s),
+        } : d),
+      } : prev);
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
   const handleDeleteShortage = async (detailId: number, shortageId: number) => {
     if (!showDetail) return;
     try {
@@ -1026,26 +1060,61 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                                 <thead className="text-[10px] text-black">
                                   <tr className="border-b border-slate-200">
                                     <th className="text-right py-1 px-2 w-16">数量</th>
-                                    <th className="text-left py-1 px-2 w-20">理由</th>
-                                    <th className="text-left py-1 px-2 w-28">納期見込み</th>
+                                    <th className="text-left py-1 px-2 w-24">理由</th>
+                                    <th className="text-left py-1 px-2 w-32">納期見込み</th>
                                     <th className="text-left py-1 px-2">登録日</th>
-                                    <th className="py-1 px-2 w-12 text-center"></th>
+                                    <th className="py-1 px-2 w-20 text-center"></th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {shortages.map(s => (
-                                    <tr key={s.id} className="border-b border-slate-100 last:border-0">
-                                      <td className="text-right py-1 px-2 font-mono font-semibold">{s.qty}</td>
-                                      <td className="py-1 px-2">
-                                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
-                                      </td>
-                                      <td className="py-1 px-2 text-black">{s.expectedDate || '-'}</td>
-                                      <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
-                                      <td className="py-1 px-2 text-center">
-                                        <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"><Trash2 size={11} /></button>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {shortages.map(s => {
+                                    const isEditing = editingShortageId === s.id;
+                                    return (
+                                      <tr key={s.id} className={`border-b border-slate-100 last:border-0 ${isEditing ? 'bg-blue-50' : ''}`}>
+                                        <td className="text-right py-1 px-2 font-mono font-semibold">
+                                          {isEditing ? (
+                                            <input type="number" min={1} value={editingShortageDraft.qty}
+                                              onChange={e => setEditingShortageDraft(d => ({ ...d, qty: Math.max(1, Number(e.target.value) || 1) }))}
+                                              className="w-14 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
+                                          ) : s.qty}
+                                        </td>
+                                        <td className="py-1 px-2">
+                                          {isEditing ? (
+                                            <select value={editingShortageDraft.reason}
+                                              onChange={e => setEditingShortageDraft(d => ({ ...d, reason: e.target.value }))}
+                                              className="text-[10px] border border-slate-300 rounded px-1 py-0.5">
+                                              {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                                            </select>
+                                          ) : (
+                                            <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
+                                          )}
+                                        </td>
+                                        <td className="py-1 px-2 text-black">
+                                          {isEditing ? (
+                                            <input type="date" value={editingShortageDraft.expectedDate}
+                                              onChange={e => setEditingShortageDraft(d => ({ ...d, expectedDate: e.target.value }))}
+                                              className="text-[10px] border border-slate-300 rounded px-1 py-0.5 w-full" />
+                                          ) : (s.expectedDate || '-')}
+                                        </td>
+                                        <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
+                                        <td className="py-1 px-2">
+                                          <div className="flex gap-1 justify-center">
+                                            {isEditing ? (
+                                              <>
+                                                <button onClick={() => saveEditShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+                                                <button onClick={cancelEditShortage} className="text-[10px] px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 rounded">取消</button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <button onClick={() => startEditShortage(s)} className="text-[10px] p-0.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="編集"><Edit size={11} /></button>
+                                                <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="削除"><Trash2 size={11} /></button>
+                                              </>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>

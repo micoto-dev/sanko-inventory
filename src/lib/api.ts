@@ -47,6 +47,8 @@ export const api = {
   cancelItemShortage: (orderId: number, detailId: number) => request<any>(`/orders/${orderId}/details/${detailId}/shortage`, { method: 'DELETE' }),
   createShortageRecord: (orderId: number, detailId: number, data: { qty: number; reason: string; reasonNote?: string; expectedDate?: string; createdById?: number }) =>
     request<any>(`/orders/${orderId}/details/${detailId}/shortages`, { method: 'POST', body: JSON.stringify(data) }),
+  updateShortageRecord: (orderId: number, detailId: number, shortageId: number, data: { qty?: number; reason?: string; expectedDate?: string | null }) =>
+    request<any>(`/orders/${orderId}/details/${detailId}/shortages/${shortageId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteShortageRecord: (orderId: number, detailId: number, shortageId: number) =>
     request<any>(`/orders/${orderId}/details/${detailId}/shortages/${shortageId}`, { method: 'DELETE' }),
 
