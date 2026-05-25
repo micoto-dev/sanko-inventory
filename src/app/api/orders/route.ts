@@ -22,7 +22,10 @@ export async function GET(request: Request) {
           createdBy: { select: { id: true, name: true } },
           approvedBy: { select: { id: true, name: true } },
           details: {
-            include: { part: { select: { id: true, code: true, name: true, unit: true } } },
+            include: {
+              part: { select: { id: true, code: true, name: true, unit: true } },
+              shortages: { orderBy: { createdAt: "desc" } },
+            },
           },
         },
       }),
@@ -68,6 +71,16 @@ export async function GET(request: Request) {
           receivedQty: Number(d.receivedQty),
           unitPrice: Number(d.unitPrice),
           remarks: d.remarks || null,
+          shortages: (d.shortages || []).map((s: any) => ({
+            id: s.id,
+            qty: Number(s.qty),
+            reason: s.reason,
+            reasonNote: s.reasonNote || '',
+            status: s.status,
+            expectedDate: s.expectedDate?.toISOString?.()?.slice(0, 10) || '',
+            resolvedAt: s.resolvedAt?.toISOString?.() || '',
+            createdAt: s.createdAt?.toISOString?.() || '',
+          })),
         })),
       };
     });
