@@ -22,12 +22,6 @@ export const SHORTAGE_REASON: Record<string, { label: string; color: string }> =
   other: { label: 'その他', color: 'bg-slate-100 text-slate-800' },
 };
 
-export const SHORTAGE_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: '対応中', color: 'bg-amber-100 text-amber-800' },
-  resolved: { label: '解決済み', color: 'bg-emerald-100 text-emerald-800' },
-  cancelled: { label: '取消', color: 'bg-slate-100 text-slate-700' },
-};
-
 export const MO_STATUS: Record<string, { label: string; color: string }> = {
   planned: { label: '計画', color: 'bg-slate-100 text-slate-900' },
   allocated: { label: '引当済', color: 'bg-blue-100 text-blue-800' },

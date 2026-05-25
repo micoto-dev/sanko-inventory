@@ -14,7 +14,7 @@ import {
   Zap, RefreshCw, Link2, XCircle, Download, Upload, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
-import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, SHORTAGE_REASON, SHORTAGE_STATUS, yen } from '@/lib/constants';
+import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, SHORTAGE_REASON, yen } from '@/lib/constants';
 import { api } from '@/lib/api';
 
 // ========================== Types ==========================
@@ -840,22 +840,6 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
     }
   };
 
-  const handleResolveShortage = async (detailId: number, shortageId: number) => {
-    if (!showDetail) return;
-    try {
-      await api.updateShortageRecord(showDetail.id, detailId, shortageId, { status: 'resolved' });
-      toast('解決済みにしました');
-      onRefresh();
-      setShowDetail(prev => prev ? {
-        ...prev,
-        details: prev.details.map(d => d.id === detailId ? {
-          ...d,
-          shortages: (d.shortages || []).map(s => s.id === shortageId ? { ...s, status: 'resolved' } : s),
-        } : d),
-      } : prev);
-    } catch (e: any) { toast(`エラー: ${e.message}`); }
-  };
-
   const handleDeleteShortage = async (detailId: number, shortageId: number) => {
     if (!showDetail) return;
     try {
@@ -1079,11 +1063,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                                   <tr className="border-b border-slate-200">
                                     <th className="text-right py-1 px-2 w-16">残数</th>
                                     <th className="text-left py-1 px-2 w-20">理由</th>
-                                    <th className="text-left py-1 px-2 w-20">状態</th>
                                     <th className="text-left py-1 px-2 w-28">納期見込み</th>
                                     <th className="text-left py-1 px-2">備考</th>
                                     <th className="text-left py-1 px-2 w-32">登録日</th>
-                                    <th className="py-1 px-2 w-28 text-center">操作</th>
+                                    <th className="py-1 px-2 w-16 text-center">操作</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1093,17 +1076,11 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                                       <td className="py-1 px-2">
                                         <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
                                       </td>
-                                      <td className="py-1 px-2">
-                                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_STATUS[s.status]?.color || ''}`}>{SHORTAGE_STATUS[s.status]?.label || s.status}</span>
-                                      </td>
                                       <td className="py-1 px-2 text-black">{s.expectedDate || '-'}</td>
                                       <td className="py-1 px-2 text-black truncate max-w-[200px]">{s.reasonNote || ''}</td>
                                       <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
                                       <td className="py-1 px-2">
-                                        <div className="flex gap-1 justify-center">
-                                          {s.status === 'pending' && (
-                                            <button onClick={() => handleResolveShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">解決</button>
-                                          )}
+                                        <div className="flex justify-center">
                                           <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"><Trash2 size={11} /></button>
                                         </div>
                                       </td>
