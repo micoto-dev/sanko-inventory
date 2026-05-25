@@ -29,6 +29,13 @@ export const MO_STATUS: Record<string, { label: string; color: string }> = {
   completed: { label: '完了', color: 'bg-emerald-100 text-emerald-800' },
 };
 
+export const SALES_STATUS: Record<string, { label: string; color: string }> = {
+  quote:     { label: '見積',       color: 'bg-slate-100 text-slate-900' },
+  confirmed: { label: '受注確定',   color: 'bg-blue-100 text-blue-800' },
+  shipped:   { label: '出荷済',     color: 'bg-emerald-100 text-emerald-800' },
+  cancelled: { label: 'キャンセル', color: 'bg-slate-200 text-slate-900' },
+};
+
 export const LOG_CATEGORY: Record<string, { label: string; color: string }> = {
   master: { label: '部品マスタ', color: 'bg-slate-100 text-slate-900' },
   product: { label: '製品/BOM', color: 'bg-purple-100 text-purple-700' },

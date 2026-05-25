@@ -397,6 +397,7 @@ model TProdOrder {
   productId   Int?      @map("product_id")
   qty         Int
   status      String    @default("allocated") @db.VarChar(32)
+  salesStatus String    @default("confirmed") @map("sales_status") @db.VarChar(32) // quote | confirmed | shipped | cancelled
   division    String?   @db.VarChar(10)
   category    String?   @db.VarChar(100)
   productName String?   @map("product_name") @db.VarChar(255)

@@ -14,7 +14,7 @@ import {
   Zap, RefreshCw, Link2, XCircle, Download, Upload, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
-import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, SHORTAGE_REASON, yen } from '@/lib/constants';
+import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, SALES_STATUS, LOG_CATEGORY, SHORTAGE_REASON, yen } from '@/lib/constants';
 import { api } from '@/lib/api';
 
 // ========================== Types ==========================
@@ -59,7 +59,8 @@ interface Shortage {
 
 interface ProdOrder {
   id: number; prodNo: string; productCode?: string; productName?: string;
-  productId: number; qty: number; status: string; startDate?: string; dueDate?: string;
+  productId: number; qty: number; status: string; salesStatus?: string;
+  startDate?: string; dueDate?: string;
   customer?: string;
   taskChecks?: { taskId: number; isChecked: boolean }[];
   orderStages?: OrderStage[];
@@ -3032,7 +3033,25 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
                 {todayIdx >= 0 && todayIdx <= totalDays && (
                   <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: `${pct(todayIdx)}%` }} />
                 )}
-                {overallHas && (
+                {/* All stage bars stacked horizontally on the same row */}
+                {orderStages.map(os => {
+                  const sIdx = dayIndex(os.startDate);
+                  const eIdx = dayIndex(os.dueDate);
+                  if (sIdx === null || eIdx === null || eIdx < sIdx) return null;
+                  const leftPct = pct(Math.max(0, sIdx));
+                  const widthPct = pct(Math.min(totalDays - 1, eIdx) - Math.max(0, sIdx) + 1);
+                  const bg = stageBarColor(os.stageColor);
+                  return (
+                    <button key={os.stageId} onClick={() => onOpenDetail(m)}
+                      title={`${os.stageName} (${os.startDate} 〜 ${os.dueDate})`}
+                      className={`absolute top-1 bottom-1 ${bg} text-white text-sm font-bold rounded flex items-center px-1.5 hover:opacity-90`}
+                      style={{ left: `${leftPct}%`, width: `${widthPct}%`, minWidth: 16 }}>
+                      <span className="truncate">{os.stageName}</span>
+                    </button>
+                  );
+                })}
+                {/* Fallback: if no stage schedules, show overall bar */}
+                {orderStages.every(os => !os.startDate || !os.dueDate) && overallHas && (
                   <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
                     className={`absolute top-1 bottom-1 ${overallBg} opacity-60 text-white text-sm font-bold rounded px-1.5 flex items-center hover:opacity-90`}
                     style={{ left: `${overallLeftPct}%`, width: `${overallWidthPct}%`, minWidth: 24 }}>

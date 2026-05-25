@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       dueDate: o.dueDate?.toISOString?.()?.slice(0, 10) || '',
       customer: o.customer || '',
       amount: o.amount ? Number(o.amount) : null,
+      salesStatus: o.salesStatus || 'confirmed',
       taskChecks: (o.taskChecks || []).map((tc: any) => ({ taskId: tc.taskId, isChecked: tc.isChecked })),
       orderStages: (o.orderStages || []).map((os: any) => ({
         id: os.id,
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { productId, qty, division, category, productName: prodName, startDate, dueDate, customer, amount, notes, createdById } = body;
+    const { productId, qty, division, category, productName: prodName, startDate, dueDate, customer, amount, notes, createdById, salesStatus } = body;
 
     if (!qty || !createdById) {
       return Response.json({ error: "qty and createdById are required" }, { status: 400 });
@@ -114,6 +115,7 @@ export async function POST(request: Request) {
           amount: amount ? Number(amount) : null,
           notes,
           createdById,
+          salesStatus: salesStatus || 'quote',
         },
       });
 

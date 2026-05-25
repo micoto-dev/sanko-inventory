@@ -77,10 +77,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const body = await request.json();
-    const { qty, status, division, category, productName, startDate, dueDate, customer, amount, notes, bomItems } = body;
+    const { qty, status, salesStatus, division, category, productName, startDate, dueDate, customer, amount, notes, bomItems } = body;
     const data: Record<string, unknown> = {};
     if (qty !== undefined) data.qty = qty;
     if (status !== undefined) data.status = status;
+    if (salesStatus !== undefined) data.salesStatus = salesStatus;
     if (division !== undefined) data.division = division;
     if (category !== undefined) data.category = category;
     if (productName !== undefined) data.productName = productName;
