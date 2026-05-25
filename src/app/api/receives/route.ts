@@ -21,6 +21,16 @@ export async function POST(request: Request) {
         result?: string;
         rejectReason?: string;
       }[]) {
+        // Guard: prevent receivedQty from exceeding ordered qty
+        if (item.orderDetailId && item.qty > 0) {
+          const detail = await tx.tOrderDetail.findUnique({ where: { id: item.orderDetailId } });
+          if (detail) {
+            const remaining = detail.qty - detail.receivedQty;
+            if (item.qty > remaining) {
+              throw new Error(`発注明細 #${item.orderDetailId} の残数(${remaining})を超える入庫数(${item.qty})は登録できません`);
+            }
+          }
+        }
         // Generate receiveNo
         const count = await tx.tReceive.count();
         const receiveNo = `RC-${String(count + 1).padStart(6, "0")}`;
@@ -101,6 +111,7 @@ export async function POST(request: Request) {
     return Response.json(results, { status: 201 });
   } catch (e) {
     console.error(e);
-    return Response.json({ error: "Failed to process receives" }, { status: 500 });
+    const msg = e instanceof Error ? e.message : "Failed to process receives";
+    return Response.json({ error: msg }, { status: 400 });
   }
 }
