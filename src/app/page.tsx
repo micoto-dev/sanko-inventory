@@ -2358,7 +2358,7 @@ const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
   );
 };
 
-const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast, onEditFull }: {
+const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, onEditFull }: {
   prodOrderId: number; stages: ProductionStage[]; onClose: () => void; onRefresh: () => void; toast: (msg: string) => void; onEditFull: () => void;
 }) => {
   const [detail, setDetail] = useState<any>(null);
@@ -2406,10 +2406,26 @@ const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast,
   };
 
   if (loading) {
-    return <Modal open onClose={onClose} title="読み込み中" size="md"><div className="flex items-center justify-center py-8"><Loader2 size={24} className="animate-spin" /></div></Modal>;
+    return (
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <button onClick={onClose} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><ChevronRight size={14} className="rotate-180" />一覧へ戻る</button>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-lg flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
   }
   if (!detail) {
-    return <Modal open onClose={onClose} title="エラー" size="md"><div className="text-sm text-rose-600 py-4">取得失敗しました</div></Modal>;
+    return (
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <button onClick={onClose} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><ChevronRight size={14} className="rotate-180" />一覧へ戻る</button>
+        </div>
+        <div className="bg-white border border-rose-200 rounded-lg p-6 text-sm text-rose-600">取得失敗しました</div>
+      </div>
+    );
   }
 
   const checks: Record<number, boolean> = {};
@@ -2442,27 +2458,36 @@ const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast,
   const pct = (idx: number) => ganttDays > 0 ? (idx / ganttDays) * 100 : 0;
 
   return (
-    <Modal open onClose={onClose} title={`製造詳細: ${detail.prodNo}`} size="xl">
-      {/* Header */}
-      <div className="grid grid-cols-5 gap-3 mb-3 text-sm pb-3 border-b border-slate-200">
-        <div><div className="text-xs text-black">製品</div><div className="font-semibold">{detail.productName || '-'}</div></div>
-        <div><div className="text-xs text-black">客先</div><div>{detail.customer || '-'}</div></div>
-        <div><div className="text-xs text-black">数量</div><div className="font-mono">{detail.qty}</div></div>
-        <div><div className="text-xs text-black">現在工程</div>{currentStage && <span className={`inline-block text-xs px-2 py-0.5 rounded ${currentStage.color}`}>{currentStage.name}</span>}</div>
-        <div><div className="text-xs text-black">タスク進捗</div><div className="font-mono text-sm">{progress.checked}/{progress.total}</div></div>
+    <div className="p-5 space-y-4">
+      {/* Back button + title */}
+      <div className="flex items-center justify-between">
+        <button onClick={onClose} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+          <ChevronRight size={16} className="rotate-180" />一覧へ戻る
+        </button>
+        <h1 className="text-xl font-bold">製造詳細: <span className="font-mono">{detail.prodNo}</span></h1>
+        <div />
+      </div>
+
+      {/* Header info */}
+      <div className="bg-white border border-slate-200 rounded-lg p-4 grid grid-cols-5 gap-4">
+        <div><div className="text-sm text-black mb-1">製品</div><div className="text-base font-semibold">{detail.productName || '-'}</div></div>
+        <div><div className="text-sm text-black mb-1">客先</div><div className="text-base">{detail.customer || '-'}</div></div>
+        <div><div className="text-sm text-black mb-1">数量</div><div className="text-base font-mono">{detail.qty}</div></div>
+        <div><div className="text-sm text-black mb-1">現在工程</div>{currentStage && <span className={`inline-block text-sm px-2.5 py-1 rounded ${currentStage.color}`}>{currentStage.name}</span>}</div>
+        <div><div className="text-sm text-black mb-1">タスク進捗</div><div className="text-base font-mono">{progress.checked}/{progress.total}</div></div>
       </div>
 
       {/* View toggle */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between">
         <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
-          <button onClick={() => setViewMode('manager')} className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${viewMode === 'manager' ? 'bg-white shadow-sm font-semibold' : 'text-black'}`}>
-            <BarChart3 size={11} />管理者ビュー
+          <button onClick={() => setViewMode('manager')} className={`px-4 py-1.5 text-sm rounded flex items-center gap-1.5 ${viewMode === 'manager' ? 'bg-white shadow-sm font-semibold' : 'text-black'}`}>
+            <BarChart3 size={13} />管理者ビュー
           </button>
-          <button onClick={() => setViewMode('worker')} className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${viewMode === 'worker' ? 'bg-white shadow-sm font-semibold' : 'text-black'}`}>
-            <ClipboardCheck size={11} />作業者ビュー
+          <button onClick={() => setViewMode('worker')} className={`px-4 py-1.5 text-sm rounded flex items-center gap-1.5 ${viewMode === 'worker' ? 'bg-white shadow-sm font-semibold' : 'text-black'}`}>
+            <ClipboardCheck size={13} />作業者ビュー
           </button>
         </div>
-        <Btn variant="ghost" size="sm" icon={Edit} onClick={onEditFull}>指図情報を編集</Btn>
+        <Btn variant="ghost" icon={Edit} onClick={onEditFull}>指図情報を編集</Btn>
       </div>
 
       {viewMode === 'manager' && (
@@ -2591,7 +2616,7 @@ const ProductionDetailModal = ({ prodOrderId, stages, onClose, onRefresh, toast,
           </div>
         </div>
       )}
-    </Modal>
+    </div>
   );
 };
 
@@ -3190,6 +3215,30 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
     { id: 'stages' as const, label: '工程マスタ',     icon: Settings },
   ];
 
+  // Detail page view: replace entire tab UI with detail page
+  if (detailMoId !== null) {
+    return (
+      <>
+        <ProductionDetailPage prodOrderId={detailMoId} stages={stages} onClose={() => setDetailMoId(null)} onRefresh={onRefresh} toast={toast}
+          onEditFull={() => {
+            const mo = prodOrders.find(m => m.id === detailMoId);
+            if (mo) setEditMo(mo);
+          }} />
+        {editMo && (
+          <Modal open onClose={() => setEditMo(null)} title={`製造編集: ${editMo?.prodNo}`} size="md">
+            <ProdOrderForm prodOrder={editMo} isNew={false} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => setEditMo(null)} onSave={async (form: any) => {
+              try {
+                await api.updateProductionOrder(form.id, form);
+                toast('製造情報を更新しました');
+                setEditMo(null); onRefresh();
+              } catch (e: any) { toast(`エラー: ${e.message}`); }
+            }} />
+          </Modal>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200 px-2 flex">
@@ -3204,13 +3253,6 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
       {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onChangeStatus={handleChangeStatus} onOpenDetail={openDetail} />}
       {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onOpenDetail={openDetail} />}
       {view === 'stages' && <ProductionStagesAdmin stages={stages} onRefresh={refreshStages} toast={toast} />}
-      {detailMoId !== null && (
-        <ProductionDetailModal prodOrderId={detailMoId} stages={stages} onClose={() => setDetailMoId(null)} onRefresh={onRefresh} toast={toast}
-          onEditFull={() => {
-            const mo = prodOrders.find(m => m.id === detailMoId);
-            if (mo) { setDetailMoId(null); setEditMo(mo); }
-          }} />
-      )}
       {editMo && (
         <Modal open onClose={() => setEditMo(null)} title={`製造編集: ${editMo?.prodNo}`} size="md">
           <ProdOrderForm prodOrder={editMo} isNew={false} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => setEditMo(null)} onSave={async (form: any) => {
