@@ -971,36 +971,27 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             <div><div className="text-xs text-black">入庫済合計</div><div className="font-mono">{(showDetail.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-black text-xs">/ {(showDetail.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
             <div><div className="text-xs text-black">合計金額</div><div className="font-mono font-bold">{yen(showDetail.totalAmount)}</div></div>
           </div>
-          <div className="bg-slate-50 rounded p-3 mb-4">
-            <div className="text-xs font-semibold text-black mb-2 flex items-center justify-between">
-              <span>明細</span>
-              {(editStatus === 'awaiting' || editStatus === 'partial') && <span className="text-[10px] font-normal text-black">納品分は「今回入庫」、不足/不良分は「不足数」と理由を入力</span>}
-            </div>
+          {/* 明細（読み取り表示） */}
+          <div className="bg-white border border-slate-200 rounded p-3 mb-4">
+            <div className="text-xs font-semibold text-black mb-2">明細</div>
             <table className="w-full text-sm">
               <thead className="text-xs text-black">
                 <tr>
                   <th className="text-left py-2 px-3">品名</th>
-                  <th className="text-right py-2 px-3 w-16">発注</th>
-                  <th className="text-right py-2 px-3 w-16">入庫済</th>
-                  <th className="text-right py-2 px-3 w-12">残</th>
-                  <th className="text-right py-2 px-3 w-20">単価</th>
-                  <th className="text-right py-2 px-3 w-24">小計</th>
-                  {(editStatus === 'awaiting' || editStatus === 'partial') && (
-                    <>
-                      <th className="text-right py-2 px-2 w-20">今回入庫</th>
-                      <th className="text-right py-2 px-2 w-28">不足数 / 理由</th>
-                      <th className="py-2 px-2 w-32">納期見込み</th>
-                    </>
-                  )}
+                  <th className="text-right py-2 px-3 w-20">発注</th>
+                  <th className="text-right py-2 px-3 w-20">入庫済</th>
+                  <th className="text-right py-2 px-3 w-16">残</th>
+                  <th className="text-right py-2 px-3 w-24">単価</th>
+                  <th className="text-right py-2 px-3 w-28">小計</th>
+                  <th className="text-left py-2 px-3 w-40">不足/不良</th>
                 </tr>
               </thead>
               <tbody>
                 {showDetail.details?.map((it, i) => {
                   const remaining = it.qty - it.receivedQty;
                   const isMfrShortage = it.remarks === 'manufacturer_shortage';
-                  const canReceive = !!it.id && remaining > 0 && !isMfrShortage && (editStatus === 'awaiting' || editStatus === 'partial');
-                  const inp = it.id ? receiveInputs[it.id] : null;
                   const shortages = it.shortages || [];
+                  const shortageTotal = shortages.reduce((sum, s) => sum + s.qty, 0);
                   return (
                     <React.Fragment key={i}>
                       <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
@@ -1021,44 +1012,16 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                         <td className="text-right py-2 px-3 font-mono font-semibold">{remaining}</td>
                         <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
                         <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
-                        {(editStatus === 'awaiting' || editStatus === 'partial') && (
-                          <>
-                            <td className="text-right py-2 px-2">
-                              {canReceive ? (
-                                <input type="number" min={0} max={remaining}
-                                  value={inp?.qty ?? 0}
-                                  onChange={e => updateReceiveInput(it.id!, { qty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
-                                  className="w-16 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
-                              ) : <span className="text-xs text-black">-</span>}
-                            </td>
-                            <td className="py-2 px-2">
-                              {canReceive ? (
-                                <div className="flex gap-1 items-center justify-end">
-                                  <input type="number" min={0} max={remaining}
-                                    value={inp?.shortageQty ?? 0}
-                                    onChange={e => updateReceiveInput(it.id!, { shortageQty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
-                                    className="w-12 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
-                                  <select value={inp?.reason || 'shortage'} onChange={e => updateReceiveInput(it.id!, { reason: e.target.value })}
-                                    className="text-[11px] border border-slate-300 rounded px-1 py-0.5">
-                                    {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                                  </select>
-                                </div>
-                              ) : <span className="text-xs text-black">-</span>}
-                            </td>
-                            <td className="py-2 px-2">
-                              {canReceive && (inp?.shortageQty || 0) > 0 ? (
-                                <input type="date" value={inp?.expectedDate || ''} onChange={e => updateReceiveInput(it.id!, { expectedDate: e.target.value })}
-                                  className="text-[11px] border border-slate-300 rounded px-1 py-0.5 w-full" />
-                              ) : <span className="text-xs text-black">-</span>}
-                            </td>
-                          </>
-                        )}
+                        <td className="py-2 px-3">
+                          {shortageTotal > 0 ? (
+                            <span className="inline-block text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">合計 {shortageTotal} 個</span>
+                          ) : <span className="text-xs text-black">-</span>}
+                        </td>
                       </tr>
                       {shortages.length > 0 && (
-                        <tr className="bg-slate-100/60">
-                          <td colSpan={(editStatus === 'awaiting' || editStatus === 'partial') ? 9 : 6} className="px-3 py-2">
-                            <div className="pl-3 border-l-2 border-slate-300">
-                              <div className="text-[11px] text-black font-semibold mb-1.5">不足/不良履歴（合計 {shortages.reduce((sum, s) => sum + s.qty, 0)} 個）</div>
+                        <tr className="bg-slate-50">
+                          <td colSpan={7} className="px-3 py-2">
+                            <div className="pl-3 border-l-2 border-amber-300">
                               <table className="w-full text-xs">
                                 <thead className="text-[10px] text-black">
                                   <tr className="border-b border-slate-200">
@@ -1066,22 +1029,20 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
                                     <th className="text-left py-1 px-2 w-20">理由</th>
                                     <th className="text-left py-1 px-2 w-28">納期見込み</th>
                                     <th className="text-left py-1 px-2">登録日</th>
-                                    <th className="py-1 px-2 w-16 text-center"></th>
+                                    <th className="py-1 px-2 w-12 text-center"></th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {shortages.map(s => (
-                                    <tr key={s.id} className="border-b border-slate-100">
+                                    <tr key={s.id} className="border-b border-slate-100 last:border-0">
                                       <td className="text-right py-1 px-2 font-mono font-semibold">{s.qty}</td>
                                       <td className="py-1 px-2">
                                         <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
                                       </td>
                                       <td className="py-1 px-2 text-black">{s.expectedDate || '-'}</td>
                                       <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
-                                      <td className="py-1 px-2">
-                                        <div className="flex justify-center">
-                                          <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"><Trash2 size={11} /></button>
-                                        </div>
+                                      <td className="py-1 px-2 text-center">
+                                        <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"><Trash2 size={11} /></button>
                                       </td>
                                     </tr>
                                   ))}
@@ -1097,6 +1058,74 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
               </tbody>
             </table>
           </div>
+
+          {/* 今回の入庫処理（残あり明細のみカード） */}
+          {(editStatus === 'awaiting' || editStatus === 'partial') && (() => {
+            const receivableItems = (showDetail.details || []).filter(d => d.id && d.qty - d.receivedQty > 0 && d.remarks !== 'manufacturer_shortage');
+            if (receivableItems.length === 0) return null;
+            return (
+              <div className="bg-blue-50/60 border border-blue-200 rounded p-3 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Truck size={14} className="text-blue-700" />
+                  <span className="text-sm font-bold text-blue-900">今回の入庫処理</span>
+                  <span className="text-[11px] text-blue-700">納品分は「今回入庫数」、不足/不良分は「不足/不良数」と理由を入力</span>
+                </div>
+                <div className="space-y-2">
+                  {receivableItems.map(it => {
+                    const remaining = it.qty - it.receivedQty;
+                    const inp = receiveInputs[it.id!];
+                    const hasShortage = (inp?.shortageQty || 0) > 0;
+                    return (
+                      <div key={it.id} className="bg-white border border-blue-100 rounded p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="text-[11px] font-mono text-black">{it.partId}</div>
+                            <div className="text-sm font-semibold">{it.partName || it.partId}</div>
+                          </div>
+                          <div className="text-xs text-black">
+                            発注 <span className="font-mono font-bold text-base text-slate-800">{it.qty}</span>
+                            <span className="mx-1.5 text-slate-300">/</span>
+                            残 <span className="font-mono font-bold text-base text-amber-700">{remaining}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3 items-end">
+                          <div>
+                            <div className="text-[11px] text-black mb-0.5">今回入庫数</div>
+                            <input type="number" min={0} max={remaining} placeholder="0"
+                              value={inp?.qty || ''}
+                              onChange={e => updateReceiveInput(it.id!, { qty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
+                              className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
+                          </div>
+                          <div>
+                            <div className="text-[11px] text-black mb-0.5">不足/不良数</div>
+                            <input type="number" min={0} max={remaining} placeholder="0"
+                              value={inp?.shortageQty || ''}
+                              onChange={e => updateReceiveInput(it.id!, { shortageQty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
+                              className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
+                          </div>
+                          <div>
+                            <div className="text-[11px] text-black mb-0.5">理由</div>
+                            <select value={inp?.reason || 'shortage'} onChange={e => updateReceiveInput(it.id!, { reason: e.target.value })}
+                              disabled={!hasShortage}
+                              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400">
+                              {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-[11px] text-black mb-0.5">納期見込み</div>
+                            <input type="date" value={inp?.expectedDate || ''}
+                              onChange={e => updateReceiveInput(it.id!, { expectedDate: e.target.value })}
+                              disabled={!hasShortage}
+                              className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           <div className="mb-4">
             <Field label="コメント" full>
               <div className="flex gap-2">
