@@ -14,7 +14,7 @@ import {
   Zap, RefreshCw, Link2, XCircle, Download, Upload, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
-import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, yen } from '@/lib/constants';
+import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, LOG_CATEGORY, SHORTAGE_REASON, SHORTAGE_STATUS, yen } from '@/lib/constants';
 import { api } from '@/lib/api';
 
 // ========================== Types ==========================
@@ -32,7 +32,18 @@ interface Order {
   orderDate: string; desiredDate?: string; expectedDeliveryDate?: string;
   status: string; totalAmount: number; notes?: string;
   comments?: { text: string; ts: string; user?: string }[];
-  details: { id?: number; partId: string; partName?: string; qty: number; receivedQty: number; unitPrice: number; remarks?: string }[];
+  details: { id?: number; partId: string; partName?: string; qty: number; receivedQty: number; unitPrice: number; remarks?: string; shortages?: Shortage[] }[];
+}
+
+interface Shortage {
+  id: number;
+  qty: number;
+  reason: string; // shortage | defective | damaged | other
+  reasonNote?: string;
+  status: string; // pending | resolved | cancelled
+  expectedDate?: string;
+  resolvedAt?: string;
+  createdAt?: string;
 }
 
 interface ProdOrder {
@@ -54,7 +65,8 @@ interface Log {
 // ========================== Sidebar ==========================
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
-  { id: 'production', label: '受注管理／製造管理', icon: Factory },
+  { id: 'sales', label: '受注管理', icon: FileText },
+  { id: 'production', label: '製造管理', icon: Factory },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
   { id: 'issue', label: '出庫処理', icon: Package2 },
@@ -659,7 +671,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
 
   const hasChanges = () => {
     if (!showDetail) return false;
-    return editStatus !== showDetail.status || editExpDate !== (showDetail.expectedDeliveryDate || '') || Object.keys(pendingDetailChanges).length > 0;
+    return editStatus !== showDetail.status
+      || editExpDate !== (showDetail.expectedDeliveryDate || '')
+      || Object.keys(pendingDetailChanges).length > 0
+      || hasReceiveInputs();
   };
 
   const handleClose = () => {
@@ -684,6 +699,13 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
     setEditComment('');
     setCommentHistory(o.comments || []);
     setPendingDetailChanges({});
+    const init: Record<number, ReceiveInput> = {};
+    (o.details || []).forEach(d => {
+      if (d.id && d.qty - d.receivedQty > 0) {
+        init[d.id] = { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
+      }
+    });
+    setReceiveInputs(init);
   };
 
   const lowStockParts = useMemo(() => parts.filter(p => {
@@ -726,6 +748,19 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
   // Pending detail changes (local only until save)
   const [pendingDetailChanges, setPendingDetailChanges] = useState<Record<number, { action: 'shortage' | 'cancel' }>>({});
 
+  // Per-detail receive inputs (qty=合格分, shortageQty=不足/不良数, reason, expectedDate)
+  type ReceiveInput = { qty: number; shortageQty: number; reason: string; expectedDate: string };
+  const [receiveInputs, setReceiveInputs] = useState<Record<number, ReceiveInput>>({});
+
+  const updateReceiveInput = (detailId: number, patch: Partial<ReceiveInput>) => {
+    setReceiveInputs(prev => {
+      const current: ReceiveInput = prev[detailId] ?? { qty: 0, shortageQty: 0, reason: 'shortage', expectedDate: '' };
+      return { ...prev, [detailId]: { ...current, ...patch } };
+    });
+  };
+
+  const hasReceiveInputs = () => Object.values(receiveInputs).some(i => i.qty > 0 || i.shortageQty > 0);
+
   const handleItemShortage = (_orderId: number, detailId: number) => {
     setPendingDetailChanges(prev => ({ ...prev, [detailId]: { action: 'shortage' } }));
     setShowDetail((prev: any) => prev ? {
@@ -744,14 +779,51 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
 
   const handleSaveDetail = async () => {
     if (!showDetail) return;
+    // Validate: qty + shortageQty must not exceed remaining
+    for (const [detailIdStr, inp] of Object.entries(receiveInputs)) {
+      const detailId = Number(detailIdStr);
+      const detail = showDetail.details.find(d => d.id === detailId);
+      if (!detail) continue;
+      const remaining = detail.qty - detail.receivedQty;
+      if ((inp.qty || 0) + (inp.shortageQty || 0) > remaining) {
+        toast(`${detail.partName || detail.partId}: 入庫数+不足数が残数(${remaining})を超えています`);
+        return;
+      }
+    }
     try {
-      // 1. Save order-level changes
-      const data: any = {};
-      data.status = editStatus;
-      if (editExpDate) data.expectedDeliveryDate = editExpDate;
-      await api.updateOrder(showDetail.id, data);
+      // 1. Process receive inputs (good qty + shortages) per detail
+      const receivedById = userId || 1;
+      for (const [detailIdStr, inp] of Object.entries(receiveInputs)) {
+        const detailId = Number(detailIdStr);
+        const detail = showDetail.details.find(d => d.id === detailId);
+        if (!detail) continue;
 
-      // 2. Save pending detail changes (shortage/cancel)
+        if ((inp.qty || 0) > 0) {
+          const locationId = parts.find(p => p.id === detail.partId)?.location || 'A-03-2-L';
+          await api.createReceive({
+            receivedById,
+            items: [{
+              orderId: showDetail.id,
+              orderDetailId: detailId,
+              partId: detail.partId,
+              locationId,
+              qty: inp.qty,
+              result: 'ok',
+            }],
+          });
+        }
+
+        if ((inp.shortageQty || 0) > 0) {
+          await api.createShortageRecord(showDetail.id, detailId, {
+            qty: inp.shortageQty,
+            reason: inp.reason || 'shortage',
+            expectedDate: inp.expectedDate || undefined,
+            createdById: receivedById,
+          });
+        }
+      }
+
+      // 2. Save pending detail changes (shortage/cancel marking)
       for (const [detailIdStr, change] of Object.entries(pendingDetailChanges)) {
         const detailId = Number(detailIdStr);
         if (change.action === 'shortage') {
@@ -761,13 +833,53 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
         }
       }
 
+      // 3. Save order-level changes (status/exp date) - skip status if receive happened
+      // (receives API auto-updates status to partial/completed)
+      const data: any = {};
+      if (!hasReceiveInputs() && editStatus !== showDetail.status) data.status = editStatus;
+      if (editExpDate && editExpDate !== (showDetail.expectedDeliveryDate || '')) data.expectedDeliveryDate = editExpDate;
+      if (Object.keys(data).length > 0) await api.updateOrder(showDetail.id, data);
+
       toast('発注情報を保存しました');
       setPendingDetailChanges({});
+      setReceiveInputs({});
       setShowDetail(null);
       onRefresh();
     } catch (e: any) {
       toast(`エラー: ${e.message}`);
     }
+  };
+
+  const handleResolveShortage = async (detailId: number, shortageId: number) => {
+    if (!showDetail) return;
+    try {
+      await api.updateShortageRecord(showDetail.id, detailId, shortageId, { status: 'resolved' });
+      toast('解決済みにしました');
+      onRefresh();
+      setShowDetail(prev => prev ? {
+        ...prev,
+        details: prev.details.map(d => d.id === detailId ? {
+          ...d,
+          shortages: (d.shortages || []).map(s => s.id === shortageId ? { ...s, status: 'resolved' } : s),
+        } : d),
+      } : prev);
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
+  };
+
+  const handleDeleteShortage = async (detailId: number, shortageId: number) => {
+    if (!showDetail) return;
+    try {
+      await api.deleteShortageRecord(showDetail.id, detailId, shortageId);
+      toast('削除しました');
+      onRefresh();
+      setShowDetail(prev => prev ? {
+        ...prev,
+        details: prev.details.map(d => d.id === detailId ? {
+          ...d,
+          shortages: (d.shortages || []).filter(s => s.id !== shortageId),
+        } : d),
+      } : prev);
+    } catch (e: any) { toast(`エラー: ${e.message}`); }
   };
 
   const handleViewPdf = (o: Order) => {
@@ -808,6 +920,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             { id: 'all', label: '全て', n: orders.length },
             { id: 'draft', label: '未発注', n: orders.filter(o => o.status === 'draft').length },
             { id: 'awaiting', label: '納品待ち', n: orders.filter(o => o.status === 'awaiting').length },
+            { id: 'partial', label: '一部入庫', n: orders.filter(o => o.status === 'partial').length },
             { id: 'manufacturer_shortage', label: 'メーカー欠品', n: orders.filter(o => o.status === 'manufacturer_shortage').length },
             { id: 'completed', label: '完納', n: orders.filter(o => o.status === 'completed').length },
             { id: 'cancelled', label: 'キャンセル', n: orders.filter(o => o.status === 'cancelled').length },
@@ -885,43 +998,140 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             <div><div className="text-xs text-black">合計金額</div><div className="font-mono font-bold">{yen(showDetail.totalAmount)}</div></div>
           </div>
           <div className="bg-slate-50 rounded p-3 mb-4">
-            <div className="text-xs font-semibold text-black mb-2">明細</div>
+            <div className="text-xs font-semibold text-black mb-2 flex items-center justify-between">
+              <span>明細</span>
+              {(editStatus === 'awaiting' || editStatus === 'partial') && <span className="text-[10px] font-normal text-black">納品分は「今回入庫」、不足/不良分は「不足数」と理由を入力</span>}
+            </div>
             <table className="w-full text-sm">
               <thead className="text-xs text-black">
                 <tr>
                   <th className="text-left py-2 px-3">品名</th>
-                  <th className="text-right py-2 px-3 w-20">発注数</th>
-                  <th className="text-right py-2 px-3 w-20">入庫済</th>
-                  <th className="text-right py-2 px-3 w-16">残</th>
-                  <th className="text-right py-2 px-3 w-24">単価</th>
-                  <th className="text-right py-2 px-3 w-28">小計</th>
-                  <th className="py-2 px-3 w-40 text-center">操作</th>
+                  <th className="text-right py-2 px-3 w-16">発注</th>
+                  <th className="text-right py-2 px-3 w-16">入庫済</th>
+                  <th className="text-right py-2 px-3 w-12">残</th>
+                  <th className="text-right py-2 px-3 w-20">単価</th>
+                  <th className="text-right py-2 px-3 w-24">小計</th>
+                  {(editStatus === 'awaiting' || editStatus === 'partial') && (
+                    <>
+                      <th className="text-right py-2 px-2 w-20">今回入庫</th>
+                      <th className="text-right py-2 px-2 w-28">不足数 / 理由</th>
+                      <th className="py-2 px-2 w-32">納期見込み</th>
+                    </>
+                  )}
+                  <th className="py-2 px-3 w-32 text-center">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {showDetail.details?.map((it, i) => (
-                  <tr key={i} className={`border-t border-slate-200 ${it.remarks === 'manufacturer_shortage' ? 'bg-rose-50' : ''}`}>
-                    <td className="py-2 px-3">
-                      <div className="text-xs font-mono text-black">{it.partId}</div>
-                      <div>{it.partName || it.partId}</div>
-                      {it.remarks === 'manufacturer_shortage' && <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
-                    </td>
-                    <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
-                    <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
-                    <td className="text-right py-2 px-3 font-mono font-semibold">{it.qty - it.receivedQty}</td>
-                    <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
-                    <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
-                    <td className="py-2 px-3">
-                      <div className="flex gap-1.5 justify-center whitespace-nowrap">
-                        {it.id && it.remarks === 'manufacturer_shortage' ? (
-                          <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">欠品取消</button>
-                        ) : it.id && it.qty - it.receivedQty > 0 ? (
-                          <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 whitespace-nowrap">欠品登録</button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {showDetail.details?.map((it, i) => {
+                  const remaining = it.qty - it.receivedQty;
+                  const isMfrShortage = it.remarks === 'manufacturer_shortage';
+                  const canReceive = !!it.id && remaining > 0 && !isMfrShortage && (editStatus === 'awaiting' || editStatus === 'partial');
+                  const inp = it.id ? receiveInputs[it.id] : null;
+                  const shortages = it.shortages || [];
+                  return (
+                    <React.Fragment key={i}>
+                      <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
+                        <td className="py-2 px-3">
+                          <div className="text-xs font-mono text-black">{it.partId}</div>
+                          <div>{it.partName || it.partId}</div>
+                          {isMfrShortage && <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>}
+                        </td>
+                        <td className="text-right py-2 px-3 font-mono">{it.qty}</td>
+                        <td className="text-right py-2 px-3 font-mono text-black">{it.receivedQty}</td>
+                        <td className="text-right py-2 px-3 font-mono font-semibold">{remaining}</td>
+                        <td className="text-right py-2 px-3 font-mono">{yen(it.unitPrice)}</td>
+                        <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
+                        {(editStatus === 'awaiting' || editStatus === 'partial') && (
+                          <>
+                            <td className="text-right py-2 px-2">
+                              {canReceive ? (
+                                <input type="number" min={0} max={remaining}
+                                  value={inp?.qty ?? 0}
+                                  onChange={e => updateReceiveInput(it.id!, { qty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
+                                  className="w-16 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
+                              ) : <span className="text-xs text-black">-</span>}
+                            </td>
+                            <td className="py-2 px-2">
+                              {canReceive ? (
+                                <div className="flex gap-1 items-center justify-end">
+                                  <input type="number" min={0} max={remaining}
+                                    value={inp?.shortageQty ?? 0}
+                                    onChange={e => updateReceiveInput(it.id!, { shortageQty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
+                                    className="w-12 text-right border border-slate-300 rounded px-1 py-0.5 font-mono" />
+                                  <select value={inp?.reason || 'shortage'} onChange={e => updateReceiveInput(it.id!, { reason: e.target.value })}
+                                    className="text-[11px] border border-slate-300 rounded px-1 py-0.5">
+                                    {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                                  </select>
+                                </div>
+                              ) : <span className="text-xs text-black">-</span>}
+                            </td>
+                            <td className="py-2 px-2">
+                              {canReceive && (inp?.shortageQty || 0) > 0 ? (
+                                <input type="date" value={inp?.expectedDate || ''} onChange={e => updateReceiveInput(it.id!, { expectedDate: e.target.value })}
+                                  className="text-[11px] border border-slate-300 rounded px-1 py-0.5 w-full" />
+                              ) : <span className="text-xs text-black">-</span>}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-2 px-3">
+                          <div className="flex gap-1.5 justify-center whitespace-nowrap">
+                            {it.id && isMfrShortage ? (
+                              <button onClick={() => handleItemShortageCancel(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 whitespace-nowrap">欠品取消</button>
+                            ) : it.id && remaining > 0 ? (
+                              <button onClick={() => handleItemShortage(showDetail.id, it.id!)} className="text-[11px] px-2.5 py-1 bg-rose-100 text-rose-700 rounded hover:bg-rose-200 whitespace-nowrap">全量欠品</button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                      {shortages.length > 0 && (
+                        <tr className="bg-slate-100/60">
+                          <td colSpan={(editStatus === 'awaiting' || editStatus === 'partial') ? 10 : 7} className="px-3 py-2">
+                            <div className="pl-3 border-l-2 border-slate-300">
+                              <div className="text-[11px] text-black font-semibold mb-1.5">不足/不良履歴 ({shortages.length}件)</div>
+                              <table className="w-full text-xs">
+                                <thead className="text-[10px] text-black">
+                                  <tr className="border-b border-slate-200">
+                                    <th className="text-right py-1 px-2 w-16">残数</th>
+                                    <th className="text-left py-1 px-2 w-20">理由</th>
+                                    <th className="text-left py-1 px-2 w-20">状態</th>
+                                    <th className="text-left py-1 px-2 w-28">納期見込み</th>
+                                    <th className="text-left py-1 px-2">備考</th>
+                                    <th className="text-left py-1 px-2 w-32">登録日</th>
+                                    <th className="py-1 px-2 w-28 text-center">操作</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {shortages.map(s => (
+                                    <tr key={s.id} className="border-b border-slate-100">
+                                      <td className="text-right py-1 px-2 font-mono font-semibold">{s.qty}</td>
+                                      <td className="py-1 px-2">
+                                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
+                                      </td>
+                                      <td className="py-1 px-2">
+                                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_STATUS[s.status]?.color || ''}`}>{SHORTAGE_STATUS[s.status]?.label || s.status}</span>
+                                      </td>
+                                      <td className="py-1 px-2 text-black">{s.expectedDate || '-'}</td>
+                                      <td className="py-1 px-2 text-black truncate max-w-[200px]">{s.reasonNote || ''}</td>
+                                      <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
+                                      <td className="py-1 px-2">
+                                        <div className="flex gap-1 justify-center">
+                                          {s.status === 'pending' && (
+                                            <button onClick={() => handleResolveShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">解決</button>
+                                          )}
+                                          <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"><Trash2 size={11} /></button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1041,6 +1251,8 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
   }, [parts, items]);
   const [supplier, setSupplier] = useState(bulk && lowStockParts[0]?.supplier ? lowStockParts[0].supplier : supplierOptions[0] || '');
   const [searchQ, setSearchQ] = useState('');
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [desiredDate, setDesiredDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
 
   const filteredItems = items.filter(it => {
     if (!supplier) return true;
@@ -1082,14 +1294,15 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
         for (const [suppName, groupItems] of supplierGroups) {
           const res = await api.createOrder({
             supplierId: groupItems[0]?.supplierId || 1,
-            desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            orderDate,
+            desiredDate,
             details: groupItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
           });
           createdOrders.push({
             id: res.id, orderNo: res.orderNo || '', supplier: suppName,
             supplierId: groupItems[0]?.supplierId || 1,
-            orderDate: new Date().toISOString().slice(0, 10),
-            desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            orderDate,
+            desiredDate,
             status: 'draft', totalAmount: groupItems.reduce((s, i) => s + i.qty * i.unitPrice, 0),
             details: groupItems.map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
           });
@@ -1109,7 +1322,8 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
       try {
         const res = await api.createOrder({
           supplierId: filteredItems[0]?.supplierId || 1,
-          desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+          orderDate,
+          desiredDate,
           details: filteredItems.map(i => ({ partId: i.partId, qty: i.qty, unitPrice: i.unitPrice })),
         });
         toast('発注書を作成しました');
@@ -1119,8 +1333,8 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
           onShowPdf({
             id: res.id, orderNo: res.orderNo || '', supplier: supplier,
             supplierId: filteredItems[0]?.supplierId || 1,
-            orderDate: new Date().toISOString().slice(0, 10),
-            desiredDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            orderDate,
+            desiredDate,
             status: 'draft', totalAmount: total,
             details: filteredItems.map(i => ({ partId: i.partId, partName: i.name, qty: i.qty, receivedQty: 0, unitPrice: i.unitPrice })),
           });
@@ -1138,8 +1352,15 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
               {supplierOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
-          <Field label="発注日"><input value={new Date().toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
-          <Field label="想定納期"><input value={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)} disabled className={inputClass} /></Field>
+          <Field label="発注日"><input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className={inputClass} /></Field>
+          <Field label="希望納期"><input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)} className={inputClass} /></Field>
+        </div>
+      )}
+
+      {bulk && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Field label="発注日"><input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className={inputClass} /></Field>
+          <Field label="希望納期"><input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)} className={inputClass} /></Field>
         </div>
       )}
 
@@ -1674,7 +1895,8 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
       .map(([partId, qty]) => {
         const detail = order.details.find(d => d.partId === partId);
         const insp = inspection[partId] || '合格';
-        const receiveQtyFinal = insp === '不合格' ? 0 : qty;
+        const isReject = insp !== '合格';
+        const receiveQtyFinal = isReject ? 0 : qty;
 
         return {
           partId,
@@ -1683,8 +1905,8 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
           orderDetailId: detail?.id,
           orderId: order.id,
           locationId: parts.find(p => p.id === partId)?.location || 'A-03-2-L',
-          result: insp === '不合格' ? 'reject' : 'ok',
-          rejectReason: insp === '不合格' ? '検査不合格' : insp === '条件付合格' ? '条件付合格' : undefined,
+          result: isReject ? 'reject' : 'ok',
+          rejectReason: isReject ? insp : undefined,
         };
       })
       .filter(i => i.qty > 0);
@@ -1801,7 +2023,7 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
                         <td className="px-3 py-2">
                           {remaining > 0 && !isShortage ? (
                             <select value={inspection[d.partId] || '合格'} onChange={e => setInspection(s => ({ ...s, [d.partId]: e.target.value }))} className="text-xs border border-slate-300 rounded px-2 py-1">
-                              <option>合格</option><option>条件付合格</option><option>不合格</option>
+                              <option>合格</option><option>不良</option><option>破損</option><option>欠品</option><option>その他</option>
                             </select>
                           ) : <span className="text-xs text-black">-</span>}
                         </td>
@@ -1829,16 +2051,109 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast }: { orders: Order[]; p
   );
 };
 
-const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [bomDetail, setBomDetail] = useState<any>(null);
-  const [bomLoading, setBomLoading] = useState(false);
+const PRODUCTION_NEXT_STATUS: Record<string, { next: string; label: string }> = {
+  planned: { next: 'allocated', label: '引当開始' },
+  allocated: { next: 'picking', label: 'ピッキング開始' },
+  picking: { next: 'completed', label: '完了' },
+};
+
+const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
   const [showNew, setShowNew] = useState(false);
   const [editMo, setEditMo] = useState<ProdOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProdOrder | null>(null);
   const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => { api.getProducts().then(res => setProducts(res.data || [])).catch(() => {}); }, []);
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200">
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="font-bold text-sm">受注一覧</h2>
+          <Btn icon={Plus} onClick={() => setShowNew(true)}>新規受注</Btn>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-black uppercase">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">工番</th>
+                <th className="text-left px-3 py-2 font-medium">製品名</th>
+                <th className="text-left px-3 py-2 font-medium">区分</th>
+                <th className="text-left px-3 py-2 font-medium">客先</th>
+                <th className="text-right px-3 py-2 font-medium">数量</th>
+                <th className="text-right px-3 py-2 font-medium">受注金額</th>
+                <th className="text-left px-3 py-2 font-medium">出荷納期</th>
+                <th className="text-left px-3 py-2 font-medium">ステータス</th>
+                <th className="px-3 py-2 font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {prodOrders.map(m => (
+                <tr key={m.id} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 font-mono text-xs font-semibold">{m.prodNo}</td>
+                  <td className="px-3 py-2 text-xs">{(m as any).productName || '-'}</td>
+                  <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{m.customer || '-'}</td>
+                  <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
+                  <td className="px-3 py-2 text-right font-mono">{(m as any).amount ? `¥${Number((m as any).amount).toLocaleString()}` : '-'}</td>
+                  <td className="px-3 py-2 text-xs">{m.dueDate || '-'}</td>
+                  <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMo(m)}>編集</Btn>
+                      <button onClick={() => setDeleteTarget(m)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {(showNew || editMo) && (
+        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '新規受注登録' : `受注編集: ${editMo?.prodNo}`} size="md">
+          <ProdOrderForm prodOrder={editMo} isNew={showNew} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
+            try {
+              if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('受注を登録しました'); }
+              else { await api.updateProductionOrder(form.id, form); toast('受注を更新しました'); }
+              setShowNew(false); setEditMo(null); onRefresh();
+            } catch (e: any) { toast(`エラー: ${e.message}`); }
+          }} />
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="受注の削除確認" size="sm">
+          <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3 mb-4">
+            <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
+            <div><p className="font-bold text-rose-800">工番「{deleteTarget.prodNo}」を削除しますか？</p><p className="text-rose-700 mt-1">{deleteTarget.customer || ''} の受注が削除されます。</p></div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="danger" icon={Trash2} onClick={async () => { try { await api.deleteProductionOrder(deleteTarget.id); toast(`削除しました`); setDeleteTarget(null); onRefresh(); } catch (e: any) { toast(`エラー: ${e.message}`); } }}>削除する</Btn>
+            <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [bomDetail, setBomDetail] = useState<any>(null);
+  const [bomLoading, setBomLoading] = useState(false);
+  const [editMo, setEditMo] = useState<ProdOrder | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [products, setProducts] = useState<any[]>([]);
+
+  useEffect(() => { api.getProducts().then(res => setProducts(res.data || [])).catch(() => {}); }, []);
+
+  const filteredOrders = useMemo(() => {
+    if (statusFilter === 'all') return prodOrders;
+    if (statusFilter === 'active') return prodOrders.filter(m => m.status !== 'completed');
+    return prodOrders.filter(m => m.status === statusFilter);
+  }, [prodOrders, statusFilter]);
 
   const handleToggle = async (mo: ProdOrder) => {
     if (expandedId === mo.id) {
@@ -1859,12 +2174,34 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
     }
   };
 
+  const handleAdvanceStatus = async (mo: ProdOrder) => {
+    const ns = PRODUCTION_NEXT_STATUS[mo.status];
+    if (!ns) return;
+    try {
+      await api.updateProductionOrder(mo.id, { status: ns.next });
+      toast(`ステータスを「${MO_STATUS[ns.next]?.label || ns.next}」に変更しました`);
+      onRefresh();
+    } catch (e: any) {
+      toast(`エラー: ${e.message}`);
+    }
+  };
+
   return (
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">受注一覧</h2>
-          <Btn icon={Plus} onClick={() => setShowNew(true)}>新規受注</Btn>
+          <h2 className="font-bold text-sm">製造一覧</h2>
+          <div className="flex items-center gap-2">
+            <Filter size={13} className="text-slate-500" />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+              <option value="active">進行中</option>
+              <option value="all">全て</option>
+              <option value="planned">計画</option>
+              <option value="allocated">引当済</option>
+              <option value="picking">ピッキング中</option>
+              <option value="completed">完了</option>
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1876,14 +2213,16 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                 <th className="text-left px-3 py-2 font-medium">区分</th>
                 <th className="text-left px-3 py-2 font-medium">客先</th>
                 <th className="text-right px-3 py-2 font-medium">数量</th>
-                <th className="text-right px-3 py-2 font-medium">受注金額</th>
-                <th className="text-left px-3 py-2 font-medium">出荷納期</th>
+                <th className="text-left px-3 py-2 font-medium">開始日</th>
+                <th className="text-left px-3 py-2 font-medium">納期</th>
                 <th className="text-left px-3 py-2 font-medium">ステータス</th>
                 <th className="px-3 py-2 font-medium">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {prodOrders.map(m => (
+              {filteredOrders.map(m => {
+                const nextStep = PRODUCTION_NEXT_STATUS[m.status];
+                return (
                 <React.Fragment key={m.id}>
                   <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => handleToggle(m)}>
                     <td className="px-3 py-2 text-black">
@@ -1894,13 +2233,15 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                     <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
                     <td className="px-3 py-2 text-xs">{m.customer || '-'}</td>
                     <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
-                    <td className="px-3 py-2 text-right font-mono">{(m as any).amount ? `¥${Number((m as any).amount).toLocaleString()}` : '-'}</td>
+                    <td className="px-3 py-2 text-xs">{m.startDate || '-'}</td>
                     <td className="px-3 py-2 text-xs">{m.dueDate || '-'}</td>
                     <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
+                        {nextStep && (
+                          <Btn variant="primary" size="sm" icon={ChevronRight} onClick={() => handleAdvanceStatus(m)}>{nextStep.label}</Btn>
+                        )}
                         <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMo(m)}>編集</Btn>
-                        <button onClick={() => setDeleteTarget(m)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -1982,34 +2323,22 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {(showNew || editMo) && (
-        <Modal open onClose={() => { setShowNew(false); setEditMo(null); }} title={showNew ? '新規受注登録' : `受注編集: ${editMo?.prodNo}`} size="md">
-          <ProdOrderForm prodOrder={editMo} isNew={showNew} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => { setShowNew(false); setEditMo(null); }} onSave={async (form: any, isNew: boolean) => {
+      {editMo && (
+        <Modal open onClose={() => setEditMo(null)} title={`製造編集: ${editMo?.prodNo}`} size="md">
+          <ProdOrderForm prodOrder={editMo} isNew={false} prodOrders={prodOrders} products={products} parts={parts} customers={customers} onClose={() => setEditMo(null)} onSave={async (form: any) => {
             try {
-              if (isNew) { await api.createProductionOrder({ ...form, createdById: 1 }); toast('受注を登録しました'); }
-              else { await api.updateProductionOrder(form.id, form); toast('受注を更新しました'); }
-              setShowNew(false); setEditMo(null); onRefresh();
+              await api.updateProductionOrder(form.id, form);
+              toast('製造情報を更新しました');
+              setEditMo(null); onRefresh();
             } catch (e: any) { toast(`エラー: ${e.message}`); }
           }} />
-        </Modal>
-      )}
-
-      {deleteTarget && (
-        <Modal open onClose={() => setDeleteTarget(null)} title="受注の削除確認" size="sm">
-          <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-lg p-3 mb-4">
-            <Trash2 size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
-            <div><p className="font-bold text-rose-800">工番「{deleteTarget.prodNo}」を削除しますか？</p><p className="text-rose-700 mt-1">{deleteTarget.customer || ''} の受注が削除されます。</p></div>
-          </div>
-          <div className="flex gap-2">
-            <Btn variant="danger" icon={Trash2} onClick={async () => { try { await api.deleteProductionOrder(deleteTarget.id); toast(`削除しました`); setDeleteTarget(null); onRefresh(); } catch (e: any) { toast(`エラー: ${e.message}`); } }}>削除する</Btn>
-            <Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn>
-          </div>
         </Modal>
       )}
     </div>
@@ -5733,7 +6062,8 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   suppliers: { title: '企業管理', subtitle: '仕入先・メーカー・客先の登録・編集' },
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
-  production: { title: '受注管理／製造管理', subtitle: '工番管理・受注登録・進捗管理' },
+  sales: { title: '受注管理', subtitle: '工番・受注の登録・編集・削除' },
+  production: { title: '製造管理', subtitle: 'BOM展開・ピッキング進捗・ステータス遷移' },
   issue: { title: '出庫処理', subtitle: '受注に基づく部品払出' },
   stocktake: { title: '棚卸し', subtitle: '実地棚卸しの管理' },
   reports: { title: 'レポート', subtitle: '在庫分析・統計' },
@@ -5833,6 +6163,7 @@ export default function AppPage() {
           {view === 'suppliers' && <SuppliersScreen toast={toast} />}
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} />}
+          {view === 'sales' && <SalesOrderScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}

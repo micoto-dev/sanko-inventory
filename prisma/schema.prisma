@@ -40,6 +40,7 @@ model MUser {
   updatedProducts MProduct[]
   ocrHistories   TOcrHistory[]
   attachments    TAttachment[]
+  shortagesCreated TOrderDetailShortage[]
 
   @@map("m_user")
 }
@@ -268,12 +269,32 @@ model TOrderDetail {
   remarks     String? @db.Text
 
   // Relations
-  order    TOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  part     MPart  @relation(fields: [partId], references: [id])
-  receives TReceive[]
+  order     TOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  part      MPart  @relation(fields: [partId], references: [id])
+  receives  TReceive[]
+  shortages TOrderDetailShortage[]
 
   @@unique([orderId, lineNo])
   @@map("t_order_detail")
+}
+
+model TOrderDetailShortage {
+  id            Int       @id @default(autoincrement())
+  orderDetailId Int       @map("order_detail_id")
+  qty           Int
+  reason        String    @db.VarChar(32) // shortage | defective | damaged | other
+  reasonNote    String?   @map("reason_note") @db.Text
+  status        String    @default("pending") @db.VarChar(16) // pending | resolved | cancelled
+  expectedDate  DateTime? @map("expected_date") @db.Date
+  resolvedAt    DateTime? @map("resolved_at") @db.Timestamptz()
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  createdById   Int       @map("created_by")
+
+  orderDetail TOrderDetail @relation(fields: [orderDetailId], references: [id], onDelete: Cascade)
+  createdBy   MUser        @relation(fields: [createdById], references: [id])
+
+  @@map("t_order_detail_shortage")
 }
 
 model TReceive {

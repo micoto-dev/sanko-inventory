@@ -9,9 +9,23 @@ export const STATUS_COLOR: Record<string, { bg: string; text: string; border: st
 export const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   draft: { label: '未発注', color: 'bg-slate-100 text-slate-900' },
   awaiting: { label: '納品待ち', color: 'bg-blue-100 text-blue-800' },
+  partial: { label: '一部入庫', color: 'bg-amber-100 text-amber-800' },
   manufacturer_shortage: { label: 'メーカー欠品', color: 'bg-rose-100 text-rose-800' },
   completed: { label: '完納', color: 'bg-emerald-100 text-emerald-800' },
   cancelled: { label: 'キャンセル', color: 'bg-slate-200 text-slate-900' },
+};
+
+export const SHORTAGE_REASON: Record<string, { label: string; color: string }> = {
+  shortage: { label: '欠品', color: 'bg-amber-100 text-amber-800' },
+  defective: { label: '不良', color: 'bg-rose-100 text-rose-800' },
+  damaged: { label: '破損', color: 'bg-orange-100 text-orange-800' },
+  other: { label: 'その他', color: 'bg-slate-100 text-slate-800' },
+};
+
+export const SHORTAGE_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: '対応中', color: 'bg-amber-100 text-amber-800' },
+  resolved: { label: '解決済み', color: 'bg-emerald-100 text-emerald-800' },
+  cancelled: { label: '取消', color: 'bg-slate-100 text-slate-700' },
 };
 
 export const MO_STATUS: Record<string, { label: string; color: string }> = {
