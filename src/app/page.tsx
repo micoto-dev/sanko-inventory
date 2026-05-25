@@ -105,8 +105,8 @@ const SidebarContent = ({ view, setView, onNavigate }: { view: string; setView: 
           <Anchor size={17} className="text-black" />
         </div>
         <div>
-          <div className="font-bold text-sm">三工電機</div>
-          <div className="text-[11px] text-black uppercase">Inventory</div>
+          <div className="font-bold text-base">三工電機</div>
+          <div className="text-sm text-black uppercase">Inventory</div>
         </div>
       </div>
     </div>
@@ -155,16 +155,16 @@ const TopBar = ({ title, subtitle, onMenuOpen, userName }: { title: string; subt
       </button>
       <div className="min-w-0">
         <h1 className="text-base font-bold text-black truncate">{title}</h1>
-        {subtitle && <p className="text-xs text-black hidden sm:block">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-black hidden sm:block">{subtitle}</p>}
       </div>
     </div>
     <div className="flex items-center gap-2 flex-shrink-0">
-      <div className="hidden sm:flex items-center gap-2 text-xs text-black">
-        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">{(userName || 'U').slice(0, 1)}</div>
+      <div className="hidden sm:flex items-center gap-2 text-sm text-black">
+        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">{(userName || 'U').slice(0, 1)}</div>
         <span>{userName || 'ユーザー'}</span>
       </div>
       <button onClick={() => { fetch('/api/auth/signout', { method: 'POST' }).then(() => window.location.href = '/login'); }}
-        className="flex items-center gap-1 px-2 py-1 text-xs text-black hover:text-black hover:bg-slate-100 rounded transition">
+        className="flex items-center gap-1 px-2 py-1 text-sm text-black hover:text-black hover:bg-slate-100 rounded transition">
         <LogOut size={13} /> <span className="hidden sm:inline">ログアウト</span>
       </button>
     </div>
@@ -197,9 +197,9 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
           return (
             <div key={i} className="bg-white rounded-lg border border-slate-200 p-3.5">
               <div className={`w-8 h-8 bg-gradient-to-br ${k.color} rounded-md flex items-center justify-center text-white mb-2`}><Icon size={15} /></div>
-              <div className="text-[11px] text-black">{k.label}</div>
+              <div className="text-sm text-black">{k.label}</div>
               <div className="text-xl font-bold text-black mt-0.5">{k.value}</div>
-              <div className="text-[11px] text-black">{k.sub}</div>
+              <div className="text-sm text-black">{k.sub}</div>
             </div>
           );
         })}
@@ -208,8 +208,8 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200">
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-bold text-sm flex items-center gap-2"><Bell size={15} /> 対応が必要なアラート</h2>
-            <button onClick={() => setView('orders')} className="text-xs text-blue-600 hover:underline">全て表示</button>
+            <h2 className="font-bold text-base flex items-center gap-2"><Bell size={15} /> 対応が必要なアラート</h2>
+            <button onClick={() => setView('orders')} className="text-sm text-blue-600 hover:underline">全て表示</button>
           </div>
           <div className="divide-y divide-slate-100">
             {parts.filter(p => p.shortageReason).map(p => (
@@ -217,7 +217,7 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
                 <AlertCircle size={14} className="text-rose-500 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold">メーカー欠品: {p.name}</div>
-                  <div className="text-xs text-black">{p.shortageReason}</div>
+                  <div className="text-sm text-black">{p.shortageReason}</div>
                 </div>
               </div>
             ))}
@@ -226,7 +226,7 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
                 <AlertCircle size={14} className="text-amber-500 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold">{p.stock === 0 ? '在庫切れ' : '発注点割れ'}: {p.name}</div>
-                  <div className="text-xs text-black">在庫 {p.stock} / 発注点 {p.reorderPoint}</div>
+                  <div className="text-sm text-black">在庫 {p.stock} / 発注点 {p.reorderPoint}</div>
                 </div>
               </div>
             ))}
@@ -238,17 +238,17 @@ const Dashboard = ({ parts, orders, prodOrders, setView }: {
 
         <div className="bg-white rounded-lg border border-slate-200">
           <div className="px-4 py-3 border-b border-slate-200">
-            <h2 className="font-bold text-sm flex items-center gap-2"><Factory size={15} /> 進行中の製造</h2>
+            <h2 className="font-bold text-base flex items-center gap-2"><Factory size={15} /> 進行中の製造</h2>
           </div>
           <div className="divide-y divide-slate-100">
             {prodOrders.filter(m => m.status !== 'completed').map(m => (
               <div key={m.id} onClick={() => setView('production')} className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-black">{m.prodNo}</span>
+                  <span className="font-mono text-sm text-black">{m.prodNo}</span>
                   <StatusBadge statusKey={m.status} statusMap={MO_STATUS} />
                 </div>
                 <div className="text-sm font-bold mt-0.5">{m.productName || m.productCode} x {m.qty}</div>
-                <div className="text-xs text-black">納期: {m.dueDate} / {m.customer}</div>
+                <div className="text-sm text-black">納期: {m.dueDate} / {m.customer}</div>
               </div>
             ))}
             {prodOrders.filter(m => m.status !== 'completed').length === 0 && (
@@ -390,13 +390,13 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
         </div>
         <div className="flex items-center gap-2">
           <Filter size={12} className="text-black" />
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="text-sm px-2 py-1 border border-slate-300 rounded text-black">
             <option value="all">全ステータス</option>
             {Object.entries(STATUS_COLOR).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <span className="ml-auto flex items-center gap-2 text-xs text-black">
+          <span className="ml-auto flex items-center gap-2 text-sm text-black">
             <span>表示件数</span>
-            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1 text-xs text-black">
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1 text-sm text-black">
               <option value={20}>20件</option>
               <option value={50}>50件</option>
               <option value={100}>100件</option>
@@ -409,7 +409,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">品番</th>
                 <th className="text-left px-3 py-2 font-medium">品名・仕様</th>
@@ -428,24 +428,24 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openPart?.(p)}>
                     <td className="px-3 py-2">
-                      <div className="font-mono text-xs">{p.id}</div>
-                      <div className="font-mono text-[11px] text-black">{p.code}</div>
+                      <div className="font-mono text-sm">{p.id}</div>
+                      <div className="font-mono text-sm text-black">{p.code}</div>
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-semibold">{p.name}</div>
-                      <div className="text-xs text-black">{p.spec}</div>
+                      <div className="text-sm text-black">{p.spec}</div>
                     </td>
                     <td className="px-3 py-2 text-black">
                       <div>{p.maker}</div>
-                      <div className="text-xs text-black font-mono">{p.makerCode}</div>
+                      <div className="text-sm text-black font-mono">{p.makerCode}</div>
                     </td>
                     <td className="px-3 py-2 text-right font-mono">
                       <div className="font-semibold">{p.stock}</div>
-                      <div className="text-[11px] text-black">引当:{p.allocated}</div>
+                      <div className="text-sm text-black">引当:{p.allocated}</div>
                     </td>
                     <td className="px-3 py-2 text-right font-mono">{yen(p.unitPrice)}</td>
                     <td className="px-3 py-2 text-right font-mono">{p.reorderPoint}</td>
-                    <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${s.bg} ${s.text} border ${s.border}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>{s.label}</span></td>
+                    <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm ${s.bg} ${s.text} border ${s.border}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>{s.label}</span></td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(p)}>編集</Btn>
@@ -459,7 +459,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
           </table>
         </div>
         {totalPages > 1 && (
-          <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-end gap-2 bg-slate-50 text-xs">
+          <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-end gap-2 bg-slate-50 text-sm">
             <span className="text-black">{(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filtered.length)} / {filtered.length}件</span>
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage <= 1} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed">前へ</button>
             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages} className="px-2 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed">次へ</button>
@@ -472,7 +472,7 @@ const MasterScreen = ({ parts, onRefresh, toast, openPart, locations }: { parts:
           <div className="text-sm mb-4">
             <p>以下の部品を削除しますか？</p>
             <div className="mt-2 bg-slate-50 rounded p-3">
-              <div className="font-mono text-xs text-black">{deleteTarget.id}</div>
+              <div className="font-mono text-sm text-black">{deleteTarget.id}</div>
               <div className="font-semibold">{deleteTarget.name}</div>
             </div>
           </div>
@@ -566,14 +566,14 @@ const CsvImportModal = ({ onClose, onRefresh, toast }: { onClose: () => void; on
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <button onClick={downloadTemplate} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Download size={14} />雛形ダウンロード</button>
-          <span className="text-xs text-black">CSVファイルを選択してアップロードしてください</span>
+          <span className="text-sm text-black">CSVファイルを選択してアップロードしてください</span>
         </div>
         <input type="file" accept=".csv" onChange={handleFile} className="block w-full text-sm text-black file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
         {previewRows.length > 0 && (
           <>
-            <div className="text-xs font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
+            <div className="text-sm font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
             <div className="max-h-60 overflow-auto border border-slate-200 rounded">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead className="bg-slate-50 sticky top-0"><tr><th className="px-2 py-1 text-left">品番</th><th className="px-2 py-1 text-left">品名</th><th className="px-2 py-1 text-left">メーカー</th><th className="px-2 py-1 text-right">単価</th><th className="px-2 py-1 text-right">発注点</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {previewRows.map((r, i) => (
@@ -633,11 +633,11 @@ const PartFormModal = ({ part, isNew, onClose, onSave, locations, parts }: { par
       <div className="flex items-center gap-2 mb-3 -mt-1">
         <button
           onClick={() => setOcrOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition"
         >
           <Camera size={13} /> OCR読み込み <Sparkles size={11} className="text-blue-500" />
         </button>
-        <span className="text-[11px] text-black">カメラで現品ラベル/銘板を撮影 → 入力欄を自動入力</span>
+        <span className="text-sm text-black">カメラで現品ラベル/銘板を撮影 → 入力欄を自動入力</span>
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <Field label="社内品番*"><input value={form.code || ''} onChange={e => upd('code', e.target.value)} className={inputClass} /></Field>
@@ -730,7 +730,7 @@ const OrderReplaceModal = ({ orderId, detail, currentSupplierId, currentDesiredD
   return (
     <Modal open onClose={onClose} title={`別会社へ振替発注: ${detail.partName || detail.partId}`} size="md">
       <div className="space-y-4">
-        <div className="bg-rose-50 border border-rose-200 rounded p-3 text-xs">
+        <div className="bg-rose-50 border border-rose-200 rounded p-3 text-sm">
           <div className="font-semibold text-rose-800 mb-1">振替元</div>
           <div className="text-rose-700">
             {detail.partId} {detail.partName} — 発注 {detail.qty} / 入庫済 {detail.receivedQty} / 残 <span className="font-bold">{remaining}</span>
@@ -762,7 +762,7 @@ const OrderReplaceModal = ({ orderId, detail, currentSupplierId, currentDesiredD
           </Field>
         </div>
 
-        <div className="text-xs text-black bg-slate-50 rounded p-2">
+        <div className="text-sm text-black bg-slate-50 rounded p-2">
           振替発注は <span className="font-semibold">未発注（draft）</span> として作成されます。発注管理から内容を確認・承認してください。元の明細はメーカー欠品マークが付き、双方向にリンクされます。
         </div>
 
@@ -952,27 +952,27 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
   return (
     <Modal open onClose={handleClose} title={`発注詳細: ${order.orderNo}`} size="xl">
       <div className="grid grid-cols-4 gap-3 mb-4 text-sm">
-        <div><div className="text-xs text-black">仕入先</div><div className="font-semibold">{order.supplier}</div></div>
-        <div><div className="text-xs text-black">発注日</div><div>{order.orderDate}</div></div>
-        <div><div className="text-xs text-black">希望納期</div><div>{order.desiredDate}</div></div>
+        <div><div className="text-sm text-black">仕入先</div><div className="font-semibold">{order.supplier}</div></div>
+        <div><div className="text-sm text-black">発注日</div><div>{order.orderDate}</div></div>
+        <div><div className="text-sm text-black">希望納期</div><div>{order.desiredDate}</div></div>
         <div>
-          <div className="text-xs text-black">ステータス</div>
-          <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full">
+          <div className="text-sm text-black">ステータス</div>
+          <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="mt-0.5 text-sm border border-slate-300 rounded px-1.5 py-1 w-full">
             {Object.entries(ORDER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
         <div>
-          <div className="text-xs text-black">納品予定日</div>
-          <input type="date" value={editExpDate} onChange={e => setEditExpDate(e.target.value)} className="mt-0.5 text-xs border border-slate-300 rounded px-1.5 py-1 w-full" />
+          <div className="text-sm text-black">納品予定日</div>
+          <input type="date" value={editExpDate} onChange={e => setEditExpDate(e.target.value)} className="mt-0.5 text-sm border border-slate-300 rounded px-1.5 py-1 w-full" />
         </div>
-        <div><div className="text-xs text-black">明細数</div><div className="font-mono">{order.details?.length || 0}</div></div>
-        <div><div className="text-xs text-black">入庫済合計</div><div className="font-mono">{(order.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-black text-xs">/ {(order.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
-        <div><div className="text-xs text-black">合計金額</div><div className="font-mono font-bold">{yen(order.totalAmount)}</div></div>
+        <div><div className="text-sm text-black">明細数</div><div className="font-mono">{order.details?.length || 0}</div></div>
+        <div><div className="text-sm text-black">入庫済合計</div><div className="font-mono">{(order.details || []).reduce((s, i) => s + i.receivedQty, 0).toLocaleString()} <span className="text-black text-sm">/ {(order.details || []).reduce((s, i) => s + i.qty, 0).toLocaleString()}</span></div></div>
+        <div><div className="text-sm text-black">合計金額</div><div className="font-mono font-bold">{yen(order.totalAmount)}</div></div>
       </div>
       <div className="bg-white border border-slate-200 rounded p-3 mb-4">
-        <div className="text-xs font-semibold text-black mb-2">明細</div>
+        <div className="text-sm font-semibold text-black mb-2">明細</div>
         <table className="w-full text-sm">
-          <thead className="text-xs text-black">
+          <thead className="text-sm text-black">
             <tr>
               <th className="text-left py-2 px-3">品名</th>
               <th className="text-right py-2 px-3 w-20">発注</th>
@@ -994,20 +994,20 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                 <React.Fragment key={i}>
                   <tr className={`border-t border-slate-200 ${isMfrShortage ? 'bg-rose-50' : ''}`}>
                     <td className="py-2 px-3">
-                      <div className="text-xs font-mono text-black">{it.partId}</div>
+                      <div className="text-sm font-mono text-black">{it.partId}</div>
                       <div>{it.partName || it.partId}</div>
                       {(isMfrShortage || canReplace) && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {isMfrShortage && (
-                            <span className="inline-block text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
+                            <span className="inline-block text-sm px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-semibold">欠品</span>
                           )}
                           {canReplace && (
-                            <button onClick={() => setReplaceTarget(it)} className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold inline-flex items-center gap-0.5">
+                            <button onClick={() => setReplaceTarget(it)} className="text-sm px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold inline-flex items-center gap-0.5">
                               <RefreshCw size={10} /> 別会社へ振替発注
                             </button>
                           )}
                           {isMfrShortage && it.id && (
-                            <button onClick={() => handleItemShortageCancel(it.id!)} className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
+                            <button onClick={() => handleItemShortageCancel(it.id!)} className="text-sm px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">欠品取消</button>
                           )}
                         </div>
                       )}
@@ -1017,7 +1017,7 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                             <button key={r.detailId}
                               onClick={() => onJumpToOrder?.(r.orderId)}
                               disabled={!onJumpToOrder}
-                              className="text-[10px] text-blue-700 hover:underline disabled:no-underline disabled:cursor-default flex items-center gap-1">
+                              className="text-sm text-blue-700 hover:underline disabled:no-underline disabled:cursor-default flex items-center gap-1">
                               <Link2 size={10} /> 振替先: {r.orderNo} ({r.supplier}) — {r.qty}個 / {ORDER_STATUS[r.status]?.label || r.status}
                             </button>
                           ))}
@@ -1028,7 +1028,7 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                           <button
                             onClick={() => onJumpToOrder?.(it.replacesDetail!.orderId)}
                             disabled={!onJumpToOrder}
-                            className="text-[10px] text-slate-600 hover:underline disabled:no-underline disabled:cursor-default flex items-center gap-1">
+                            className="text-sm text-slate-600 hover:underline disabled:no-underline disabled:cursor-default flex items-center gap-1">
                             <Link2 size={10} /> 振替元: {it.replacesDetail.orderNo} ({it.replacesDetail.supplier}) — {ORDER_STATUS[it.replacesDetail.status]?.label || it.replacesDetail.status}
                           </button>
                         </div>
@@ -1041,16 +1041,16 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                     <td className="text-right py-2 px-3 font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
                     <td className="py-2 px-3">
                       {shortageTotal > 0 ? (
-                        <span className="inline-block text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">合計 {shortageTotal} 個</span>
-                      ) : <span className="text-xs text-black">-</span>}
+                        <span className="inline-block text-sm px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">合計 {shortageTotal} 個</span>
+                      ) : <span className="text-sm text-black">-</span>}
                     </td>
                   </tr>
                   {shortages.length > 0 && (
                     <tr className="bg-slate-50">
                       <td colSpan={7} className="px-3 py-2">
                         <div className="pl-3 border-l-2 border-amber-300">
-                          <table className="w-full text-xs">
-                            <thead className="text-[10px] text-black">
+                          <table className="w-full text-sm">
+                            <thead className="text-sm text-black">
                               <tr className="border-b border-slate-200">
                                 <th className="text-right py-1 px-2 w-16">数量</th>
                                 <th className="text-left py-1 px-2 w-24">理由</th>
@@ -1075,18 +1075,18 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                                       {isEditing ? (
                                         <select value={editingShortageDraft.reason}
                                           onChange={e => setEditingShortageDraft(d => ({ ...d, reason: e.target.value }))}
-                                          className="text-[10px] border border-slate-300 rounded px-1 py-0.5">
+                                          className="text-sm border border-slate-300 rounded px-1 py-0.5">
                                           {Object.entries(SHORTAGE_REASON).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                                         </select>
                                       ) : (
-                                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
+                                        <span className={`inline-block text-sm px-1.5 py-0.5 rounded ${SHORTAGE_REASON[s.reason]?.color || ''}`}>{SHORTAGE_REASON[s.reason]?.label || s.reason}</span>
                                       )}
                                     </td>
                                     <td className="py-1 px-2 text-black">
                                       {isEditing ? (
                                         <input type="date" value={editingShortageDraft.expectedDate}
                                           onChange={e => setEditingShortageDraft(d => ({ ...d, expectedDate: e.target.value }))}
-                                          className="text-[10px] border border-slate-300 rounded px-1 py-0.5 w-full" />
+                                          className="text-sm border border-slate-300 rounded px-1 py-0.5 w-full" />
                                       ) : (s.expectedDate || '-')}
                                     </td>
                                     <td className="py-1 px-2 text-black">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ja-JP') : ''}</td>
@@ -1094,13 +1094,13 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                                       <div className="flex gap-1 justify-center">
                                         {isEditing ? (
                                           <>
-                                            <button onClick={() => saveEditShortage(it.id!, s.id)} className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
-                                            <button onClick={cancelEditShortage} className="text-[10px] px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 rounded">取消</button>
+                                            <button onClick={() => saveEditShortage(it.id!, s.id)} className="text-sm px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+                                            <button onClick={cancelEditShortage} className="text-sm px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 rounded">取消</button>
                                           </>
                                         ) : (
                                           <>
-                                            <button onClick={() => startEditShortage(s)} className="text-[10px] p-0.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="編集"><Edit size={11} /></button>
-                                            <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-[10px] p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="削除"><Trash2 size={11} /></button>
+                                            <button onClick={() => startEditShortage(s)} className="text-sm p-0.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="編集"><Edit size={11} /></button>
+                                            <button onClick={() => handleDeleteShortage(it.id!, s.id)} className="text-sm p-0.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="削除"><Trash2 size={11} /></button>
                                           </>
                                         )}
                                       </div>
@@ -1129,7 +1129,7 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
             <div className="flex items-center gap-2 mb-3">
               <Truck size={14} className="text-blue-700" />
               <span className="text-sm font-bold text-blue-900">今回の入庫処理</span>
-              <span className="text-[11px] text-blue-700">納品分は「今回入庫数」、不足/不良分は「不足/不良数」と理由を入力</span>
+              <span className="text-sm text-blue-700">納品分は「今回入庫数」、不足/不良分は「不足/不良数」と理由を入力</span>
             </div>
             <div className="space-y-2">
               {receivableItems.map(it => {
@@ -1140,10 +1140,10 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                   <div key={it.id} className="bg-white border border-blue-100 rounded p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <div className="text-[11px] font-mono text-black">{it.partId}</div>
+                        <div className="text-sm font-mono text-black">{it.partId}</div>
                         <div className="text-sm font-semibold">{it.partName || it.partId}</div>
                       </div>
-                      <div className="text-xs text-black">
+                      <div className="text-sm text-black">
                         発注 <span className="font-mono font-bold text-base text-slate-800">{it.qty}</span>
                         <span className="mx-1.5 text-slate-300">/</span>
                         残 <span className="font-mono font-bold text-base text-amber-700">{remaining}</span>
@@ -1151,21 +1151,21 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                     </div>
                     <div className="grid grid-cols-4 gap-3 items-end">
                       <div>
-                        <div className="text-[11px] text-black mb-0.5">今回入庫数</div>
+                        <div className="text-sm text-black mb-0.5">今回入庫数</div>
                         <input type="number" min={0} max={remaining} placeholder="0"
                           value={inp?.qty || ''}
                           onChange={e => updateReceiveInput(it.id!, { qty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
                           className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
                       </div>
                       <div>
-                        <div className="text-[11px] text-black mb-0.5">不足/不良数</div>
+                        <div className="text-sm text-black mb-0.5">不足/不良数</div>
                         <input type="number" min={0} max={remaining} placeholder="0"
                           value={inp?.shortageQty || ''}
                           onChange={e => updateReceiveInput(it.id!, { shortageQty: Math.max(0, Math.min(remaining, Number(e.target.value) || 0)) })}
                           className="w-full text-right border border-slate-300 rounded px-2 py-1.5 font-mono text-base" />
                       </div>
                       <div>
-                        <div className="text-[11px] text-black mb-0.5">理由</div>
+                        <div className="text-sm text-black mb-0.5">理由</div>
                         <select value={inp?.reason || 'shortage'} onChange={e => updateReceiveInput(it.id!, { reason: e.target.value })}
                           disabled={!hasShortage}
                           className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400">
@@ -1173,7 +1173,7 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
                         </select>
                       </div>
                       <div>
-                        <div className="text-[11px] text-black mb-0.5">納期見込み</div>
+                        <div className="text-sm text-black mb-0.5">納期見込み</div>
                         <input type="date" value={inp?.expectedDate || ''}
                           onChange={e => updateReceiveInput(it.id!, { expectedDate: e.target.value })}
                           disabled={!hasShortage}
@@ -1208,10 +1208,10 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
       </div>
       {commentHistory.length > 0 && (
         <div className="mb-4 bg-slate-50 rounded p-3">
-          <div className="text-xs font-semibold text-black mb-2">コメント履歴</div>
+          <div className="text-sm font-semibold text-black mb-2">コメント履歴</div>
           <div className="space-y-2 max-h-32 overflow-y-auto">
             {commentHistory.map((c, i) => (
-              <div key={i} className="text-xs border-l-2 border-blue-300 pl-2 flex items-start gap-2">
+              <div key={i} className="text-sm border-l-2 border-blue-300 pl-2 flex items-start gap-2">
                 <div className="flex-1">
                   <div className="text-black">{c.user || ''} - {new Date(c.ts).toLocaleString('ja-JP')}</div>
                   <div className="text-black">{c.text}</div>
@@ -1323,8 +1323,8 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-3.5">
           <div className="flex items-center gap-2 mb-2.5">
             <AlertTriangle size={15} className="text-amber-600" />
-            <h2 className="font-bold text-sm">発注点アラート</h2>
-            <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">{lowStockParts.length}件</span>
+            <h2 className="font-bold text-base">発注点アラート</h2>
+            <span className="text-sm bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">{lowStockParts.length}件</span>
             <Btn className="ml-auto" size="sm" variant="primary" onClick={() => setShowNew('bulk')}>一括発注書作成</Btn>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -1332,7 +1332,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
               const eff = p.stock - p.allocated + (p.shortageReason ? 0 : p.onOrder);
               const recommend = Math.max(p.maxStock - eff, 0);
               return (
-                <div key={p.id} className="bg-white rounded p-2 text-xs flex items-center gap-2">
+                <div key={p.id} className="bg-white rounded p-2 text-sm flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate">{p.name}</div>
                     <div className="text-black">在庫{p.stock} / 発注点{p.reorderPoint} → 推奨<span className="font-bold text-amber-700">{recommend}{p.unit}</span></div>
@@ -1356,14 +1356,14 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             { id: 'cancelled', label: 'キャンセル', n: orders.filter(o => o.status === 'cancelled').length },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} className={`px-3 py-2.5 text-sm font-medium border-b-2 ${tab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-black hover:text-black'}`}>
-              {t.label} <span className="ml-1 text-xs text-black">{t.n}</span>
+              {t.label} <span className="ml-1 text-sm text-black">{t.n}</span>
             </button>
           ))}
           <Btn className="ml-auto my-1.5 self-center" size="sm" icon={Plus} onClick={() => setShowNew('manual')}>新規発注</Btn>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase">
+            <thead className="bg-slate-50 text-sm text-black uppercase">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">発注番号</th>
                 <th className="text-left px-3 py-2 font-medium">仕入先</th>
@@ -1377,10 +1377,10 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
             <tbody className="divide-y divide-slate-100">
               {pagedOrders.map(o => (
                 <tr key={o.id} className={`hover:bg-slate-50 ${o.status === 'delayed' ? 'bg-orange-50/30' : ''}`}>
-                  <td className="px-3 py-2 font-mono text-xs">{o.orderNo}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{o.orderNo}</td>
                   <td className="px-3 py-2">{o.supplier}</td>
-                  <td className="px-3 py-2 text-xs">{o.orderDate}</td>
-                  <td className="px-3 py-2 text-xs">{o.desiredDate}</td>
+                  <td className="px-3 py-2 text-sm">{o.orderDate}</td>
+                  <td className="px-3 py-2 text-sm">{o.desiredDate}</td>
                   <td className="px-3 py-2 text-right font-mono">{yen(o.totalAmount)}</td>
                   <td className="px-3 py-2"><StatusBadge statusKey={o.status} statusMap={ORDER_STATUS} /></td>
                   <td className="px-3 py-2"><Btn variant="ghost" size="sm" onClick={() => openDetail(o)}>詳細</Btn></td>
@@ -1390,7 +1390,7 @@ const OrdersScreen = ({ parts, orders, onRefresh, toast, userName, userId }: {
           </table>
         </div>
         {orderTotalPages > 1 && (
-          <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-between bg-slate-50 text-xs">
+          <div className="px-3 py-2.5 border-t border-slate-200 flex items-center justify-between bg-slate-50 text-sm">
             <div className="flex items-center gap-2 text-black">
               <span>表示件数</span>
               <select value={orderPageSize} onChange={e => setOrderPageSize(Number(e.target.value))} className="border border-slate-300 rounded px-1.5 py-1">
@@ -1586,17 +1586,17 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
                 <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Building2 size={14} className="text-blue-600" />
-                    <span className="font-bold text-sm">{suppName}</span>
-                    <span className="text-xs text-black">{suppItems.length}部品</span>
+                    <span className="font-bold text-base">{suppName}</span>
+                    <span className="text-sm text-black">{suppItems.length}部品</span>
                   </div>
                   <span className="font-mono font-bold">{yen(suppItems.reduce((s, i) => s + i.qty * i.unitPrice, 0))}</span>
                 </div>
                 <table className="w-full text-sm">
-                  <thead className="text-xs text-black"><tr><th className="text-left py-1 px-3">品名</th><th className="text-right py-1 px-3 w-20">数量</th><th className="text-right py-1 px-3 w-24">単価</th><th className="text-right py-1 px-3 w-28">小計</th><th className="w-8"></th></tr></thead>
+                  <thead className="text-sm text-black"><tr><th className="text-left py-1 px-3">品名</th><th className="text-right py-1 px-3 w-20">数量</th><th className="text-right py-1 px-3 w-24">単価</th><th className="text-right py-1 px-3 w-28">小計</th><th className="w-8"></th></tr></thead>
                   <tbody>
                     {suppItems.map(it => (
                       <tr key={it.partId} className="border-t border-slate-100">
-                        <td className="py-1.5 px-3"><div className="text-xs font-mono text-black">{it.partId}</div><div>{it.name}</div></td>
+                        <td className="py-1.5 px-3"><div className="text-sm font-mono text-black">{it.partId}</div><div>{it.name}</div></td>
                         <td className="py-1.5 px-3"><input type="number" value={it.qty} onChange={e => setItems(prev => prev.map(i => i.partId === it.partId ? { ...i, qty: Number(e.target.value) || 0 } : i))} className="w-full text-right border border-slate-300 rounded px-2 py-1" /></td>
                         <td className="py-1.5 px-3 text-right font-mono">{yen(it.unitPrice)}</td>
                         <td className="py-1.5 px-3 text-right font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
@@ -1611,16 +1611,16 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
         </div>
       ) : (
       <div className="bg-slate-50 rounded p-3 mb-3">
-        <div className="text-xs font-semibold text-black mb-2">発注明細 ({filteredItems.length} 件 / {supplier})</div>
+        <div className="text-sm font-semibold text-black mb-2">発注明細 ({filteredItems.length} 件 / {supplier})</div>
         {filteredItems.length === 0 ? (
-          <div className="text-xs text-black py-3 text-center">この仕入先の明細はまだありません。下から部品を追加してください。</div>
+          <div className="text-sm text-black py-3 text-center">この仕入先の明細はまだありません。下から部品を追加してください。</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-black"><tr><th className="text-left py-1">品名</th><th className="text-right py-1 w-20">数量</th><th className="text-right py-1 w-24">単価</th><th className="text-right py-1 w-28">小計</th><th className="w-8"></th></tr></thead>
+            <thead className="text-sm text-black"><tr><th className="text-left py-1">品名</th><th className="text-right py-1 w-20">数量</th><th className="text-right py-1 w-24">単価</th><th className="text-right py-1 w-28">小計</th><th className="w-8"></th></tr></thead>
             <tbody>
               {filteredItems.map(it => (
                 <tr key={it.partId} className="border-t border-slate-200">
-                  <td className="py-1.5"><div className="text-xs font-mono text-black">{it.partId}</div><div>{it.name}</div></td>
+                  <td className="py-1.5"><div className="text-sm font-mono text-black">{it.partId}</div><div>{it.name}</div></td>
                   <td className="py-1.5"><input type="number" value={it.qty} onChange={e => setItems(prev => prev.map(i => i.partId === it.partId ? { ...i, qty: Number(e.target.value) || 0 } : i))} className={`${inputClass} text-right`} /></td>
                   <td className="py-1.5 text-right font-mono">{yen(it.unitPrice)}</td>
                   <td className="py-1.5 text-right font-mono font-semibold">{yen(it.qty * it.unitPrice)}</td>
@@ -1635,14 +1635,14 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
       )}
 
       {!bulk && <div className="mb-3 relative">
-        <div className="text-xs font-semibold text-black mb-1">部品を追加 ({supplier})</div>
+        <div className="text-sm font-semibold text-black mb-1">部品を追加 ({supplier})</div>
         <input value={searchQ} onChange={e => { setSearchQ(e.target.value); setDropdownOpen(true); }} onFocus={() => setDropdownOpen(true)} placeholder="品番・品名で検索 (クリックで一覧表示)..." className={inputClass} />
         {dropdownOpen && searchResults.length > 0 && (
           <div className="absolute z-10 left-0 right-0 border border-slate-200 rounded mt-1 bg-white max-h-52 overflow-y-auto shadow-lg">
             {searchResults.map(p => (
               <button key={p.id} onClick={() => { addPart(p); setDropdownOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between border-b border-slate-50">
-                <div className="flex-1 min-w-0"><span className="font-mono text-xs text-black">{p.code || p.id}</span> <span className="font-semibold">{p.name}</span></div>
-                <span className="text-xs font-mono text-black mr-2">{yen(p.unitPrice)}</span>
+                <div className="flex-1 min-w-0"><span className="font-mono text-sm text-black">{p.code || p.id}</span> <span className="font-semibold">{p.name}</span></div>
+                <span className="text-sm font-mono text-black mr-2">{yen(p.unitPrice)}</span>
                 <Plus size={13} className="text-blue-600 flex-shrink-0" />
               </button>
             ))}
@@ -1654,7 +1654,7 @@ const NewOrderModal = ({ parts, onClose, onRefresh, toast, onShowPdf, onShowPdfM
         const bySupp: Record<string, typeof items> = {};
         items.forEach(it => { const k = it.supplier || '（未設定）'; if (!bySupp[k]) bySupp[k] = []; bySupp[k].push(it); });
         return (
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800 mb-3">
+          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 mb-3">
             <div className="font-semibold mb-1">仕入先別に{Object.keys(bySupp).length}件の発注書を作成します:</div>
             {Object.entries(bySupp).map(([s, its]) => (
               <div key={s} className="ml-2">• {s}: {its.length}部品 / {yen(its.reduce((sum, i) => sum + i.qty * i.unitPrice, 0))}</div>
@@ -1707,7 +1707,7 @@ const OrderPdfModal = ({ order, parts, onClose }: {
 
   return (
     <Modal open onClose={onClose} title={`注文書プレビュー: ${order.orderNo}`} size="xl">
-      <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-3 text-xs text-amber-900 flex items-center gap-2">
+      <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-3 text-sm text-amber-900 flex items-center gap-2">
         <FileText size={13} /> 正式注文書を再現。印刷またはPDFとして保存できます。
       </div>
 
@@ -1859,8 +1859,8 @@ const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locati
         <Card label="引当中数量" value={parts.reduce((s, p) => s + p.allocated, 0).toLocaleString()} sub="受注/製造に紐付け" />
       </div>
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
-        <span className="text-xs text-black">倉庫:</span>
-        <select value={warehouse} onChange={e => setWarehouse(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+        <span className="text-sm text-black">倉庫:</span>
+        <select value={warehouse} onChange={e => setWarehouse(e.target.value)} className="text-sm px-2 py-1 border border-slate-300 rounded text-black">
           {warehouses.map(w => <option key={w} value={w}>{w === 'all' ? '全倉庫' : w}</option>)}
         </select>
       </div>
@@ -1870,11 +1870,11 @@ const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locati
             <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
               <MapPin size={14} className="text-blue-600" />
               <span className="font-mono font-bold text-black">{g.label}</span>
-              <span className="text-xs text-black">{g.sub}</span>
-              <span className="ml-auto text-xs text-black">{g.items.length}品目</span>
+              <span className="text-sm text-black">{g.sub}</span>
+              <span className="ml-auto text-sm text-black">{g.items.length}品目</span>
             </div>
             <table className="w-full text-sm">
-              <thead className="bg-white text-xs text-black border-b border-slate-100">
+              <thead className="bg-white text-sm text-black border-b border-slate-100">
                 <tr>
                   <th className="text-left px-3 py-1.5 font-medium">品番</th>
                   <th className="text-left px-3 py-1.5 font-medium">品名</th>
@@ -1887,7 +1887,7 @@ const InventoryScreen = ({ parts, locations, openPart }: { parts: Part[]; locati
               <tbody className="divide-y divide-slate-100">
                 {g.items.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openPart?.(p)}>
-                    <td className="px-3 py-1.5 font-mono text-xs">{p.id}</td>
+                    <td className="px-3 py-1.5 font-mono text-sm">{p.id}</td>
                     <td className="px-3 py-1.5">{p.name}</td>
                     <td className="px-3 py-1.5 text-right font-mono font-semibold">{p.stock} {p.unit}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-amber-700">{p.allocated || '-'}</td>
@@ -1972,7 +1972,7 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
         <Warehouse size={18} className="text-blue-600" />
         <div className="flex-1">
           <div className="font-bold text-blue-900">ロケーション体系</div>
-          <div className="text-xs text-blue-700">倉庫 / 棚 / 列 / 段 / 左右の階層で在庫位置を管理</div>
+          <div className="text-sm text-blue-700">倉庫 / 棚 / 列 / 段 / 左右の階層で在庫位置を管理</div>
         </div>
         <Btn variant="secondary" icon={Plus} onClick={() => setNewWarehouse(true)}>倉庫追加</Btn>
         <Btn icon={Plus} onClick={() => setNewLoc({ warehouse: grouped[0]?.[0] || '', shelf: '', col: '', row: '', side: '', name: '', maxQty: 100, locType: '通常棚' })}>ロケーション追加</Btn>
@@ -1982,16 +1982,16 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
           <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Warehouse size={14} className="text-black" />
-              <span className="font-bold text-sm">{wh}</span>
-              <span className="text-xs text-black">({locs.length}ロケーション)</span>
+              <span className="font-bold text-base">{wh}</span>
+              <span className="text-sm text-black">({locs.length}ロケーション)</span>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={() => setEditWarehouse({ oldName: wh, newName: wh })} className="text-xs text-blue-600 hover:bg-blue-50 px-2 py-1 rounded flex items-center gap-1"><Edit size={11} /> 倉庫名変更</button>
-              <button onClick={() => setDeleteWarehouse(wh)} className="text-xs text-rose-600 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1"><Trash2 size={11} /> 倉庫削除</button>
+              <button onClick={() => setEditWarehouse({ oldName: wh, newName: wh })} className="text-sm text-blue-600 hover:bg-blue-50 px-2 py-1 rounded flex items-center gap-1"><Edit size={11} /> 倉庫名変更</button>
+              <button onClick={() => setDeleteWarehouse(wh)} className="text-sm text-rose-600 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1"><Trash2 size={11} /> 倉庫削除</button>
             </div>
           </div>
           <table className="w-full text-sm">
-            <thead className="bg-white text-xs text-black border-b border-slate-100">
+            <thead className="bg-white text-sm text-black border-b border-slate-100">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">ID</th>
                 <th className="text-left px-3 py-2 font-medium">名称</th>
@@ -2004,11 +2004,11 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
             <tbody className="divide-y divide-slate-100">
               {locs.map(l => (
                 <tr key={l.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2"><span className="font-mono inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded text-xs"><MapPin size={10} />{l.id}</span></td>
+                  <td className="px-3 py-2"><span className="font-mono inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded text-sm"><MapPin size={10} />{l.id}</span></td>
                   <td className="px-3 py-2">{l.name}</td>
-                  <td className="px-3 py-2 text-xs"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
+                  <td className="px-3 py-2 text-sm"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
                   <td className="px-3 py-2 text-right font-mono">{l.maxQty.toLocaleString()}</td>
-                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${l.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-black'}`}>{l.isActive ? '有効' : '無効'}</span></td>
+                  <td className="px-3 py-2"><span className={`text-sm px-2 py-0.5 rounded ${l.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-black'}`}>{l.isActive ? '有効' : '無効'}</span></td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditLoc(l)}>編集</Btn>
@@ -2026,7 +2026,7 @@ const LocationsScreen = ({ locations, onRefresh, toast }: { locations: Location[
       )}
       {deleteTarget && (
         <Modal open onClose={() => setDeleteTarget(null)} title="ロケーションの削除確認" size="sm">
-          <div className="text-sm mb-4"><p>以下のロケーションを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.id}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="text-sm mb-4"><p>以下のロケーションを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-sm text-black">{deleteTarget.id}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
@@ -2116,7 +2116,7 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
       <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
         <div>
           <h2 className="font-bold">入庫処理</h2>
-          <p className="text-xs text-black mt-1">QRを読み取るか検索して発注を選択すると、発注管理と同じ詳細画面で入庫・欠品・コメント・キャンセル等を行えます。</p>
+          <p className="text-sm text-black mt-1">QRを読み取るか検索して発注を選択すると、発注管理と同じ詳細画面で入庫・欠品・コメント・キャンセル等を行えます。</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3">
@@ -2125,13 +2125,13 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
             {showQrScanner ? (
               <div>
                 <QrCameraScanner onScan={(text) => { setShowQrScanner(false); tryLocateOrder(text); }} />
-                <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-xs text-blue-600 hover:underline">キャンセル</button>
+                <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-sm text-blue-600 hover:underline">キャンセル</button>
               </div>
             ) : (
               <>
                 <QrCode size={24} className="mx-auto mb-1.5 text-blue-600" />
                 <div className="text-sm font-bold text-blue-900">発注QRを読取</div>
-                <div className="text-[11px] text-blue-600 mt-0.5">納品書の発注番号QR</div>
+                <div className="text-sm text-blue-600 mt-0.5">納品書の発注番号QR</div>
               </>
             )}
           </div>
@@ -2144,16 +2144,16 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
                 onChange={e => setSearch(e.target.value)}
                 placeholder="工番・仕入先・納期で検索..."
                 className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | 'awaiting' | 'partial')} className="text-xs border border-slate-300 rounded px-1.5 py-1.5 text-black">
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | 'awaiting' | 'partial')} className="text-sm border border-slate-300 rounded px-1.5 py-1.5 text-black">
                 <option value="all">全て</option>
                 <option value="awaiting">納品待ち</option>
                 <option value="partial">一部入庫</option>
               </select>
               {search && (
-                <button onClick={() => setSearch('')} className="text-xs text-slate-500 hover:text-slate-700">クリア</button>
+                <button onClick={() => setSearch('')} className="text-sm text-slate-500 hover:text-slate-700">クリア</button>
               )}
             </div>
-            <div className="text-[11px] text-black">{filteredOrders.length} / {pendingOrders.length} 件</div>
+            <div className="text-sm text-black">{filteredOrders.length} / {pendingOrders.length} 件</div>
           </div>
         </div>
       </div>
@@ -2161,7 +2161,7 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">工番</th>
                 <th className="text-left px-3 py-2 font-medium">仕入先</th>
@@ -2181,13 +2181,13 @@ const ReceiveScreen = ({ orders, parts, onRefresh, toast, userName, userId }: { 
                 const remaining = totalQty - recvQty;
                 return (
                   <tr key={o.id} className="hover:bg-blue-50 cursor-pointer" onClick={() => setSelectedPO(o.id)}>
-                    <td className="px-3 py-2 font-mono text-xs font-semibold">{o.orderNo}</td>
+                    <td className="px-3 py-2 font-mono text-sm font-semibold">{o.orderNo}</td>
                     <td className="px-3 py-2 text-sm">{o.supplier}</td>
-                    <td className="px-3 py-2 text-xs">{o.orderDate || '-'}</td>
-                    <td className="px-3 py-2 text-xs">{o.desiredDate || '-'}</td>
-                    <td className="px-3 py-2 text-xs">{o.expectedDeliveryDate || '-'}</td>
-                    <td className="px-3 py-2 text-right text-xs font-mono">{(o.details || []).length}</td>
-                    <td className="px-3 py-2 text-right text-xs font-mono">
+                    <td className="px-3 py-2 text-sm">{o.orderDate || '-'}</td>
+                    <td className="px-3 py-2 text-sm">{o.desiredDate || '-'}</td>
+                    <td className="px-3 py-2 text-sm">{o.expectedDeliveryDate || '-'}</td>
+                    <td className="px-3 py-2 text-right text-sm font-mono">{(o.details || []).length}</td>
+                    <td className="px-3 py-2 text-right text-sm font-mono">
                       <span className="text-emerald-700 font-semibold">{recvQty}</span>
                       <span className="text-slate-300 mx-1">/</span>
                       <span>{totalQty}</span>
@@ -2291,12 +2291,12 @@ const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">受注一覧</h2>
+          <h2 className="font-bold text-base">受注一覧</h2>
           <Btn icon={Plus} onClick={() => setShowNew(true)}>新規受注</Btn>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase">
+            <thead className="bg-slate-50 text-sm text-black uppercase">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">工番</th>
                 <th className="text-left px-3 py-2 font-medium">製品名</th>
@@ -2312,13 +2312,13 @@ const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
             <tbody className="divide-y divide-slate-100">
               {prodOrders.map(m => (
                 <tr key={m.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 font-mono text-xs font-semibold">{m.prodNo}</td>
-                  <td className="px-3 py-2 text-xs">{(m as any).productName || '-'}</td>
-                  <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{m.customer || '-'}</td>
+                  <td className="px-3 py-2 font-mono text-sm font-semibold">{m.prodNo}</td>
+                  <td className="px-3 py-2 text-sm">{(m as any).productName || '-'}</td>
+                  <td className="px-3 py-2 text-sm font-semibold">{(m as any).division || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{m.customer || '-'}</td>
                   <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
                   <td className="px-3 py-2 text-right font-mono">{(m as any).amount ? `¥${Number((m as any).amount).toLocaleString()}` : '-'}</td>
-                  <td className="px-3 py-2 text-xs">{m.dueDate || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{m.dueDate || '-'}</td>
                   <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={MO_STATUS} /></td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
@@ -2497,9 +2497,9 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
         <div className="space-y-4">
           {/* Mini Gantt of stages */}
           <div className="bg-white border border-slate-200 rounded p-3">
-            <div className="text-xs font-semibold text-black mb-2 flex items-center gap-2"><BarChart3 size={12} />工程スケジュール</div>
+            <div className="text-sm font-semibold text-black mb-2 flex items-center gap-2"><BarChart3 size={12} />工程スケジュール</div>
             {orderStages.length === 0 ? (
-              <div className="text-xs text-slate-400 py-4 text-center">工程が定義されていません</div>
+              <div className="text-sm text-slate-400 py-4 text-center">工程が定義されていません</div>
             ) : (
               <div className="space-y-2">
                 {orderStages.map(os => {
@@ -2510,22 +2510,22 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
                   const barWidthPct = hasSchedule ? pct(endIdx - startIdx + 1) : 0;
                   const barBg = stageBarColor(os.stageColor);
                   return (
-                    <div key={os.stageId} className="grid grid-cols-[140px_115px_115px_minmax(0,1fr)] gap-2 items-center text-xs">
+                    <div key={os.stageId} className="grid grid-cols-[140px_115px_115px_minmax(0,1fr)] gap-2 items-center text-sm">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`inline-block text-xs px-2 py-0.5 rounded truncate ${os.stageColor}`}>{os.stageName}</span>
+                        <span className={`inline-block text-sm px-2 py-0.5 rounded truncate ${os.stageColor}`}>{os.stageName}</span>
                       </div>
                       <input type="date" value={os.startDate || ''}
                         onChange={e => handleStageField(os.stageId, 'startDate', e.target.value || null)}
-                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs min-w-0" />
+                        className="border border-slate-300 rounded px-1.5 py-0.5 text-sm min-w-0" />
                       <input type="date" value={os.dueDate || ''}
                         onChange={e => handleStageField(os.stageId, 'dueDate', e.target.value || null)}
-                        className="border border-slate-300 rounded px-1.5 py-0.5 text-xs min-w-0" />
+                        className="border border-slate-300 rounded px-1.5 py-0.5 text-sm min-w-0" />
                       <div className="relative h-6 bg-slate-50 rounded overflow-hidden">
                         {todayPos >= 0 && todayPos <= ganttDays && (
                           <div className="absolute top-0 bottom-0 w-px bg-rose-500" style={{ left: `${pct(todayPos)}%` }} />
                         )}
                         {hasSchedule && (
-                          <div className={`absolute top-0.5 bottom-0.5 ${barBg} rounded text-white text-[10px] flex items-center px-1.5 overflow-hidden`}
+                          <div className={`absolute top-0.5 bottom-0.5 ${barBg} rounded text-white text-sm flex items-center px-1.5 overflow-hidden`}
                             style={{ left: `${barLeftPct}%`, width: `${barWidthPct}%`, minWidth: 16 }}>
                             <span className="truncate">{os.startDate?.slice(5)}〜{os.dueDate?.slice(5)}</span>
                           </div>
@@ -2535,7 +2535,7 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
                   );
                 })}
                 {ganttStart && ganttEnd && (
-                  <div className="text-[10px] text-slate-400 text-right pt-1">期間: {ganttStart.toISOString().slice(0,10)} 〜 {ganttEnd.toISOString().slice(0,10)} ({ganttDays}日)</div>
+                  <div className="text-sm text-slate-400 text-right pt-1">期間: {ganttStart.toISOString().slice(0,10)} 〜 {ganttEnd.toISOString().slice(0,10)} ({ganttDays}日)</div>
                 )}
               </div>
             )}
@@ -2543,7 +2543,7 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
 
           {/* Mini Kanban of tasks by stage */}
           <div className="bg-white border border-slate-200 rounded p-3">
-            <div className="text-xs font-semibold text-black mb-2 flex items-center gap-2"><LayoutDashboard size={12} />工程別タスクボード</div>
+            <div className="text-sm font-semibold text-black mb-2 flex items-center gap-2"><LayoutDashboard size={12} />工程別タスクボード</div>
             <div className="overflow-x-auto">
               <div className="grid gap-3 min-w-max" style={{ gridTemplateColumns: `repeat(${sortedStages.length}, 220px)` }}>
                 {sortedStages.map(s => {
@@ -2553,17 +2553,17 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
                   return (
                     <div key={s.id} className={`bg-slate-50 rounded-lg p-2 min-h-[160px] ${isCurrent ? 'ring-2 ring-blue-300' : ''}`}>
                       <div className="flex items-center justify-between mb-2 px-1">
-                        <span className={`inline-block text-[11px] px-2 py-0.5 rounded font-bold ${s.color}`}>{s.name}</span>
-                        <span className="text-[10px] text-black font-mono">{checkedCount}/{tasks.length}</span>
+                        <span className={`inline-block text-sm px-2 py-0.5 rounded font-bold ${s.color}`}>{s.name}</span>
+                        <span className="text-sm text-black font-mono">{checkedCount}/{tasks.length}</span>
                       </div>
                       <div className="space-y-1">
                         {tasks.map(t => (
                           <label key={t.id} className="flex items-center gap-2 cursor-pointer hover:bg-white px-2 py-1 rounded bg-white border border-slate-100">
                             <input type="checkbox" checked={!!checks[t.id]} onChange={e => handleTaskCheck(t.id, e.target.checked)} className="rounded" />
-                            <span className={`text-[11px] ${checks[t.id] ? 'line-through text-slate-400' : ''}`}>{t.name}</span>
+                            <span className={`text-sm ${checks[t.id] ? 'line-through text-slate-400' : ''}`}>{t.name}</span>
                           </label>
                         ))}
-                        {tasks.length === 0 && <div className="text-[10px] text-slate-400 px-2 py-1">(タスクなし)</div>}
+                        {tasks.length === 0 && <div className="text-sm text-slate-400 px-2 py-1">(タスクなし)</div>}
                       </div>
                     </div>
                   );
@@ -2600,14 +2600,14 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
           )}
           {/* Other stages collapsed view */}
           <div className="bg-white border border-slate-200 rounded p-3">
-            <div className="text-xs font-semibold text-black mb-2">他の工程</div>
+            <div className="text-sm font-semibold text-black mb-2">他の工程</div>
             <div className="space-y-1">
               {sortedStages.filter(s => s.key !== detail.status).map(s => {
                 const tasks = s.tasks || [];
                 const checkedCount = tasks.filter(t => checks[t.id]).length;
                 return (
-                  <div key={s.id} className="flex items-center gap-2 text-xs py-1 px-2 hover:bg-slate-50 rounded">
-                    <span className={`inline-block text-[11px] px-2 py-0.5 rounded ${s.color}`}>{s.name}</span>
+                  <div key={s.id} className="flex items-center gap-2 text-sm py-1 px-2 hover:bg-slate-50 rounded">
+                    <span className={`inline-block text-sm px-2 py-0.5 rounded ${s.color}`}>{s.name}</span>
                     <span className="text-black">{checkedCount} / {tasks.length} 完了</span>
                     <div className="ml-auto h-1.5 w-20 bg-slate-200 rounded-full overflow-hidden">
                       <div className={stageBarColor(s.color)} style={{ width: `${tasks.length > 0 ? (checkedCount / tasks.length) * 100 : 0}%`, height: '100%' }} />
@@ -2680,10 +2680,10 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
   return (
     <div className="bg-white rounded-lg border border-slate-200">
       <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-        <h2 className="font-bold text-sm">製造一覧</h2>
+        <h2 className="font-bold text-base">製造一覧</h2>
         <div className="flex items-center gap-2">
           <Filter size={13} className="text-slate-500" />
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-sm px-2 py-1 border border-slate-300 rounded text-black">
             <option value="active">進行中</option>
             <option value="all">全て</option>
             {stages.map(s => <option key={s.id} value={s.key}>{s.name}</option>)}
@@ -2692,7 +2692,7 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-black uppercase">
+          <thead className="bg-slate-50 text-sm text-black uppercase">
             <tr>
               <th className="px-3 py-2 w-8"></th>
               <th className="text-left px-3 py-2 font-medium">工番</th>
@@ -2714,13 +2714,13 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                 <React.Fragment key={m.id}>
                   <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => handleToggle(m)}>
                     <td className="px-3 py-2 text-black">{expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
-                    <td className="px-3 py-2 font-mono text-xs font-semibold">{m.prodNo}</td>
-                    <td className="px-3 py-2 text-xs">{(m as any).productName || '-'}</td>
-                    <td className="px-3 py-2 text-xs font-semibold">{(m as any).division || '-'}</td>
-                    <td className="px-3 py-2 text-xs">{m.customer || '-'}</td>
+                    <td className="px-3 py-2 font-mono text-sm font-semibold">{m.prodNo}</td>
+                    <td className="px-3 py-2 text-sm">{(m as any).productName || '-'}</td>
+                    <td className="px-3 py-2 text-sm font-semibold">{(m as any).division || '-'}</td>
+                    <td className="px-3 py-2 text-sm">{m.customer || '-'}</td>
                     <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
-                    <td className="px-3 py-2 text-xs">{m.startDate || '-'}</td>
-                    <td className="px-3 py-2 text-xs">{m.dueDate || '-'}</td>
+                    <td className="px-3 py-2 text-sm">{m.startDate || '-'}</td>
+                    <td className="px-3 py-2 text-sm">{m.dueDate || '-'}</td>
                     <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={stageMap} /></td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
@@ -2737,7 +2737,7 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                           <div className="flex items-center gap-2 text-sm text-black py-4 justify-center"><Loader2 size={16} className="animate-spin" /> 読み込み中...</div>
                         ) : detail ? (
                           <div className="space-y-3">
-                            <div className="grid grid-cols-4 gap-3 text-xs">
+                            <div className="grid grid-cols-4 gap-3 text-sm">
                               <div><span className="text-black">製品:</span> <span className="font-semibold">{detail.productName || detail.productCode}</span></div>
                               <div><span className="text-black">数量:</span> <span className="font-mono">{detail.qty}</span></div>
                               <div><span className="text-black">開始日:</span> {(typeof detail.startDate === 'string' ? detail.startDate.slice(0,10) : '') || m.startDate || '-'}</div>
@@ -2745,14 +2745,14 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                             </div>
                             {curStage && curStage.tasks && curStage.tasks.length > 0 && (
                               <div className="bg-white rounded border border-slate-200 overflow-hidden">
-                                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-black flex items-center gap-2">
+                                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-sm font-semibold text-black flex items-center gap-2">
                                   <ClipboardCheck size={12} /> 「{curStage.name}」工程のチェックリスト ({curStage.tasks.length}件)
                                 </div>
                                 <div className="p-3 space-y-1">
                                   {curStage.tasks.map(t => (
                                     <label key={t.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
                                       <input type="checkbox" checked={!!taskChecks[t.id]} onChange={() => handleToggleTask(m.id, t.id)} className="rounded" />
-                                      <span className={`text-xs ${taskChecks[t.id] ? 'line-through text-slate-400' : ''}`}>{t.name}</span>
+                                      <span className={`text-sm ${taskChecks[t.id] ? 'line-through text-slate-400' : ''}`}>{t.name}</span>
                                     </label>
                                   ))}
                                 </div>
@@ -2760,10 +2760,10 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                             )}
                             {detail.bomSnapshot && detail.bomSnapshot.length > 0 && (
                               <div className="bg-white rounded border border-slate-200 overflow-hidden">
-                                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-semibold text-black flex items-center gap-2">
+                                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-sm font-semibold text-black flex items-center gap-2">
                                   <Package size={12} /> BOM展開 ({detail.bomSnapshot.length}部品)
                                 </div>
-                                <table className="w-full text-xs">
+                                <table className="w-full text-sm">
                                   <thead className="bg-white text-black border-b border-slate-100"><tr>
                                     <th className="text-left px-3 py-1.5 font-medium">品番</th>
                                     <th className="text-left px-3 py-1.5 font-medium">品名</th>
@@ -2792,9 +2792,9 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                                             )}
                                           </td>
                                           <td className="px-3 py-1.5">
-                                            {picked >= need ? <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px]">完了</span>
-                                            : picked > 0 ? <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[11px]">一部ピック</span>
-                                            : <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[11px]">引当済</span>}
+                                            {picked >= need ? <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-sm">完了</span>
+                                            : picked > 0 ? <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-sm">一部ピック</span>
+                                            : <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-sm">引当済</span>}
                                           </td>
                                         </tr>
                                       );
@@ -2804,7 +2804,7 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                               </div>
                             )}
                           </div>
-                        ) : <div className="text-xs text-black text-center py-3">詳細を取得できませんでした</div>}
+                        ) : <div className="text-sm text-black text-center py-3">詳細を取得できませんでした</div>}
                       </td>
                     </tr>
                   )}
@@ -2852,8 +2852,8 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
                 setDraggingId(null);
               }}>
               <div className="flex items-center justify-between mb-2 px-1">
-                <span className={`inline-block text-xs px-2 py-0.5 rounded font-bold ${stage.color}`}>{stage.name}</span>
-                <span className="text-xs bg-white px-2 py-0.5 rounded-full font-mono">{items.length}</span>
+                <span className={`inline-block text-sm px-2 py-0.5 rounded font-bold ${stage.color}`}>{stage.name}</span>
+                <span className="text-sm bg-white px-2 py-0.5 rounded-full font-mono">{items.length}</span>
               </div>
               <div className="space-y-2">
                 {items.map(m => {
@@ -2866,32 +2866,32 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
                       onClick={() => onOpenDetail(m)}
                       className={`bg-white border border-slate-200 rounded p-2 cursor-pointer hover:border-blue-300 ${draggingId === m.id ? 'opacity-50' : ''}`}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-mono font-bold text-slate-900">{m.prodNo}</span>
+                        <span className="text-sm font-mono font-bold text-slate-900">{m.prodNo}</span>
                         <button onClick={e => { e.stopPropagation(); onEdit(m); }} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
                       </div>
                       <div className="text-sm font-semibold mb-0.5 truncate">{(m as any).productName || '-'}</div>
-                      <div className="text-xs text-black flex items-center gap-2 mb-1">
+                      <div className="text-sm text-black flex items-center gap-2 mb-1">
                         <span className="truncate">{m.customer || '-'}</span>
                         <span className="font-mono whitespace-nowrap">×{m.qty}</span>
                       </div>
-                      <div className="text-[11px] text-black mb-1">納期: {m.dueDate || '-'}</div>
+                      <div className="text-sm text-black mb-1">納期: {m.dueDate || '-'}</div>
                       {progress.total > 0 && (
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                             <div className="h-full bg-blue-500" style={{ width: `${(progress.checked / progress.total) * 100}%` }} />
                           </div>
-                          <span className="text-[10px] text-black font-mono">{progress.checked}/{progress.total}</span>
+                          <span className="text-sm text-black font-mono">{progress.checked}/{progress.total}</span>
                         </div>
                       )}
                       {nextStage && (
-                        <button onClick={e => { e.stopPropagation(); onAdvance(m); }} className="w-full text-[11px] py-1 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-1">
+                        <button onClick={e => { e.stopPropagation(); onAdvance(m); }} className="w-full text-sm py-1 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-1">
                           <ChevronRight size={11} /> {nextStage.name}へ
                         </button>
                       )}
                     </div>
                   );
                 })}
-                {items.length === 0 && <div className="text-xs text-slate-400 text-center py-4">(なし)</div>}
+                {items.length === 0 && <div className="text-sm text-slate-400 text-center py-4">(なし)</div>}
               </div>
             </div>
           );
@@ -2905,7 +2905,7 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
   prodOrders: ProdOrder[]; stages: ProductionStage[]; onOpenDetail: (m: ProdOrder) => void;
   onUpdateStage: (orderId: number, stageId: number, data: { startDate?: string | null; dueDate?: string | null }) => Promise<void>;
 }) => {
-  const [period, setPeriod] = useState<'2w' | '1m' | '3m'>('1m');
+  const [period, setPeriod] = useState<'2w' | '1m' | '3m' | '6m' | '1y'>('3m');
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const chartRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<null | { orderId: number; stageId: number; mode: 'move' | 'resize-l' | 'resize-r'; startX: number; startStartDay: number; startEndDay: number }>(null);
@@ -2914,7 +2914,9 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const config = period === '2w' ? { days: 14, before: 3 }
               : period === '1m' ? { days: 30, before: 5 }
-              : { days: 90, before: 7 };
+              : period === '3m' ? { days: 90, before: 7 }
+              : period === '6m' ? { days: 180, before: 14 }
+              : { days: 365, before: 30 };
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - config.before);
   const dateRange: Date[] = [];
@@ -2982,18 +2984,20 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
       <div className="flex items-center justify-between p-3 border-b border-slate-200">
         <div>
           <h2 className="font-bold text-base">ガントチャート</h2>
-          <p className="text-xs text-black mt-0.5">バーをドラッグで日程変更、両端をドラッグで開始/終了のみ変更、クリックで詳細表示</p>
+          <p className="text-sm text-black mt-0.5">バーをドラッグで日程変更、両端をドラッグで開始/終了のみ変更、クリックで詳細表示</p>
         </div>
-        <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m')} className="text-sm border border-slate-300 rounded px-2 py-1">
+        <select value={period} onChange={e => setPeriod(e.target.value as '2w' | '1m' | '3m' | '6m' | '1y')} className="text-sm border border-slate-300 rounded px-2 py-1">
           <option value="2w">2週間</option>
           <option value="1m">1ヶ月</option>
           <option value="3m">3ヶ月</option>
+          <option value="6m">6ヶ月</option>
+          <option value="1y">1年</option>
         </select>
       </div>
       <div className="grid" style={{ gridTemplateColumns: '240px minmax(0, 1fr)' }}>
         {/* Header */}
-        <div className="px-3 py-1.5 border-r border-b border-slate-200 bg-slate-50 text-xs font-bold flex items-center">工番 / 製品 / 工程</div>
-        <div ref={chartRef} className="grid border-b border-slate-200 bg-slate-50 text-[11px]" style={{ gridTemplateColumns: `repeat(${totalDays}, minmax(0, 1fr))` }}>
+        <div className="px-3 py-1.5 border-r border-b border-slate-200 bg-slate-50 text-sm font-bold flex items-center">工番 / 製品 / 工程</div>
+        <div ref={chartRef} className="grid border-b border-slate-200 bg-slate-50 text-sm" style={{ gridTemplateColumns: `repeat(${totalDays}, minmax(0, 1fr))` }}>
           {dateRange.map((d, i) => (
             <div key={i} className={`text-center py-1 border-r border-slate-100 ${d.getDay() === 0 ? 'bg-rose-50/50 text-rose-700' : d.getDay() === 6 ? 'bg-blue-50/50 text-blue-700' : ''}`}>
               {d.getMonth() + 1}/{d.getDate()}
@@ -3018,7 +3022,7 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
                 </button>
                 <div className="flex-1 min-w-0">
                   <div className="font-mono font-bold">{m.prodNo}</div>
-                  <div className="text-black truncate text-xs">{(m as any).productName || '-'}</div>
+                  <div className="text-black truncate text-sm">{(m as any).productName || '-'}</div>
                 </div>
               </div>
               <div className="relative border-b border-slate-200 bg-slate-50/40 overflow-hidden" style={{ height: 40 }}>
@@ -3027,7 +3031,7 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
                 )}
                 {overallHas && (
                   <button onClick={() => onOpenDetail(m)} title={`${m.prodNo} (${m.startDate} 〜 ${m.dueDate})`}
-                    className={`absolute top-1 bottom-1 ${overallBg} opacity-60 text-white text-xs font-bold rounded px-1.5 flex items-center hover:opacity-90`}
+                    className={`absolute top-1 bottom-1 ${overallBg} opacity-60 text-white text-sm font-bold rounded px-1.5 flex items-center hover:opacity-90`}
                     style={{ left: `${overallLeftPct}%`, width: `${overallWidthPct}%`, minWidth: 24 }}>
                     <span className="truncate">{m.prodNo} 全体</span>
                   </button>
@@ -3046,14 +3050,14 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
                 return (
                   <React.Fragment key={os.stageId}>
                     <div className="px-3 py-1.5 border-r border-b border-slate-100 text-sm flex items-center gap-2 pl-10">
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
+                      <span className={`inline-block text-sm px-2 py-0.5 rounded ${os.stageColor}`}>{os.stageName}</span>
                     </div>
                     <div className="relative border-b border-slate-100 overflow-hidden" style={{ height: 32 }}>
                       {todayIdx >= 0 && todayIdx <= totalDays && (
                         <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: `${pct(todayIdx)}%` }} />
                       )}
                       {hasSchedule && startIdx !== null && endIdx !== null ? (
-                        <div className={`absolute top-1 bottom-1 ${barBg} text-white text-xs font-bold rounded flex items-center group cursor-grab hover:opacity-90 ${isDragging ? 'ring-2 ring-blue-400 cursor-grabbing' : ''}`}
+                        <div className={`absolute top-1 bottom-1 ${barBg} text-white text-sm font-bold rounded flex items-center group cursor-grab hover:opacity-90 ${isDragging ? 'ring-2 ring-blue-400 cursor-grabbing' : ''}`}
                           style={{ left: `${barLeftPct}%`, width: `${barWidthPct}%`, minWidth: 24 }}
                           onMouseDown={e => startDrag(e, m.id, os.stageId, 'move', startIdx, endIdx)}
                           onClick={e => { if (dragOffset.start === 0 && dragOffset.end === 0) { e.stopPropagation(); onOpenDetail(m); } }}
@@ -3063,7 +3067,7 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
                           <div className="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-r" onMouseDown={e => startDrag(e, m.id, os.stageId, 'resize-r', startIdx, endIdx)} />
                         </div>
                       ) : (
-                        <div className="absolute inset-0 flex items-center px-3 text-xs text-slate-300">(未設定)</div>
+                        <div className="absolute inset-0 flex items-center px-3 text-sm text-slate-300">(未設定)</div>
                       )}
                     </div>
                   </React.Fragment>
@@ -3134,8 +3138,8 @@ const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
   return (
     <div className="bg-white rounded-lg border border-slate-200">
       <div className="px-4 py-3 border-b border-slate-200">
-        <h2 className="font-bold text-sm">工程マスタ</h2>
-        <p className="text-xs text-black mt-0.5">カンバンの列・ガントの色・各工程のチェックリストを管理します</p>
+        <h2 className="font-bold text-base">工程マスタ</h2>
+        <p className="text-sm text-black mt-0.5">カンバンの列・ガントの色・各工程のチェックリストを管理します</p>
       </div>
       <div className="p-4 space-y-2">
         {sortedStages.map((s, idx) => {
@@ -3151,10 +3155,10 @@ const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
                 {isEditing ? (
                   <>
                     <input value={stageDraft.name} onChange={e => setStageDraft(d => ({ ...d, name: e.target.value }))} className="border border-slate-300 rounded px-2 py-1 text-sm" />
-                    <select value={stageDraft.color} onChange={e => setStageDraft(d => ({ ...d, color: e.target.value }))} className="border border-slate-300 rounded px-2 py-1 text-xs">
+                    <select value={stageDraft.color} onChange={e => setStageDraft(d => ({ ...d, color: e.target.value }))} className="border border-slate-300 rounded px-2 py-1 text-sm">
                       {STAGE_COLOR_PRESETS.map(p => <option key={p.badge} value={p.badge}>{p.label}</option>)}
                     </select>
-                    <span className={`inline-block text-xs px-2 py-0.5 rounded ${stageDraft.color}`}>{stageDraft.name || 'プレビュー'}</span>
+                    <span className={`inline-block text-sm px-2 py-0.5 rounded ${stageDraft.color}`}>{stageDraft.name || 'プレビュー'}</span>
                     <div className="ml-auto flex gap-1">
                       <Btn variant="primary" size="sm" onClick={() => saveStage(s.id)}>保存</Btn>
                       <Btn variant="secondary" size="sm" onClick={() => setEditingStage(null)}>取消</Btn>
@@ -3165,9 +3169,9 @@ const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
                     <button onClick={() => setExpandedStage(isExpanded ? null : s.id)} className="text-slate-400 hover:text-blue-600">
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
-                    <span className={`inline-block text-xs px-2 py-0.5 rounded ${s.color}`}>{s.name}</span>
-                    <span className="text-xs text-black">タスク {s.tasks?.length || 0}件</span>
-                    <span className="text-[10px] font-mono text-slate-400">{s.key}</span>
+                    <span className={`inline-block text-sm px-2 py-0.5 rounded ${s.color}`}>{s.name}</span>
+                    <span className="text-sm text-black">タスク {s.tasks?.length || 0}件</span>
+                    <span className="text-sm font-mono text-slate-400">{s.key}</span>
                     <div className="ml-auto flex gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => startEditStage(s)}>編集</Btn>
                       <button onClick={() => deleteStage(s.id, s.name)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded"><Trash2 size={13} /></button>
@@ -3177,7 +3181,7 @@ const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
               </div>
               {isExpanded && !isEditing && (
                 <div className="px-4 pb-3 border-t border-slate-100 bg-slate-50/50">
-                  <div className="text-[11px] text-black font-semibold mt-2 mb-1.5">チェックリスト/作業項目</div>
+                  <div className="text-sm text-black font-semibold mt-2 mb-1.5">チェックリスト/作業項目</div>
                   <div className="space-y-1">
                     {(s.tasks || []).map(t => {
                       const isTaskEditing = editingTask?.taskId === t.id;
@@ -3185,13 +3189,13 @@ const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
                         <div key={t.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-1">
                           {isTaskEditing ? (
                             <>
-                              <input value={taskDraft} onChange={e => setTaskDraft(e.target.value)} className="flex-1 border border-slate-300 rounded px-2 py-0.5 text-xs" />
+                              <input value={taskDraft} onChange={e => setTaskDraft(e.target.value)} className="flex-1 border border-slate-300 rounded px-2 py-0.5 text-sm" />
                               <Btn variant="primary" size="sm" onClick={() => saveTask(s.id, t.id)}>保存</Btn>
-                              <button onClick={() => setEditingTask(null)} className="text-xs text-slate-500">取消</button>
+                              <button onClick={() => setEditingTask(null)} className="text-sm text-slate-500">取消</button>
                             </>
                           ) : (
                             <>
-                              <span className="flex-1 text-xs">{t.name}</span>
+                              <span className="flex-1 text-sm">{t.name}</span>
                               <button onClick={() => { setEditingTask({ stageId: s.id, taskId: t.id }); setTaskDraft(t.name); }} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
                               <button onClick={() => deleteTask(s.id, t.id, t.name)} className="text-slate-400 hover:text-rose-600 p-0.5"><Trash2 size={11} /></button>
                             </>
@@ -3199,12 +3203,12 @@ const ProductionStagesAdmin = ({ stages, onRefresh, toast }: {
                         </div>
                       );
                     })}
-                    {(!s.tasks || s.tasks.length === 0) && <div className="text-[11px] text-slate-400 px-2 py-1">(タスクなし)</div>}
+                    {(!s.tasks || s.tasks.length === 0) && <div className="text-sm text-slate-400 px-2 py-1">(タスクなし)</div>}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <input value={newTaskName[s.id] || ''} onChange={e => setNewTaskName(prev => ({ ...prev, [s.id]: e.target.value }))}
                       onKeyDown={e => { if (e.key === 'Enter') addTask(s.id); }}
-                      placeholder="新しいタスク名" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs" />
+                      placeholder="新しいタスク名" className="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" />
                     <Btn variant="secondary" size="sm" icon={Plus} onClick={() => addTask(s.id)}>追加</Btn>
                   </div>
                 </div>
@@ -3380,7 +3384,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
     <div className="p-5 max-w-5xl">
       <div className="bg-white rounded-lg border border-slate-200 p-5">
         <h2 className="font-bold mb-1">出庫処理（受注/製造ベース）</h2>
-        <p className="text-xs text-black mb-4">引当済み・ピッキング中の受注/製造からピッキングリストを表示します</p>
+        <p className="text-sm text-black mb-4">引当済み・ピッキング中の受注/製造からピッキングリストを表示します</p>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-5 text-center cursor-pointer hover:bg-blue-100"
@@ -3400,18 +3404,18 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
                     else toast('該当するアクティブな受注/製造が見つかりません');
                   }
                 }} />
-                <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-xs text-blue-600 hover:underline">キャンセル</button>
+                <button onClick={(e) => { e.stopPropagation(); setShowQrScanner(false); }} className="mt-2 text-sm text-blue-600 hover:underline">キャンセル</button>
               </div>
             ) : (
               <>
                 <QrCode size={28} className="mx-auto mb-2 text-blue-600" />
                 <div className="text-sm font-bold text-blue-900">指図QRを読取</div>
-                <div className="text-xs text-blue-600 mt-1">ピッキングリストの指図番号QR</div>
+                <div className="text-sm text-blue-600 mt-1">ピッキングリストの指図番号QR</div>
               </>
             )}
           </div>
           <div className="border border-slate-200 rounded-lg p-3">
-            <div className="text-xs text-black mb-2">アクティブな受注/製造</div>
+            <div className="text-sm text-black mb-2">アクティブな受注/製造</div>
             <select value={selectedMo} onChange={e => setSelectedMo(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded px-2 py-2 text-sm">
               <option value="">-- 指図を選択 --</option>
               {activeOrders.map(m => (
@@ -3428,17 +3432,17 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
             <div className="bg-slate-50 rounded p-3 mb-3 flex items-center gap-3">
               <Factory size={18} className="text-blue-600" />
               <div className="flex-1">
-                <div className="text-xs text-black">指図 {mo.prodNo}</div>
+                <div className="text-sm text-black">指図 {mo.prodNo}</div>
                 <div className="font-bold">{mo.productName || moDetail.product?.name} x {mo.qty}</div>
-                <div className="text-xs text-black">納期: {mo.dueDate} / {mo.customer}</div>
+                <div className="text-sm text-black">納期: {mo.dueDate} / {mo.customer}</div>
               </div>
               <StatusBadge statusKey={mo.status} statusMap={MO_STATUS} />
             </div>
 
             <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
-              <div className="bg-slate-50 px-4 py-2 text-xs text-black border-b border-slate-200">ピッキングリスト</div>
+              <div className="bg-slate-50 px-4 py-2 text-sm text-black border-b border-slate-200">ピッキングリスト</div>
               <table className="w-full text-sm">
-                <thead className="text-xs text-black border-b border-slate-100">
+                <thead className="text-sm text-black border-b border-slate-100">
                   <tr>
                     <th className="text-left px-3 py-1.5 font-medium">棚位置</th>
                     <th className="text-left px-3 py-1.5 font-medium">部品</th>
@@ -3454,9 +3458,9 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
                     const remaining = need - already;
                     return (
                       <tr key={bs.partId} className={remaining <= 0 ? 'bg-emerald-50/30' : ''}>
-                        <td className="px-3 py-1.5 font-mono text-xs"><MapPin size={10} className="inline mr-0.5" />{bs.part?.defaultLocId || '-'}</td>
+                        <td className="px-3 py-1.5 font-mono text-sm"><MapPin size={10} className="inline mr-0.5" />{bs.part?.defaultLocId || '-'}</td>
                         <td className="px-3 py-1.5">
-                          <div className="font-mono text-xs text-black">{bs.partId}</div>
+                          <div className="font-mono text-sm text-black">{bs.partId}</div>
                           <div className="font-semibold">{bs.part?.name || '-'}</div>
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono">{need}</td>
@@ -3466,7 +3470,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
                             <input type="number" value={pickQty[bs.partId] || 0} max={remaining} min={0}
                               onChange={e => setPickQty(s => ({ ...s, [bs.partId]: Math.min(Number(e.target.value) || 0, remaining) }))}
                               className="w-20 border border-slate-300 rounded px-2 py-1 text-right" />
-                          ) : <span className="text-emerald-600 font-bold text-xs">完了</span>}
+                          ) : <span className="text-emerald-600 font-bold text-base">完了</span>}
                         </td>
                       </tr>
                     );
@@ -3480,7 +3484,7 @@ const IssueScreen = ({ prodOrders, onRefresh, toast }: { prodOrders: ProdOrder[]
               <Btn variant="secondary" onClick={() => setSelectedMo('')}>キャンセル</Btn>
             </div>
 
-            <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-900 flex items-start gap-2">
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-2.5 text-sm text-amber-900 flex items-start gap-2">
               <AlertCircle size={13} className="mt-0.5" />
               <div>確定すると、ピック数が在庫から減算され、引当が解除されます。全部品のピッキングが完了すると指図ステータスが「完了」になります。</div>
             </div>
@@ -3558,7 +3562,7 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
       {isNew && (
         <div className="relative">
           {!showCopySearch ? (
-            <button onClick={() => setShowCopySearch(true)} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 transition">
+            <button onClick={() => setShowCopySearch(true)} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 transition">
               <Copy size={13} /> 過去案件から複製して作成
             </button>
           ) : (
@@ -3568,12 +3572,12 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
                   <Search size={14} className="absolute left-2.5 top-2 text-slate-400" />
                   <input value={copySearch} onChange={e => setCopySearch(e.target.value)} placeholder="工番・製品名・客先で検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-full bg-white" autoFocus />
                 </div>
-                <button onClick={() => { setShowCopySearch(false); setCopySearch(''); }} className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5">閉じる</button>
+                <button onClick={() => { setShowCopySearch(false); setCopySearch(''); }} className="text-sm text-slate-500 hover:text-slate-700 px-2 py-1.5">閉じる</button>
               </div>
               {copySearch && (
                 <div className="max-h-48 overflow-auto bg-white rounded border border-slate-200">
                   {copyResults.length > 0 ? (
-                    <table className="w-full text-xs">
+                    <table className="w-full text-sm">
                       <thead className="bg-slate-50 sticky top-0"><tr><th className="text-left px-2 py-1">工番</th><th className="text-left px-2 py-1">製品名</th><th className="text-left px-2 py-1">区分</th><th className="text-left px-2 py-1">客先</th><th className="px-2 py-1"></th></tr></thead>
                       <tbody className="divide-y divide-slate-100">
                         {copyResults.map((o: any) => (
@@ -3588,7 +3592,7 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
                       </tbody>
                     </table>
                   ) : (
-                    <div className="px-3 py-4 text-center text-xs text-black">該当する案件がありません</div>
+                    <div className="px-3 py-4 text-center text-sm text-black">該当する案件がありません</div>
                   )}
                 </div>
               )}
@@ -3626,10 +3630,10 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
       {/* BOM editing */}
       {bomLoaded && bomItems.length > 0 && (
         <div className="border border-slate-200 rounded overflow-hidden">
-          <div className="bg-slate-50 px-3 py-2 text-xs font-semibold text-black border-b border-slate-200 flex items-center gap-2">
+          <div className="bg-slate-50 px-3 py-2 text-sm font-semibold text-black border-b border-slate-200 flex items-center gap-2">
             <Package size={12} /> 部品リスト ({bomItems.length}部品)
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead className="bg-white text-black border-b border-slate-100">
               <tr><th className="text-left px-3 py-1.5">品番</th><th className="text-left px-3 py-1.5">品名</th><th className="text-right px-3 py-1.5 w-20">数量</th><th className="text-left px-3 py-1.5 w-20">位置</th><th className="w-8"></th></tr>
             </thead>
@@ -3654,12 +3658,12 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
       {/* Add part to BOM */}
       {bomLoaded && (
         <div className="relative">
-          <div className="text-xs font-semibold text-black mb-1">部品を追加</div>
+          <div className="text-sm font-semibold text-black mb-1">部品を追加</div>
           <input value={addPartSearch} onChange={e => { setAddPartSearch(e.target.value); setAddPartDropdown(true); }} onFocus={() => setAddPartDropdown(true)} onBlur={() => setTimeout(() => setAddPartDropdown(false), 200)} placeholder="品番・品名で検索..." className={`${inputClass} font-mono`} />
           {addPartDropdown && filteredAddParts.length > 0 && (
             <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
               {filteredAddParts.map(p => (
-                <button key={p.id} type="button" onMouseDown={e => { e.preventDefault(); setBomItems(prev => [...prev, { partId: p.id, qty: 1, position: '' }]); setAddPartSearch(''); setAddPartDropdown(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center justify-between">
+                <button key={p.id} type="button" onMouseDown={e => { e.preventDefault(); setBomItems(prev => [...prev, { partId: p.id, qty: 1, position: '' }]); setAddPartSearch(''); setAddPartDropdown(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 flex items-center justify-between">
                   <span><span className="font-mono">{p.id}</span> {p.name}</span>
                   <span className="text-black">在庫:{p.stock}</span>
                 </button>
@@ -3669,7 +3673,7 @@ const ProdOrderForm = ({ prodOrder, isNew, prodOrders, products, parts, customer
         </div>
       )}
 
-      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-800">製品を選択するとBOMから部品が自動展開されます。数量の変更や部品の追加・削除が可能です。</div>}
+      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2.5 text-sm text-blue-800">製品を選択するとBOMから部品が自動展開されます。数量の変更や部品の追加・削除が可能です。</div>}
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
         <Btn variant="primary" icon={Save} onClick={() => onSave({ ...form, bomItems }, isNew)} disabled={!form.productId || !form.qty}>{isNew ? '指図発行' : '保存'}</Btn>
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
@@ -3733,12 +3737,12 @@ const ProductsScreen = ({ toast, parts }: { toast: (msg: string) => void; parts:
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">製品マスタ・BOM</h2>
+          <h2 className="font-bold text-base">製品マスタ・BOM</h2>
           <Btn icon={Plus} onClick={() => setNewProduct({ code: '', name: '', category: '', voltage: '', dimensions: '', drawingNo: '' })}>新規登録</Btn>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase">
+            <thead className="bg-slate-50 text-sm text-black uppercase">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">製品コード</th>
                 <th className="text-left px-3 py-2 font-medium">製品名</th>
@@ -3752,11 +3756,11 @@ const ProductsScreen = ({ toast, parts }: { toast: (msg: string) => void; parts:
             <tbody className="divide-y divide-slate-100">
               {products.map((p: any) => (
                 <tr key={p.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openBom(p)}>
-                  <td className="px-3 py-2 font-mono text-xs">{p.code}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{p.code}</td>
                   <td className="px-3 py-2 font-semibold">{p.name}</td>
-                  <td className="px-3 py-2 text-xs">{p.category}</td>
-                  <td className="px-3 py-2 text-xs">{p.voltage}</td>
-                  <td className="px-3 py-2 text-xs">{p.dimensions}</td>
+                  <td className="px-3 py-2 text-sm">{p.category}</td>
+                  <td className="px-3 py-2 text-sm">{p.voltage}</td>
+                  <td className="px-3 py-2 text-sm">{p.dimensions}</td>
                   <td className="px-3 py-2 text-right font-mono">{p._count?.boms || p.boms?.length || 0}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
@@ -3775,7 +3779,7 @@ const ProductsScreen = ({ toast, parts }: { toast: (msg: string) => void; parts:
       )}
       {deleteTarget && (
         <Modal open onClose={() => setDeleteTarget(null)} title="製品の削除確認" size="sm">
-          <div className="text-sm mb-4"><p>以下の製品を削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.code}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="text-sm mb-4"><p>以下の製品を削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-sm text-black">{deleteTarget.code}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
@@ -3933,7 +3937,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-base font-bold">棚卸し</h2>
-            <div className="text-xs text-black">対象部署: 資材・組立・板金 ({parts.length}品目)</div>
+            <div className="text-sm text-black">対象部署: 資材・組立・板金 ({parts.length}品目)</div>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" icon={Printer} onClick={handlePrint}>棚卸表印刷</Btn>
@@ -3949,7 +3953,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             { l: '在庫売価計', v: `¥${allSellingTotal.toLocaleString()}`, c: 'text-black' },
           ].map((k, i) => (
             <div key={i} className="bg-white rounded p-2.5">
-              <div className="text-[11px] text-black">{k.l}</div>
+              <div className="text-sm text-black">{k.l}</div>
               <div className={`text-lg font-bold ${k.c}`}>{k.v}</div>
             </div>
           ))}
@@ -3973,18 +3977,18 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                 <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs font-bold">{st.stocktakeNo}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded ${st.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className="font-mono text-sm font-bold">{st.stocktakeNo}</span>
+                      <span className={`text-sm px-2 py-0.5 rounded ${st.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                         {st.status === 'approved' ? '承認済' : '未承認'}
                       </span>
                     </div>
-                    <div className="text-xs text-black">
+                    <div className="text-sm text-black">
                       {diffItems.length > 0 && totalDiffCost !== 0 && (
                         <span className={`font-mono font-semibold ${totalDiffCost > 0 ? 'text-blue-600' : 'text-rose-600'}`}>差異金額: ¥{totalDiffCost.toLocaleString()}</span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 mt-1.5 text-xs text-black">
+                  <div className="flex items-center gap-4 mt-1.5 text-sm text-black">
                     <span>日付: {st.startDate?.slice(0, 10) || st.createdAt?.slice(0, 10) || '-'}</span>
                     <span>部署: {st.warehouse || '-'}</span>
                     <span>実査者: {st.createdBy?.name || '-'}</span>
@@ -3996,7 +4000,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                 {details.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                      <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
                         <tr>
                           <th className="text-left px-3 py-1.5 font-medium">品番</th>
                           <th className="text-left px-3 py-1.5 font-medium">品名</th>
@@ -4013,18 +4017,18 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                           const diffAmt = (d.diffQty || 0) * (d.part?.costPrice || 0);
                           return (
                             <tr key={d.id} className={`hover:bg-slate-50 ${d.diffQty !== 0 ? 'bg-amber-50/30' : ''}`}>
-                              <td className="px-3 py-1.5 font-mono text-xs">{d.part?.code || d.partId}</td>
-                              <td className="px-3 py-1.5 text-xs">{d.part?.name || d.partId}</td>
+                              <td className="px-3 py-1.5 font-mono text-sm">{d.part?.code || d.partId}</td>
+                              <td className="px-3 py-1.5 text-sm">{d.part?.name || d.partId}</td>
                               <td className="px-3 py-1.5 text-right font-mono">{d.bookQty}</td>
                               <td className="px-3 py-1.5 text-right font-mono">{d.actualQty ?? '—'}</td>
                               <td className="px-3 py-1.5 text-right font-mono">
                                 {d.diffQty !== 0 ? <span className={d.diffQty > 0 ? 'text-blue-600 font-semibold' : 'text-rose-600 font-bold'}>{d.diffQty > 0 ? '+' : ''}{d.diffQty}</span> : <span className="text-emerald-600">0</span>}
                               </td>
-                              <td className="px-3 py-1.5 text-right font-mono text-xs">
+                              <td className="px-3 py-1.5 text-right font-mono text-sm">
                                 {diffAmt !== 0 ? <span className={diffAmt > 0 ? 'text-blue-600' : 'text-rose-600'}>¥{diffAmt.toLocaleString()}</span> : '—'}
                               </td>
-                              <td className="px-3 py-1.5 text-xs">{d.countedBy?.name || st.createdBy?.name || '-'}</td>
-                              <td className="px-3 py-1.5 text-xs">{d.countedAt ? new Date(d.countedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                              <td className="px-3 py-1.5 text-sm">{d.countedBy?.name || st.createdBy?.name || '-'}</td>
+                              <td className="px-3 py-1.5 text-sm">{d.countedAt ? new Date(d.countedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                             </tr>
                           );
                         })}
@@ -4056,7 +4060,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             {allDiffs.length > 0 ? (
               <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                  <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">日付</th>
                       <th className="text-left px-3 py-2 font-medium">部署</th>
@@ -4074,19 +4078,19 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                       const diffAmt = (d.diffQty || 0) * (d.part?.costPrice || 0);
                       return (
                         <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 text-xs">{d.date}</td>
-                          <td className="px-3 py-2 text-xs">{d.warehouse}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{d.part?.code || d.partId}</td>
-                          <td className="px-3 py-2 text-xs">{d.part?.name || d.partId}</td>
+                          <td className="px-3 py-2 text-sm">{d.date}</td>
+                          <td className="px-3 py-2 text-sm">{d.warehouse}</td>
+                          <td className="px-3 py-2 font-mono text-sm">{d.part?.code || d.partId}</td>
+                          <td className="px-3 py-2 text-sm">{d.part?.name || d.partId}</td>
                           <td className="px-3 py-2 text-right font-mono">{d.bookQty}</td>
                           <td className="px-3 py-2 text-right font-mono">{d.actualQty}</td>
                           <td className="px-3 py-2 text-right font-mono">
                             <span className={d.diffQty > 0 ? 'text-blue-600 font-semibold' : 'text-rose-600 font-bold'}>{d.diffQty > 0 ? '+' : ''}{d.diffQty}</span>
                           </td>
-                          <td className="px-3 py-2 text-right font-mono text-xs">
+                          <td className="px-3 py-2 text-right font-mono text-sm">
                             <span className={diffAmt > 0 ? 'text-blue-600' : 'text-rose-600'}>¥{diffAmt.toLocaleString()}</span>
                           </td>
-                          <td className="px-3 py-2 text-xs">{d.conductor}</td>
+                          <td className="px-3 py-2 text-sm">{d.conductor}</td>
                         </tr>
                       );
                     })}
@@ -4104,22 +4108,22 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
         <div className="space-y-3">
           <div className="bg-white rounded-lg border border-slate-200">
             <div className="px-4 py-3 border-b border-slate-200">
-              <h2 className="font-bold text-sm">在庫金額サマリー</h2>
+              <h2 className="font-bold text-base">在庫金額サマリー</h2>
             </div>
             <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="bg-blue-50 rounded-lg p-3"><div className="text-xs text-black">在庫原価 合計</div><div className="text-xl font-bold font-mono">¥{allCostTotal.toLocaleString()}</div></div>
-              <div className="bg-emerald-50 rounded-lg p-3"><div className="text-xs text-black">在庫売価 合計</div><div className="text-xl font-bold font-mono">¥{allSellingTotal.toLocaleString()}</div></div>
-              <div className="bg-slate-50 rounded-lg p-3"><div className="text-xs text-black">在庫品目数</div><div className="text-xl font-bold font-mono">{parts.filter(p => p.stock > 0).length}</div></div>
-              <div className="bg-slate-50 rounded-lg p-3"><div className="text-xs text-black">在庫総数量</div><div className="text-xl font-bold font-mono">{parts.reduce((s, p) => s + p.stock, 0).toLocaleString()}</div></div>
+              <div className="bg-blue-50 rounded-lg p-3"><div className="text-sm text-black">在庫原価 合計</div><div className="text-xl font-bold font-mono">¥{allCostTotal.toLocaleString()}</div></div>
+              <div className="bg-emerald-50 rounded-lg p-3"><div className="text-sm text-black">在庫売価 合計</div><div className="text-xl font-bold font-mono">¥{allSellingTotal.toLocaleString()}</div></div>
+              <div className="bg-slate-50 rounded-lg p-3"><div className="text-sm text-black">在庫品目数</div><div className="text-xl font-bold font-mono">{parts.filter(p => p.stock > 0).length}</div></div>
+              <div className="bg-slate-50 rounded-lg p-3"><div className="text-sm text-black">在庫総数量</div><div className="text-xl font-bold font-mono">{parts.reduce((s, p) => s + p.stock, 0).toLocaleString()}</div></div>
             </div>
           </div>
           <div className="bg-white rounded-lg border border-slate-200">
             <div className="px-4 py-3 border-b border-slate-200">
-              <h2 className="font-bold text-sm">部品別 在庫金額一覧</h2>
+              <h2 className="font-bold text-base">部品別 在庫金額一覧</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">品番</th>
                     <th className="text-left px-3 py-2 font-medium">品名</th>
@@ -4133,17 +4137,17 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                 <tbody className="divide-y divide-slate-100">
                   {parts.filter(p => p.stock > 0).sort((a, b) => (b.stock * (b.costPrice || 0)) - (a.stock * (a.costPrice || 0))).map(p => (
                     <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 font-mono text-xs">{p.code || p.id}</td>
-                      <td className="px-3 py-2 text-xs">{p.name}</td>
+                      <td className="px-3 py-2 font-mono text-sm">{p.code || p.id}</td>
+                      <td className="px-3 py-2 text-sm">{p.name}</td>
                       <td className="px-3 py-2 text-right font-mono">{p.stock}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs">¥{(p.costPrice || 0).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs">¥{(p.sellingPrice || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-sm">¥{(p.costPrice || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-sm">¥{(p.sellingPrice || 0).toLocaleString()}</td>
                       <td className="px-3 py-2 text-right font-mono font-semibold">¥{(p.stock * (p.costPrice || 0)).toLocaleString()}</td>
                       <td className="px-3 py-2 text-right font-mono font-semibold">¥{(p.stock * (p.sellingPrice || 0)).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-xs">
+                <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-base">
                   <tr>
                     <td className="px-3 py-2" colSpan={5}>合計</td>
                     <td className="px-3 py-2 text-right font-mono">¥{allCostTotal.toLocaleString()}</td>
@@ -4172,15 +4176,15 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
                 <Building size={14} className="text-black" />
-                <span className="font-bold text-sm">{dept}部署</span>
-                <span className="text-xs text-black">({dp.length}品目)</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{lbl}</span>
+                <span className="font-bold text-base">{dept}部署</span>
+                <span className="text-sm text-black">({dp.length}品目)</span>
+                <span className={`text-sm px-2 py-0.5 rounded ${cls}`}>{lbl}</span>
               </div>
               {dp.length > 0 && (
                 <Btn variant="ghost" size="sm" onClick={() => setSelectedDept(dept)}>{st === 'pending' ? '実査開始' : '実査結果'}</Btn>
               )}
             </div>
-            <div className="px-4 py-2.5 grid grid-cols-3 md:grid-cols-6 gap-3 text-xs">
+            <div className="px-4 py-2.5 grid grid-cols-3 md:grid-cols-6 gap-3 text-sm">
               <div><span className="text-black">品目数:</span> <span className="font-mono font-semibold">{dp.length}</span></div>
               <div><span className="text-black">帳簿合計:</span> <span className="font-mono font-semibold">{bookTotal}</span></div>
               <div><span className="text-black">実数合計:</span> <span className="font-mono">{hasCount ? actualTotal : '—'}</span></div>
@@ -4219,7 +4223,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
       {selectedDept && (
         <Modal open onClose={() => setSelectedDept(null)} title={`棚卸実査: ${selectedDept}部署`} size="lg">
           <table className="w-full text-sm">
-            <thead className="text-xs text-black border-b border-slate-200">
+            <thead className="text-sm text-black border-b border-slate-200">
               <tr><th className="text-left py-2">品番</th><th className="text-left py-2">品名</th><th className="text-right py-2">帳簿数</th><th className="text-right py-2">実数</th><th className="text-right py-2">差異</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -4228,7 +4232,7 @@ const StocktakeScreen = ({ parts, locations, toast, onRefresh }: { parts: Part[]
                 const dif = actual !== undefined ? actual - p.stock : 0;
                 return (
                   <tr key={p.id}>
-                    <td className="py-2 font-mono text-xs">{p.id}</td>
+                    <td className="py-2 font-mono text-sm">{p.id}</td>
                     <td className="py-2">{p.name}</td>
                     <td className="py-2 text-right font-mono">{p.stock}</td>
                     <td className="py-2 text-right">
@@ -4287,10 +4291,10 @@ const ReportsScreen = ({ toast }: { toast: (msg: string) => void }) => {
         return (
           <div key={r.name} className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition">
             <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-md flex items-center justify-center mb-2"><Icon size={16} /></div>
-            <div className="font-bold text-sm">{r.name}</div>
-            <div className="text-xs text-black mt-1">{r.desc}</div>
+            <div className="font-bold text-base">{r.name}</div>
+            <div className="text-sm text-black mt-1">{r.desc}</div>
             <button onClick={() => handleDownload(r.type, r.name)} disabled={downloading === r.type}
-              className="mt-3 text-xs text-blue-600 font-semibold flex items-center gap-1 hover:underline disabled:opacity-50">
+              className="mt-3 text-sm text-blue-600 font-semibold flex items-center gap-1 hover:underline disabled:opacity-50">
               {downloading === r.type ? <><Loader2 size={11} className="animate-spin" /> 生成中...</> : <><Download size={11} /> CSV出力</>}
             </button>
           </div>
@@ -4317,15 +4321,15 @@ const LogsScreen = () => {
     <div className="p-5 space-y-3">
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
         <Filter size={12} className="text-black" />
-        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="text-sm px-2 py-1 border border-slate-300 rounded text-black">
           <option value="all">全カテゴリ</option>
           {Object.entries(LOG_CATEGORY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <span className="ml-auto text-xs text-black">{filtered.length}件</span>
+        <span className="ml-auto text-sm text-black">{filtered.length}件</span>
       </div>
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+          <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
             <tr>
               <th className="text-left px-3 py-2 font-medium">日時</th>
               <th className="text-left px-3 py-2 font-medium">ユーザー</th>
@@ -4340,12 +4344,12 @@ const LogsScreen = () => {
               const cat = LOG_CATEGORY[log.category];
               return (
                 <tr key={log.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 font-mono text-xs text-black whitespace-nowrap">{new Date(log.ts).toLocaleString('ja-JP')}</td>
-                  <td className="px-3 py-2 text-xs">{log.userName}</td>
-                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${cat?.color || ''}`}>{cat?.label || log.category}</span></td>
-                  <td className="px-3 py-2 text-xs font-semibold">{log.action}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{log.targetId}</td>
-                  <td className="px-3 py-2 text-xs text-black max-w-xs truncate">{log.description}</td>
+                  <td className="px-3 py-2 font-mono text-sm text-black whitespace-nowrap">{new Date(log.ts).toLocaleString('ja-JP')}</td>
+                  <td className="px-3 py-2 text-sm">{log.userName}</td>
+                  <td className="px-3 py-2"><span className={`text-sm px-2 py-0.5 rounded ${cat?.color || ''}`}>{cat?.label || log.category}</span></td>
+                  <td className="px-3 py-2 text-sm font-semibold">{log.action}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{log.targetId}</td>
+                  <td className="px-3 py-2 text-sm text-black max-w-xs truncate">{log.description}</td>
                 </tr>
               );
             })}
@@ -4468,7 +4472,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
       {/* Conversation sidebar */}
       <div className="w-56 bg-white rounded-l-lg border border-slate-200 border-r-0 flex flex-col overflow-hidden flex-shrink-0">
         <div className="p-2 border-b border-slate-100">
-          <button onClick={startNewConversation} className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded hover:bg-blue-700 transition">
+          <button onClick={startNewConversation} className="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded hover:bg-blue-700 transition">
             <Plus size={14} /> 新規会話
           </button>
         </div>
@@ -4476,12 +4480,12 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
           {convsLoading ? (
             <div className="text-center py-4"><Loader2 size={16} className="animate-spin mx-auto text-black" /></div>
           ) : conversations.length === 0 ? (
-            <div className="text-center text-xs text-black py-4">会話履歴はありません</div>
+            <div className="text-center text-sm text-black py-4">会話履歴はありません</div>
           ) : conversations.map((conv: any) => (
             <button key={conv.sessionId} onClick={() => loadConversation(conv.sessionId)}
-              className={`w-full text-left px-2.5 py-2 rounded text-xs mb-0.5 transition ${conv.sessionId === sessionId ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-black hover:bg-slate-50'}`}>
+              className={`w-full text-left px-2.5 py-2 rounded text-sm mb-0.5 transition ${conv.sessionId === sessionId ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-black hover:bg-slate-50'}`}>
               <div className="truncate">{conv.title || '無題の会話'}</div>
-              <div className="text-[11px] text-black mt-0.5 truncate">
+              <div className="text-sm text-black mt-0.5 truncate">
                 {conv.createdAt ? new Date(conv.createdAt).toLocaleDateString('ja-JP') : ''}
               </div>
             </button>
@@ -4498,15 +4502,15 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
           <button onClick={() => { setChatTab('docs'); loadDocs(); }} className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-1.5 ${chatTab === 'docs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-black'}`}>
             <FileText size={14} /> ドキュメント
           </button>
-          {chatTab === 'chat' && sessionId && <span className="ml-auto text-xs text-black font-mono">#{sessionId.slice(0, 8)}</span>}
+          {chatTab === 'chat' && sessionId && <span className="ml-auto text-sm text-black font-mono">#{sessionId.slice(0, 8)}</span>}
         </div>
 
         {chatTab === 'docs' && (
           <div className="flex-1 overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-bold text-sm">ナレッジドキュメント</h3>
-                <p className="text-xs text-black">アップロードしたファイルの内容がAIチャットの回答に活用されます</p>
+                <h3 className="font-bold text-base">ナレッジドキュメント</h3>
+                <p className="text-sm text-black">アップロードしたファイルの内容がAIチャットの回答に活用されます</p>
               </div>
               <div>
                 <input ref={fileInputRef} type="file" accept=".txt,.csv,.tsv,.md,.json,.log,.pdf,.xlsx,.docx" onChange={handleUploadDoc} className="hidden" />
@@ -4515,14 +4519,14 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
                 </Btn>
               </div>
             </div>
-            <div className="text-xs text-black mb-3">対応形式: TXT, CSV, JSON, Markdown, ログファイル（PDF/XLSX/DOCXは基本テキスト抽出のみ）</div>
+            <div className="text-sm text-black mb-3">対応形式: TXT, CSV, JSON, Markdown, ログファイル（PDF/XLSX/DOCXは基本テキスト抽出のみ）</div>
             {docsLoading ? (
               <div className="text-center py-8"><Loader2 size={20} className="animate-spin mx-auto" /></div>
             ) : knowledgeDocs.length === 0 ? (
               <div className="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center">
                 <FileText size={40} className="mx-auto text-slate-300 mb-3" />
                 <p className="text-sm text-black font-medium">ドキュメントがまだありません</p>
-                <p className="text-xs text-black mt-1">ファイルをアップロードすると、AIがその内容を参照して回答します</p>
+                <p className="text-sm text-black mt-1">ファイルをアップロードすると、AIがその内容を参照して回答します</p>
                 <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-sm text-blue-600 hover:underline">ファイルを選択</button>
               </div>
             ) : (
@@ -4531,8 +4535,8 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
                   <div key={doc.id} className="flex items-center gap-3 bg-slate-50 rounded-lg p-3 border border-slate-200">
                     <FileText size={20} className="text-blue-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm truncate">{doc.fileName}</div>
-                      <div className="text-xs text-black">
+                      <div className="font-bold text-base truncate">{doc.fileName}</div>
+                      <div className="text-sm text-black">
                         {doc.fileType.toUpperCase()} / {(doc.fileSize / 1024).toFixed(1)}KB / {doc.chunkCount}チャンク
                         {doc.createdAt && ` / ${new Date(doc.createdAt).toLocaleDateString('ja-JP')}`}
                       </div>
@@ -4551,10 +4555,10 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
             <div className="text-center text-black mt-16">
               <Sparkles size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm font-bold">AI に質問してみましょう</p>
-              <p className="text-xs text-black mt-1">在庫・発注・製造データについて自然言語で質問できます</p>
+              <p className="text-sm text-black mt-1">在庫・発注・製造データについて自然言語で質問できます</p>
               <div className="mt-5 flex flex-wrap gap-2 justify-center max-w-lg mx-auto">
                 {suggestions.map(q => (
-                  <button key={q} onClick={() => handleSend(q)} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition">{q}</button>
+                  <button key={q} onClick={() => handleSend(q)} className="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition">{q}</button>
                 ))}
               </div>
             </div>
@@ -4573,7 +4577,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
 
                 {/* No results warning */}
                 {m.role === 'assistant' && isNoResult(m.content) && (
-                  <div className="mt-2 flex items-start gap-2 border-l-4 border-amber-300 bg-amber-50 px-3 py-2 rounded-r text-xs text-amber-900">
+                  <div className="mt-2 flex items-start gap-2 border-l-4 border-amber-300 bg-amber-50 px-3 py-2 rounded-r text-sm text-amber-900">
                     <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold">該当する情報が見つかりませんでした</p>
@@ -4586,7 +4590,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
                 {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {m.sources.map((s: any, i: number) => (
-                      <div key={i} className="flex items-center gap-1.5 text-xs bg-white border border-emerald-200 text-emerald-700 px-2 py-1 rounded-md">
+                      <div key={i} className="flex items-center gap-1.5 text-sm bg-white border border-emerald-200 text-emerald-700 px-2 py-1 rounded-md">
                         <FileText size={12} />
                         <span className="truncate max-w-[180px]">{s.filename || s.name || 'ソース'}</span>
                         {s.page_number != null && <span className="text-emerald-400">p.{s.page_number}</span>}
@@ -4602,7 +4606,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
                       <Copy size={12} />
                     </button>
                   )}
-                  <span className="text-[11px] text-black">
+                  <span className="text-sm text-black">
                     {new Date(m.ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -4622,7 +4626,7 @@ const ChatScreen = ({ toast }: { toast: (msg: string) => void }) => {
         {messages.length > 0 && !input && (
           <div className="px-4 pb-1 flex flex-wrap gap-1.5">
             {suggestions.slice(0, 4).map(q => (
-              <button key={q} onClick={() => handleSend(q)} className="text-[11px] px-2.5 py-1 bg-slate-50 text-black rounded-full hover:bg-slate-100 border border-slate-200 transition">{q}</button>
+              <button key={q} onClick={() => handleSend(q)} className="text-sm px-2.5 py-1 bg-slate-50 text-black rounded-full hover:bg-slate-100 border border-slate-200 transition">{q}</button>
             ))}
           </div>
         )}
@@ -4751,14 +4755,14 @@ const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
           <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             placeholder="名前・メール・IDで検索..." className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
-        <span className="text-xs text-black">{filteredUsers.length}件</span>
+        <span className="text-sm text-black">{filteredUsers.length}件</span>
         <div className="ml-auto">
           <Btn icon={UserPlus} onClick={() => setShowNew(true)}>ユーザー招待</Btn>
         </div>
       </div>
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+          <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
             <tr>
               <th className="text-left px-3 py-2 font-medium">名前</th>
               <th className="text-left px-3 py-2 font-medium">社内ID</th>
@@ -4776,23 +4780,23 @@ const UsersScreen = ({ toast }: { toast: (msg: string) => void }) => {
               return (
                 <tr key={u.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-semibold">{u.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{u.loginId}</td>
-                  <td className="px-3 py-2 text-xs">{u.email}</td>
-                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${r?.color || ''}`}>{r?.label || u.role}</span></td>
-                  <td className="px-3 py-2 text-xs">{u.department || '-'}</td>
-                  <td className="px-3 py-2 text-xs text-black">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('ja-JP') : '-'}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{u.loginId}</td>
+                  <td className="px-3 py-2 text-sm">{u.email}</td>
+                  <td className="px-3 py-2"><span className={`text-sm px-2 py-0.5 rounded ${r?.color || ''}`}>{r?.label || u.role}</span></td>
+                  <td className="px-3 py-2 text-sm">{u.department || '-'}</td>
+                  <td className="px-3 py-2 text-sm text-black">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('ja-JP') : '-'}</td>
                   <td className="px-3 py-2">
-                    <button onClick={() => handleToggleActive(u)} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-black'}`}>
+                    <button onClick={() => handleToggleActive(u)} className={`inline-flex items-center gap-1 text-sm px-2 py-0.5 rounded ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-black'}`}>
                       {u.isActive ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}{u.isActive ? '有効' : '無効'}
                     </button>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditing(u)}>編集</Btn>
-                      <button onClick={() => { setResetPwUser(u); setNewPassword(''); }} className="text-xs text-black hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition flex items-center gap-1" title="パスワードリセット">
+                      <button onClick={() => { setResetPwUser(u); setNewPassword(''); }} className="text-sm text-black hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition flex items-center gap-1" title="パスワードリセット">
                         <KeyRound size={11} /> PW
                       </button>
-                      <button onClick={() => handleDeleteUser(u)} className="text-xs text-black hover:text-rose-600 px-1.5 py-0.5 rounded hover:bg-rose-50 transition flex items-center gap-1" title="削除">
+                      <button onClick={() => handleDeleteUser(u)} className="text-sm text-black hover:text-rose-600 px-1.5 py-0.5 rounded hover:bg-rose-50 transition flex items-center gap-1" title="削除">
                         <Trash2 size={11} />
                       </button>
                     </div>
@@ -4876,7 +4880,7 @@ const UserForm = ({ user, isNew, departments, roles, onSave, onClose }: any) => 
     <div className="space-y-3 text-sm">
       <Field label="名前*"><input value={form.name || ''} onChange={e => upd('name', e.target.value)} className={inputClass} /></Field>
       <Field label="メールアドレス*"><input type="email" value={form.email || ''} onChange={e => upd('email', e.target.value)} className={inputClass} placeholder={isNew ? '招待メールを送信します' : ''} /></Field>
-      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-700">招待メールが送信され、ユーザーが初回アクセス時にパスワードを設定します</div>}
+      {isNew && <div className="bg-blue-50 border border-blue-200 rounded p-2 text-sm text-blue-700">招待メールが送信され、ユーザーが初回アクセス時にパスワードを設定します</div>}
       <Field label="ロール">
         <select value={form.role} onChange={e => upd('role', e.target.value)} className={inputClass}>
           {roles.map((r: any) => <option key={r.value} value={r.value}>{r.label}</option>)}
@@ -4955,20 +4959,20 @@ const DepartmentsScreen = ({ toast }: { toast: (msg: string) => void }) => {
           <span className={`flex-1 min-w-0 truncate ${isRoot ? 'font-bold text-black' : 'font-medium text-black'}`}>{node.name}</span>
 
           {/* Department level badge */}
-          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${isRoot ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-600'}`}>
+          <span className={`text-sm font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${isRoot ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-600'}`}>
             {isRoot ? '部' : '課'}
           </span>
 
           {/* Recursive user count */}
-          <span className="text-xs text-black flex-shrink-0">{count}名</span>
+          <span className="text-sm text-black flex-shrink-0">{count}名</span>
 
-          {node.code && <span className="text-xs font-mono text-black flex-shrink-0">{node.code}</span>}
+          {node.code && <span className="text-sm font-mono text-black flex-shrink-0">{node.code}</span>}
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {isRoot && (
               <button onClick={() => { setAddChildParent(node); setEditing(null); setShowNew(false); }}
-                className="flex items-center gap-1 text-xs text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition">
+                className="flex items-center gap-1 text-sm text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition">
                 <PlusCircle size={12} /> 課を追加
               </button>
             )}
@@ -4986,7 +4990,7 @@ const DepartmentsScreen = ({ toast }: { toast: (msg: string) => void }) => {
   return (
     <div className="p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-black">部 → 課 の階層構造（最大2階層）</p>
+        <p className="text-sm text-black">部 → 課 の階層構造（最大2階層）</p>
         <Btn icon={Plus} onClick={() => { setShowNew(true); setEditing(null); setAddChildParent(null); }}>部署追加</Btn>
       </div>
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
@@ -5043,7 +5047,7 @@ const DeptForm = ({ dept, isNew, departments, parentId, onSave, onClose }: any) 
           <option value="">なし（部レベル）</option>
           {departments.filter((d: any) => d.id !== form.id && !d.parentId).map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        <p className="mt-1 text-xs text-black">親なし = 部 / 親あり = 課</p>
+        <p className="mt-1 text-sm text-black">親なし = 部 / 親あり = 課</p>
       </Field>
       <Field label="説明"><input value={form.description || ''} onChange={e => upd('description', e.target.value)} className={inputClass} /></Field>
       <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
@@ -5154,11 +5158,11 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
         <>
           <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center gap-2">
             <Filter size={12} className="text-black" />
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="text-xs px-2 py-1 border border-slate-300 rounded text-black">
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="text-sm px-2 py-1 border border-slate-300 rounded text-black">
               <option value="all">すべての種別</option>
               {ENTITY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-            <span className="ml-auto text-xs text-black">{entities.length}件</span>
+            <span className="ml-auto text-sm text-black">{entities.length}件</span>
           </div>
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             {entLoading ? (
@@ -5167,7 +5171,7 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
               <div className="py-12 text-center text-sm text-black">エンティティがありません</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">種別</th>
                     <th className="text-left px-3 py-2 font-medium">抽出値</th>
@@ -5183,16 +5187,16 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
                     const t = ENTITY_TYPES.find(x => x.value === e.entityType);
                     return (
                       <tr key={e.id} className="hover:bg-slate-50">
-                        <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${t?.color || 'bg-slate-100 text-black'}`}>{t?.label || e.entityType}</span></td>
+                        <td className="px-3 py-2"><span className={`text-sm px-2 py-0.5 rounded ${t?.color || 'bg-slate-100 text-black'}`}>{t?.label || e.entityType}</span></td>
                         <td className="px-3 py-2 font-medium">{e.entityValue || e.name}</td>
                         <td className="px-3 py-2">
                           {editingEntityId === e.id ? (
                             <div className="flex gap-1 items-center">
                               <input type="text" value={editNorm} onChange={ev => setEditNorm(ev.target.value)}
-                                className="w-32 rounded border border-blue-300 px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" autoFocus
+                                className="w-32 rounded border border-blue-300 px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" autoFocus
                                 onKeyDown={ev => ev.key === 'Enter' && handleInlineEdit(e.id)} />
-                              <button onClick={() => handleInlineEdit(e.id)} className="text-emerald-600 hover:text-emerald-700 text-xs font-bold">OK</button>
-                              <button onClick={() => setEditingEntityId(null)} className="text-black text-xs">X</button>
+                              <button onClick={() => handleInlineEdit(e.id)} className="text-emerald-600 hover:text-emerald-700 text-sm font-bold">OK</button>
+                              <button onClick={() => setEditingEntityId(null)} className="text-black text-sm">X</button>
                             </div>
                           ) : (
                             <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => { setEditingEntityId(e.id); setEditNorm(e.normalizedValue || ''); }}>
@@ -5200,16 +5204,16 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-xs text-black">{e.documentCount || e.sourceCount || 1}件</td>
+                        <td className="px-3 py-2 text-sm text-black">{e.documentCount || e.sourceCount || 1}件</td>
                         <td className="px-3 py-2">
                           {e.isMatchedMaster ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><CheckCircle2 size={12} /> 一致</span>
+                            <span className="inline-flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 size={12} /> 一致</span>
                           ) : (
-                            <span className="text-xs text-black">未登録</span>
+                            <span className="text-sm text-black">未登録</span>
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <button onClick={() => handleVerify(e)} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${e.isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          <button onClick={() => handleVerify(e)} className={`inline-flex items-center gap-1 text-sm px-2 py-0.5 rounded ${e.isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                             {e.isVerified ? <><Shield size={10} /> 検証済</> : '未検証'}
                           </button>
                         </td>
@@ -5241,7 +5245,7 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
               <div className="py-12 text-center text-sm text-black">マスタがありません</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+                <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">種別</th>
                     <th className="text-left px-3 py-2 font-medium">正規化値</th>
@@ -5254,22 +5258,22 @@ const EntitiesScreen = ({ toast }: { toast: (msg: string) => void }) => {
                     const t = ENTITY_TYPES.find(x => x.value === m.entityType);
                     return (
                       <tr key={m.id} className="hover:bg-slate-50">
-                        <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded ${t?.color || 'bg-slate-100 text-black'}`}>{t?.label || m.entityType}</span></td>
+                        <td className="px-3 py-2"><span className={`text-sm px-2 py-0.5 rounded ${t?.color || 'bg-slate-100 text-black'}`}>{t?.label || m.entityType}</span></td>
                         <td className="px-3 py-2 font-semibold">{m.canonicalValue}</td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">
                             {(m.aliases || []).map((a: string, i: number) => (
-                              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-black">
+                              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-sm text-black">
                                 <Tag size={10} className="text-black" /> {a}
                               </span>
                             ))}
-                            {(!m.aliases || m.aliases.length === 0) && <span className="text-xs text-black">-</span>}
+                            {(!m.aliases || m.aliases.length === 0) && <span className="text-sm text-black">-</span>}
                           </div>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex gap-1">
                             <Btn variant="ghost" size="sm" icon={Edit} onClick={() => { setEditingMaster(m); setShowMasterNew(false); }}>編集</Btn>
-                            <button onClick={() => setDeleteMasterTarget(m)} className="text-xs text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition">削除</button>
+                            <button onClick={() => setDeleteMasterTarget(m)} className="text-sm text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition">削除</button>
                           </div>
                         </td>
                       </tr>
@@ -5344,7 +5348,7 @@ const EntityMasterForm = ({ master, isNew, onSave, onClose }: any) => {
         {(form.aliases || []).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {(form.aliases || []).map((a: string, i: number) => (
-              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs text-blue-700">
+              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-sm text-blue-700">
                 {a}
                 <button onClick={() => removeAlias(i)} className="text-blue-400 hover:text-red-500 ml-0.5 font-bold">x</button>
               </span>
@@ -5443,9 +5447,9 @@ const QrCameraScanner = ({ onScan, autoStart = false }: { onScan: (text: string)
           <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-purple-900/40" />
           <Camera size={48} className="text-white/50 mb-3 relative z-10" />
           <div className="text-white text-sm font-medium relative z-10">タップしてカメラを起動</div>
-          <div className="text-cyan-300 text-xs mt-1 relative z-10">QRコードを読み取ります</div>
-          {errorMsg && <div className="absolute bottom-3 left-3 right-3 bg-red-600 rounded px-3 py-2 text-xs text-white z-10">{errorMsg}</div>}
-          {debugInfo && <div className="absolute top-3 left-3 right-3 bg-yellow-600 rounded px-3 py-2 text-xs text-white z-10">{debugInfo}</div>}
+          <div className="text-cyan-300 text-sm mt-1 relative z-10">QRコードを読み取ります</div>
+          {errorMsg && <div className="absolute bottom-3 left-3 right-3 bg-red-600 rounded px-3 py-2 text-sm text-white z-10">{errorMsg}</div>}
+          {debugInfo && <div className="absolute top-3 left-3 right-3 bg-yellow-600 rounded px-3 py-2 text-sm text-white z-10">{debugInfo}</div>}
         </div>
       )}
 
@@ -5453,7 +5457,7 @@ const QrCameraScanner = ({ onScan, autoStart = false }: { onScan: (text: string)
         <div className="bg-slate-900 rounded-xl flex flex-col items-center justify-center" style={{ minHeight: '280px' }}>
           <Loader2 size={32} className="text-cyan-400 animate-spin mb-2" />
           <div className="text-white text-sm">カメラを起動中...</div>
-          {debugInfo && <div className="text-cyan-300 text-xs mt-2">{debugInfo}</div>}
+          {debugInfo && <div className="text-cyan-300 text-sm mt-2">{debugInfo}</div>}
         </div>
       )}
 
@@ -5537,11 +5541,11 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
             <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
               <Btn size="sm" icon={Printer} variant="primary" onClick={() => handlePrintSelected('part')} disabled={selectedParts.size === 0}>選択を印刷 ({selectedParts.size})</Btn>
               <Btn size="sm" icon={Printer} variant="secondary" onClick={() => handlePrintAll('parts')}>全部品ラベル一括印刷</Btn>
-              <button onClick={() => setSelectedParts(new Set(parts.map(p => p.id)))} className="text-xs text-blue-600 hover:underline ml-auto">全選択</button>
-              <button onClick={() => setSelectedParts(new Set())} className="text-xs text-black hover:underline">全解除</button>
+              <button onClick={() => setSelectedParts(new Set(parts.map(p => p.id)))} className="text-sm text-blue-600 hover:underline ml-auto">全選択</button>
+              <button onClick={() => setSelectedParts(new Set())} className="text-sm text-black hover:underline">全解除</button>
             </div>
             <table className="w-full text-sm">
-              <thead className="bg-white text-xs text-black border-b border-slate-100">
+              <thead className="bg-white text-sm text-black border-b border-slate-100">
                 <tr>
                   <th className="px-3 py-2 w-8"><input type="checkbox" checked={selectedParts.size === parts.length} onChange={() => setSelectedParts(selectedParts.size === parts.length ? new Set() : new Set(parts.map(p => p.id)))} /></th>
                   <th className="text-left px-3 py-2 font-medium">品番</th>
@@ -5554,9 +5558,9 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
                 {parts.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-3 py-2"><input type="checkbox" checked={selectedParts.has(p.id)} onChange={() => togglePart(p.id)} /></td>
-                    <td className="px-3 py-2"><div className="font-mono text-xs">{p.id}</div><div className="font-mono text-[11px] text-black">{p.code}</div></td>
+                    <td className="px-3 py-2"><div className="font-mono text-sm">{p.id}</div><div className="font-mono text-sm text-black">{p.code}</div></td>
                     <td className="px-3 py-2 text-sm">{p.name}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{p.location}</td>
+                    <td className="px-3 py-2 font-mono text-sm">{p.location}</td>
                     <td className="px-3 py-2 text-center">
                       <button onClick={() => window.open(`/api/qr?type=part&id=${p.id}&format=label`, '_blank')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="QRラベル印刷">
                         <QrCode size={16} />
@@ -5574,11 +5578,11 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
             <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
               <Btn size="sm" icon={Printer} variant="primary" onClick={() => handlePrintSelected('location')} disabled={selectedLocs.size === 0}>選択を印刷 ({selectedLocs.size})</Btn>
               <Btn size="sm" icon={Printer} variant="secondary" onClick={() => handlePrintAll('locations')}>全保管場所一括印刷</Btn>
-              <button onClick={() => setSelectedLocs(new Set(locations.map(l => l.id)))} className="text-xs text-blue-600 hover:underline ml-auto">全選択</button>
-              <button onClick={() => setSelectedLocs(new Set())} className="text-xs text-black hover:underline">全解除</button>
+              <button onClick={() => setSelectedLocs(new Set(locations.map(l => l.id)))} className="text-sm text-blue-600 hover:underline ml-auto">全選択</button>
+              <button onClick={() => setSelectedLocs(new Set())} className="text-sm text-black hover:underline">全解除</button>
             </div>
             <table className="w-full text-sm">
-              <thead className="bg-white text-xs text-black border-b border-slate-100">
+              <thead className="bg-white text-sm text-black border-b border-slate-100">
                 <tr>
                   <th className="px-3 py-2 w-8"><input type="checkbox" checked={selectedLocs.size === locations.length} onChange={() => setSelectedLocs(selectedLocs.size === locations.length ? new Set() : new Set(locations.map(l => l.id)))} /></th>
                   <th className="text-left px-3 py-2 font-medium">保管場所ID</th>
@@ -5592,10 +5596,10 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
                 {locations.map(l => (
                   <tr key={l.id} className="hover:bg-slate-50">
                     <td className="px-3 py-2"><input type="checkbox" checked={selectedLocs.has(l.id)} onChange={() => toggleLoc(l.id)} /></td>
-                    <td className="px-3 py-2 font-mono text-xs font-semibold">{l.id}</td>
-                    <td className="px-3 py-2 text-xs">{l.warehouse}</td>
+                    <td className="px-3 py-2 font-mono text-sm font-semibold">{l.id}</td>
+                    <td className="px-3 py-2 text-sm">{l.warehouse}</td>
                     <td className="px-3 py-2 text-sm">{l.name}</td>
-                    <td className="px-3 py-2 text-xs"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
+                    <td className="px-3 py-2 text-sm"><span className="px-1.5 py-0.5 bg-slate-100 rounded">{l.locType}</span></td>
                     <td className="px-3 py-2 text-center">
                       <button onClick={() => window.open(`/api/qr?type=location&id=${l.id}&format=label`, '_blank')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="QRラベル印刷">
                         <QrCode size={16} />
@@ -5615,7 +5619,7 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
               <QrCameraScanner autoStart onScan={(text) => { setScanInput(text); handleScanText(text); }} />
 
               {/* Manual input fallback */}
-              <div className="text-xs text-black text-center">または手入力で検索</div>
+              <div className="text-sm text-black text-center">または手入力で検索</div>
               <div className="flex gap-2">
                 <input value={scanInput} onChange={e => setScanInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleScan()}
@@ -5630,13 +5634,13 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
               )}
               {scanResult?.type === 'part' && (
                 <div className="bg-white rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-black mb-2">直近の読取結果</div>
+                  <div className="text-sm text-black mb-2">直近の読取結果</div>
                   <div className="flex items-center gap-3">
                     <QrCode size={40} className="text-black" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-mono text-xs text-black">{scanResult.data.id}</div>
+                      <div className="font-mono text-sm text-black">{scanResult.data.id}</div>
                       <div className="font-bold truncate">{scanResult.data.name}</div>
-                      <div className="text-xs text-black mt-0.5">在庫: {scanResult.data.stock} {scanResult.data.unit} / 棚: {scanResult.data.location}</div>
+                      <div className="text-sm text-black mt-0.5">在庫: {scanResult.data.stock} {scanResult.data.unit} / 棚: {scanResult.data.location}</div>
                     </div>
                     <ChevronRight size={16} className="text-black" />
                   </div>
@@ -5644,13 +5648,13 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
               )}
               {scanResult?.type === 'location' && (
                 <div className="bg-white rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-black mb-2">直近の読取結果</div>
+                  <div className="text-sm text-black mb-2">直近の読取結果</div>
                   <div className="flex items-center gap-3">
                     <QrCode size={40} className="text-black" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-mono text-xs text-black">{scanResult.data.id}</div>
+                      <div className="font-mono text-sm text-black">{scanResult.data.id}</div>
                       <div className="font-bold truncate">{scanResult.data.name} ({scanResult.data.warehouse})</div>
-                      <div className="text-xs text-black mt-0.5">格納部品: {scanResult.parts?.length || 0}件</div>
+                      <div className="text-sm text-black mt-0.5">格納部品: {scanResult.parts?.length || 0}件</div>
                     </div>
                     <ChevronRight size={16} className="text-black" />
                   </div>
@@ -5658,11 +5662,11 @@ const QrScreen = ({ parts, locations, toast }: { parts: Part[]; locations: Locat
               )}
               {!scanResult && parts.length > 0 && (
                 <div className="bg-white rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-black mb-2">直近の読取結果</div>
+                  <div className="text-sm text-black mb-2">直近の読取結果</div>
                   <div className="flex items-center gap-3">
                     <QrCode size={40} className="text-black" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-mono text-xs text-black">{parts[0].id}</div>
+                      <div className="font-mono text-sm text-black">{parts[0].id}</div>
                       <div className="font-bold truncate">{parts[0].name}</div>
                     </div>
                     <ChevronRight size={16} className="text-black" />
@@ -5727,7 +5731,7 @@ const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
   return (
     <div className="p-5 space-y-6 max-w-2xl">
       <div className="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><Users size={16} /> プロフィール</h2>
+        <h2 className="font-bold text-base mb-4 flex items-center gap-2"><Users size={16} /> プロフィール</h2>
         {profileLoading ? (
           <div className="text-center py-4"><Loader2 size={16} className="animate-spin mx-auto" /></div>
         ) : (
@@ -5742,7 +5746,7 @@ const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><KeyRound size={16} /> パスワード変更</h2>
+        <h2 className="font-bold text-base mb-4 flex items-center gap-2"><KeyRound size={16} /> パスワード変更</h2>
         <div className="space-y-3">
           <Field label="現在のパスワード"><input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} className={inputClass} /></Field>
           <Field label="新しいパスワード"><input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} className={inputClass} placeholder="6文字以上" /></Field>
@@ -5754,11 +5758,11 @@ const SettingsScreen = ({ toast, chatWidgetEnabled, setChatWidgetEnabled }: {
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><MessageSquare size={16} /> AIチャットウィジェット</h2>
+        <h2 className="font-bold text-base mb-4 flex items-center gap-2"><MessageSquare size={16} /> AIチャットウィジェット</h2>
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium">フローティングチャット</div>
-            <div className="text-xs text-black">画面右下にAIチャットボタンを表示します</div>
+            <div className="text-sm text-black">画面右下にAIチャットボタンを表示します</div>
           </div>
           <button onClick={() => setChatWidgetEnabled(!chatWidgetEnabled)}
             className={`relative w-12 h-6 rounded-full transition-colors ${chatWidgetEnabled ? 'bg-blue-600' : 'bg-slate-300'}`}>
@@ -5816,7 +5820,7 @@ const FloatingChatWidget = () => {
 
       <div className="bg-blue-600 text-white px-4 py-3 flex items-center gap-2">
         <Sparkles size={18} />
-        <span className="font-bold text-sm flex-1">AIアシスタント</span>
+        <span className="font-bold text-base flex-1">AIアシスタント</span>
         <button onClick={handleReset} className="p-1 hover:bg-blue-500 rounded" title="リセット"><RotateCcw size={16} /></button>
         <button onClick={() => setOpen(false)} className="p-1 hover:bg-blue-500 rounded"><X size={16} /></button>
       </div>
@@ -5825,10 +5829,10 @@ const FloatingChatWidget = () => {
         {messages.length === 0 && (
           <div className="text-center mt-12 text-black">
             <Sparkles size={32} className="mx-auto mb-2 opacity-50" />
-            <p className="text-xs">在庫・発注・製造について<br/>何でも聞いてください</p>
+            <p className="text-sm">在庫・発注・製造について<br/>何でも聞いてください</p>
             <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
               {['在庫切れは？', '発注状況', '欠品部品'].map(q => (
-                <button key={q} onClick={() => setInput(q)} className="text-[11px] px-2 py-1 bg-white border border-slate-200 rounded-full text-blue-600 hover:bg-blue-50">{q}</button>
+                <button key={q} onClick={() => setInput(q)} className="text-sm px-2 py-1 bg-white border border-slate-200 rounded-full text-blue-600 hover:bg-blue-50">{q}</button>
               ))}
             </div>
           </div>
@@ -5910,9 +5914,9 @@ const StockBox = ({ label, value, unit, primary, accent, danger }: { label: stri
     danger ? 'bg-rose-50 border-rose-200 text-rose-900' :
     'bg-slate-50 border-slate-200 text-black';
   return <div className={`rounded-lg border p-2 ${cls}`}>
-    <div className="text-[11px] uppercase opacity-70">{label}</div>
+    <div className="text-sm uppercase opacity-70">{label}</div>
     <div className="text-xl font-bold">{value}</div>
-    <div className="text-[11px] opacity-60">{unit}</div>
+    <div className="text-sm opacity-60">{unit}</div>
   </div>;
 };
 
@@ -5927,9 +5931,9 @@ const PartDetailModal = ({ part, onClose, parts }: { part: Part | null; onClose:
       <div className="grid grid-cols-3 gap-4">
         <div>
           <div className="text-center"><QRPattern id={fresh.id} size={130} />
-            <div className="text-[11px] font-mono text-black mt-2">{fresh.id}</div>
+            <div className="text-sm font-mono text-black mt-2">{fresh.id}</div>
           </div>
-          <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1.5 mt-3">
+          <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1.5 mt-3">
             <DetailRow label="社内品番" value={fresh.code} mono />
             <DetailRow label="メーカー品番" value={fresh.makerCode} mono />
             <DetailRow label="メーカー" value={fresh.maker} />
@@ -5946,30 +5950,30 @@ const PartDetailModal = ({ part, onClose, parts }: { part: Part | null; onClose:
             <StockBox label="有効在庫" value={eff} unit={fresh.unit} accent={!isLow} danger={isLow} />
           </div>
           <div className="bg-slate-50 rounded p-3 mb-3">
-            <div className="text-xs text-black mb-1.5 flex justify-between"><span>在庫レベル</span><span>最大 {fresh.maxStock}</span></div>
+            <div className="text-sm text-black mb-1.5 flex justify-between"><span>在庫レベル</span><span>最大 {fresh.maxStock}</span></div>
             <div className="relative h-3 bg-white rounded-full overflow-hidden border border-slate-200">
               <div className="absolute h-full bg-emerald-400" style={{ width: `${Math.min(100, fresh.stock / fresh.maxStock * 100)}%` }} />
               <div className="absolute h-full w-px bg-amber-500" style={{ left: `${fresh.reorderPoint / fresh.maxStock * 100}%` }} />
               <div className="absolute h-full w-px bg-rose-500" style={{ left: `${fresh.safetyStock / fresh.maxStock * 100}%` }} />
             </div>
-            <div className="flex justify-between text-[11px] text-black mt-1">
+            <div className="flex justify-between text-sm text-black mt-1">
               <span>0</span><span className="text-rose-600">安全{fresh.safetyStock}</span><span className="text-amber-600">発注点{fresh.reorderPoint}</span><span>{fresh.maxStock}</span>
             </div>
           </div>
-          <div className="bg-slate-50 rounded p-3 text-xs flex items-center gap-2">
+          <div className="bg-slate-50 rounded p-3 text-sm flex items-center gap-2">
             <MapPin size={14} className="text-blue-500" />
             <div className="font-mono font-bold">{fresh.location}</div>
           </div>
           {fresh.shortageReason && (
             <div className="bg-rose-50 border border-rose-200 rounded p-3 mt-3 flex gap-2">
               <AlertCircle size={14} className="text-rose-600 mt-0.5" />
-              <div className="text-xs text-rose-700">
+              <div className="text-sm text-rose-700">
                 <div className="font-bold">メーカー欠品中</div>
                 {fresh.shortageReason}
               </div>
             </div>
           )}
-          <div className="bg-slate-50 rounded p-3 mt-3 text-xs">
+          <div className="bg-slate-50 rounded p-3 mt-3 text-sm">
             <DetailRow label="在庫金額" value={yen(fresh.stock * fresh.unitPrice)} mono />
           </div>
         </div>
@@ -6032,7 +6036,7 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
                 handleCapture();
               }} />
               <div className="mt-2 text-center">
-                <button onClick={handleCapture} className="text-xs text-blue-600 hover:underline">カメラなしでサンプルOCRを実行</button>
+                <button onClick={handleCapture} className="text-sm text-blue-600 hover:underline">カメラなしでサンプルOCRを実行</button>
               </div>
             </div>
           )}
@@ -6040,14 +6044,14 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
             <div className="bg-slate-900 rounded-lg flex items-center justify-center" style={{ minHeight: '240px' }}>
               <div className="text-center text-white">
                 <Loader2 size={48} className="mx-auto mb-2 animate-spin text-blue-400" />
-                <div className="text-xs">OCR認識中...</div>
-                <div className="text-[11px] opacity-60 mt-1">文字領域検出 → 構造化</div>
+                <div className="text-sm">OCR認識中...</div>
+                <div className="text-sm opacity-60 mt-1">文字領域検出 → 構造化</div>
               </div>
             </div>
           )}
           {phase === 'result' && (
             <div className="bg-slate-900 rounded-lg p-4" style={{ minHeight: '240px' }}>
-              <div className="text-xs font-mono leading-relaxed text-emerald-300 whitespace-pre-line">
+              <div className="text-sm font-mono leading-relaxed text-emerald-300 whitespace-pre-line">
                 {sample.rawText}
               </div>
             </div>
@@ -6055,11 +6059,11 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-black mb-2 flex items-center gap-1">
+          <div className="text-sm font-semibold text-black mb-2 flex items-center gap-1">
             <Sparkles size={12} /> 認識結果
           </div>
           {phase === 'camera' && (
-            <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-6 text-center text-xs text-black">
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-6 text-center text-sm text-black">
               撮影前
             </div>
           )}
@@ -6070,15 +6074,15 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
           )}
           {phase === 'result' && (
             <div className="space-y-1">
-              <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded text-xs">
+              <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded text-sm">
                 <CheckCircle2 size={12} className="text-emerald-600" />
                 <span className="font-semibold text-emerald-700">信頼度 {sample.confidence}%</span>
                 <span className="text-black ml-auto">{labelEntries.length}項目検出</span>
               </div>
               {labelEntries.map(([k, v]) => (
                 <div key={k} className="flex items-baseline gap-2 py-1 border-b border-slate-100">
-                  <span className="text-[11px] text-black w-20 shrink-0">{k}</span>
-                  <span className="text-xs flex-1">{v}</span>
+                  <span className="text-sm text-black w-20 shrink-0">{k}</span>
+                  <span className="text-sm flex-1">{v}</span>
                 </div>
               ))}
             </div>
@@ -6096,7 +6100,7 @@ const PartOcrModal = ({ open, onClose, onApply }: { open: boolean; onClose: () =
           </>
         )}
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
-        <div className="ml-auto text-[11px] text-black self-center">実装時: WebRTC + Vision API / 自社OCR</div>
+        <div className="ml-auto text-sm text-black self-center">実装時: WebRTC + Vision API / 自社OCR</div>
       </div>
       <style>{`@keyframes ocrScanY { 0%,100% { top: 5%; } 50% { top: 95%; } }`}</style>
     </Modal>
@@ -6210,27 +6214,27 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
               </div>
             )}
             {phase === 'preview' && (
-              <div className="absolute bottom-2 inset-x-3 bg-black/70 text-white text-center text-[11px] py-1 rounded flex items-center justify-center gap-1">
+              <div className="absolute bottom-2 inset-x-3 bg-black/70 text-white text-center text-sm py-1 rounded flex items-center justify-center gap-1">
                 <Camera size={11} /> 撮影済み画像 (プレビュー)
               </div>
             )}
             {phase === 'result' && (
-              <div className="absolute bottom-2 inset-x-3 bg-emerald-600/90 text-white text-center text-[11px] py-1 rounded flex items-center justify-center gap-1">
+              <div className="absolute bottom-2 inset-x-3 bg-emerald-600/90 text-white text-center text-sm py-1 rounded flex items-center justify-center gap-1">
                 <CheckCircle2 size={11} /> 認識完了
               </div>
             )}
           </div>
-          <div className="mt-2 text-[11px] text-black flex items-center gap-1">
+          <div className="mt-2 text-sm text-black flex items-center gap-1">
             <ScanLine size={11} /> 部品表・参考図・既存BOM印刷物を OCR
           </div>
         </div>
 
         <div className="col-span-3">
-          <div className="text-xs font-semibold text-black mb-2 flex items-center gap-1">
+          <div className="text-sm font-semibold text-black mb-2 flex items-center gap-1">
             <Sparkles size={12} /> 認識結果 ({sample.items.length}行)
           </div>
           {phase === 'preview' && (
-            <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-8 text-center text-xs text-black">
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded p-8 text-center text-sm text-black">
               「OCRを実行」を押して認識を開始
             </div>
           )}
@@ -6243,7 +6247,7 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
           )}
           {phase === 'result' && (
             <>
-              <div className="grid grid-cols-3 gap-2 mb-2 text-[11px]">
+              <div className="grid grid-cols-3 gap-2 mb-2 text-sm">
                 <div className="bg-emerald-50 border border-emerald-200 rounded p-1.5 flex items-center gap-1.5">
                   <Link2 size={12} className="text-emerald-600" />
                   <span><span className="font-bold text-emerald-700">{matchedNew.length}</span>件 マスタ照合OK</span>
@@ -6258,8 +6262,8 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
                 </div>
               </div>
               <div className="max-h-64 overflow-y-auto border border-slate-200 rounded">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 text-[11px] uppercase text-black sticky top-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-sm uppercase text-black sticky top-0">
                     <tr>
                       <th className="text-left px-2 py-1.5">OCR読取</th>
                       <th className="text-left px-2 py-1.5">マスタ照合</th>
@@ -6271,8 +6275,8 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
                     {matched.map((it, i) => (
                       <tr key={i} className={it.match ? (it.alreadyInBom ? 'bg-amber-50/50' : 'bg-emerald-50/40') : 'bg-rose-50/40'}>
                         <td className="px-2 py-1.5">
-                          <div className="font-mono text-[11px] text-black">{it.rawCode}</div>
-                          <div className="text-[11px]">{it.rawName}</div>
+                          <div className="font-mono text-sm text-black">{it.rawCode}</div>
+                          <div className="text-sm">{it.rawName}</div>
                         </td>
                         <td className="px-2 py-1.5">
                           {it.match ? (
@@ -6281,27 +6285,27 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
                                 ? <AlertCircle size={11} className="text-amber-600 mt-0.5 shrink-0" />
                                 : <Link2 size={11} className="text-emerald-600 mt-0.5 shrink-0" />}
                               <div>
-                                <div className="font-mono text-[11px] text-black">{it.match.id}</div>
-                                <div className="text-[11px]">{it.match.name}</div>
+                                <div className="font-mono text-sm text-black">{it.match.id}</div>
+                                <div className="text-sm">{it.match.name}</div>
                                 {it.alreadyInBom && <div className="text-[9px] text-amber-700">既にBOMに登録済</div>}
                               </div>
                             </div>
                           ) : (
                             <div className="flex items-center gap-1 text-rose-700">
                               <XCircle size={11} />
-                              <span className="text-[11px]">未登録（要マスタ追加）</span>
+                              <span className="text-sm">未登録（要マスタ追加）</span>
                             </div>
                           )}
                         </td>
                         <td className="px-2 py-1.5 text-right font-mono">{it.qty}</td>
-                        <td className="px-2 py-1.5 text-[11px]">{it.position}</td>
+                        <td className="px-2 py-1.5 text-sm">{it.position}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               {unmatched.length > 0 && (
-                <div className="mt-2 text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1.5 flex items-start gap-1">
+                <div className="mt-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1.5 flex items-start gap-1">
                   <AlertTriangle size={11} className="mt-0.5 shrink-0" />
                   <span>未登録 {unmatched.length}件 は反映対象外。先に部品マスタへ登録が必要です。</span>
                 </div>
@@ -6323,7 +6327,7 @@ const BomOcrModal = ({ open, onClose, parts, existingBom, onApply }: {
           </>
         )}
         <Btn variant="secondary" onClick={onClose}>キャンセル</Btn>
-        <div className="ml-auto text-[11px] text-black self-center">実装時: 撮影/PDF取込 → Vision API → 品番・数量・位置を抽出 → マスタ照合</div>
+        <div className="ml-auto text-sm text-black self-center">実装時: 撮影/PDF取込 → Vision API → 品番・数量・位置を抽出 → マスタ照合</div>
       </div>
       <style>{`@keyframes ocrScanY { 0%,100% { top: 5%; } 50% { top: 95%; } }`}</style>
     </Modal>
@@ -6372,10 +6376,10 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <button onClick={() => setShowBomOcr(true)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition">
+        <button onClick={() => setShowBomOcr(true)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition">
           <Camera size={13} /> 部品表OCR読み込み <Sparkles size={11} className="text-blue-500" />
         </button>
-        <span className="text-[11px] text-black">カメラで部品表を撮影 → BOMに一括追加</span>
+        <span className="text-sm text-black">カメラで部品表を撮影 → BOMに一括追加</span>
       </div>
 
       {showBomOcr && (
@@ -6393,18 +6397,18 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
                   setShowBomOcr(false);
                   const sampleBomParts = parts.filter(p => !bomPartIds.has(p.id)).slice(0, 3);
                   sampleBomParts.forEach(p => onAdd(p.id, Math.floor(Math.random() * 5) + 1, ''));
-                }} className="text-xs text-blue-600 hover:underline">サンプルデータで一括追加（デモ）</button>
+                }} className="text-sm text-blue-600 hover:underline">サンプルデータで一括追加（デモ）</button>
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-black mb-2 flex items-center gap-1"><Sparkles size={12} /> OCR認識手順</div>
-              <div className="space-y-2 text-xs text-black">
+              <div className="text-sm font-semibold text-black mb-2 flex items-center gap-1"><Sparkles size={12} /> OCR認識手順</div>
+              <div className="space-y-2 text-sm text-black">
                 <div className="bg-slate-50 rounded p-2">1. 部品表・図面・既存BOMを撮影</div>
                 <div className="bg-slate-50 rounded p-2">2. 品番・品名・数量をOCR認識</div>
                 <div className="bg-slate-50 rounded p-2">3. 部品マスタと照合</div>
                 <div className="bg-slate-50 rounded p-2">4. マッチした部品をBOMに一括追加</div>
               </div>
-              <div className="mt-3 text-[11px] text-black">本番環境ではCloud Vision / Document AIで高精度認識します</div>
+              <div className="mt-3 text-sm text-black">本番環境ではCloud Vision / Document AIで高精度認識します</div>
             </div>
           </div>
           <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
@@ -6414,7 +6418,7 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
       )}
 
       <table className="w-full text-sm mb-4">
-        <thead className="bg-slate-50 text-xs text-black border-b border-slate-200">
+        <thead className="bg-slate-50 text-sm text-black border-b border-slate-200">
           <tr>
             <th className="text-left px-3 py-2 font-medium">品番</th>
             <th className="text-left px-3 py-2 font-medium">品名</th>
@@ -6426,9 +6430,9 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
         <tbody className="divide-y divide-slate-100">
           {boms.map((b: any) => (
             <tr key={b.id} className="hover:bg-slate-50">
-              <td className="px-3 py-2 font-mono text-xs">{b.partId}</td>
+              <td className="px-3 py-2 font-mono text-sm">{b.partId}</td>
               <td className="px-3 py-2">{b.part?.name || b.partId}</td>
-              <td className="px-3 py-2 text-xs">{b.position || '-'}</td>
+              <td className="px-3 py-2 text-sm">{b.position || '-'}</td>
               <td className="px-3 py-2 text-right font-mono">{Number(b.qty)}</td>
               <td className="px-3 py-2 text-right"><button onClick={() => onRemove(b.id)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"><Trash2 size={14} /></button></td>
             </tr>
@@ -6437,7 +6441,7 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
         </tbody>
       </table>
       <div className="border-t border-slate-200 pt-3">
-        <div className="text-xs font-semibold text-black mb-2">部品を追加</div>
+        <div className="text-sm font-semibold text-black mb-2">部品を追加</div>
         <div className="flex items-end gap-2">
           <Field label="部品">
             <div className="relative">
@@ -6445,7 +6449,7 @@ const BomEditor = ({ boms, parts, onAdd, onRemove }: { boms: any[]; parts: Part[
               {dropdownOpen && filteredParts.length > 0 && (
                 <div className="absolute z-10 w-64 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
                   {filteredParts.map(p => (
-                    <button key={p.id} type="button" onMouseDown={e => { e.preventDefault(); setAddPartId(p.id); setPartSearch(p.id); setDropdownOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50">
+                    <button key={p.id} type="button" onMouseDown={e => { e.preventDefault(); setAddPartId(p.id); setPartSearch(p.id); setDropdownOpen(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50">
                       <span className="font-mono">{p.id}</span> <span className="text-black">{p.name}</span>
                     </button>
                   ))}
@@ -6470,7 +6474,7 @@ const LocationFormModal = ({ location, isNew, onClose, onSave }: { location: any
   const autoId = `${form.shelf || '?'}-${form.col || '?'}-${form.row || '?'}${form.side ? '-' + form.side : ''}`;
   return (
     <Modal open onClose={onClose} title={isNew ? 'ロケーション 新規登録' : `ロケーション編集: ${location.id}`} size="md">
-      {isNew && <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-800">自動生成ID: <span className="font-mono font-bold">{autoId}</span></div>}
+      {isNew && <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-2 text-sm text-blue-800">自動生成ID: <span className="font-mono font-bold">{autoId}</span></div>}
       <div className="grid grid-cols-2 gap-3 text-sm">
         <Field label="倉庫*"><input value={form.warehouse || ''} onChange={e => upd('warehouse', e.target.value)} className={inputClass} /></Field>
         <Field label="棚*"><input value={form.shelf || ''} onChange={e => upd('shelf', e.target.value)} className={inputClass} /></Field>
@@ -6547,7 +6551,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">仕入先一覧 ({filteredAll.length}件)</h2>
+          <h2 className="font-bold text-base">仕入先一覧 ({filteredAll.length}件)</h2>
           <div className="flex items-center gap-2">
             <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchSupp} onChange={e => { setSearchSupp(e.target.value); setSuppPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn variant="secondary" icon={Upload} onClick={() => setShowSuppCsvImport(true)}>CSV一括登録</Btn>
@@ -6556,7 +6560,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">コード</th>
                 <th className="text-left px-3 py-2 font-medium">仕入先名</th>
@@ -6569,14 +6573,14 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
             <tbody className="divide-y divide-slate-100">
               {filtered.map((s: any) => (
                 <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 font-mono text-xs">{s.code}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{s.code}</td>
                   <td className="px-3 py-2">
                     <div className="font-semibold">{s.name}</div>
-                    {s.email && <div className="text-xs text-black">{s.email}</div>}
+                    {s.email && <div className="text-sm text-black">{s.email}</div>}
                   </td>
-                  <td className="px-3 py-2 text-xs">{s.tel || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{s.contactPerson || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{s.paymentTerms || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{s.tel || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{s.contactPerson || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{s.paymentTerms || '-'}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditSupplier(s)}>編集</Btn>
@@ -6590,7 +6594,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
           </table>
         </div>
         {filteredAll.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-black">
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-sm text-black">
             <div className="flex items-center gap-2">
               <span>表示件数:</span>
               <select value={suppPerPage} onChange={e => { setSuppPerPage(Number(e.target.value)); setSuppPage(1); }} className="border border-slate-200 rounded px-2 py-1">
@@ -6610,7 +6614,7 @@ const SuppliersTab = ({ toast }: { toast: (msg: string) => void }) => {
       )}
       {deleteTarget && (
         <Modal open onClose={() => setDeleteTarget(null)} title="仕入先の削除確認" size="sm">
-          <div className="text-sm mb-4"><p>以下の仕入先を削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-xs text-black">{deleteTarget.code}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="text-sm mb-4"><p>以下の仕入先を削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-mono text-sm text-black">{deleteTarget.code}</div><div className="font-semibold">{deleteTarget.name}</div></div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
@@ -6658,7 +6662,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">メーカー一覧 ({filteredMakersAll.length}件)</h2>
+          <h2 className="font-bold text-base">メーカー一覧 ({filteredMakersAll.length}件)</h2>
           <div className="flex items-center gap-2">
             <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchMaker} onChange={e => { setSearchMaker(e.target.value); setMakerPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn variant="secondary" icon={Upload} onClick={() => setShowMakerCsvImport(true)}>CSV一括登録</Btn>
@@ -6667,7 +6671,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">メーカー名</th>
                 <th className="text-left px-3 py-2 font-medium">コード</th>
@@ -6681,10 +6685,10 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
               {filteredMakers.map((m: any) => (
                 <tr key={m.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-semibold">{m.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{m.code || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{m.tel || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{m.email || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{m.website ? <a href={m.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{m.website}</a> : '-'}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{m.code || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{m.tel || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{m.email || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{m.website ? <a href={m.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{m.website}</a> : '-'}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditMaker(m)}>編集</Btn>
@@ -6698,7 +6702,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
           </table>
         </div>
         {filteredMakersAll.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-black">
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-sm text-black">
             <div className="flex items-center gap-2">
               <span>表示件数:</span>
               <select value={makerPerPage} onChange={e => { setMakerPerPage(Number(e.target.value)); setMakerPage(1); }} className="border border-slate-200 rounded px-2 py-1">
@@ -6718,7 +6722,7 @@ const MakersTab = ({ toast }: { toast: (msg: string) => void }) => {
       )}
       {deleteTarget && (
         <Modal open onClose={() => setDeleteTarget(null)} title="メーカーの削除確認" size="sm">
-          <div className="text-sm mb-4"><p>以下のメーカーを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-semibold">{deleteTarget.name}</div>{deleteTarget.code && <div className="font-mono text-xs text-black">{deleteTarget.code}</div>}</div></div>
+          <div className="text-sm mb-4"><p>以下のメーカーを削除しますか？</p><div className="mt-2 bg-slate-50 rounded p-3"><div className="font-semibold">{deleteTarget.name}</div>{deleteTarget.code && <div className="font-mono text-sm text-black">{deleteTarget.code}</div>}</div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>削除する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
@@ -6765,7 +6769,7 @@ const SupplierFormModal = ({ supplier, isNew, onClose, onSave }: { supplier: any
         <Field label="支払条件"><input value={form.paymentTerms || ''} onChange={e => upd('paymentTerms', e.target.value)} className={inputClass} placeholder="例: 月末締翌月末払い" /></Field>
         <Field label="備考" full><textarea value={form.notes || ''} onChange={e => upd('notes', e.target.value)} className={`${inputClass} h-16`} placeholder="納入条件、特記事項など" /></Field>
       </div>
-      <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2.5 text-xs text-blue-800">
+      <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2.5 text-sm text-blue-800">
         ここで登録した情報は発注書PDFに自動反映されます（住所・TEL・FAX・支払条件）
       </div>
       <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
@@ -6815,7 +6819,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
     <>
       <div className="bg-white rounded-lg border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="font-bold text-sm">客先一覧 ({filteredCustAll.length}件)</h2>
+          <h2 className="font-bold text-base">客先一覧 ({filteredCustAll.length}件)</h2>
           <div className="flex items-center gap-2">
             <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-slate-400" /><input value={searchCust} onChange={e => { setSearchCust(e.target.value); setCustPage(1); }} placeholder="検索..." className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-48" /></div>
             <Btn variant="secondary" icon={Upload} onClick={() => setShowCsvImport(true)}>CSV一括登録</Btn>
@@ -6824,7 +6828,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-black uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-sm text-black uppercase border-b border-slate-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">コード</th>
                 <th className="text-left px-3 py-2 font-medium">客先名</th>
@@ -6837,14 +6841,14 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
             <tbody className="divide-y divide-slate-100">
               {filteredCust.map((c: any) => (
                 <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 font-mono text-xs">{c.code || '-'}</td>
+                  <td className="px-3 py-2 font-mono text-sm">{c.code || '-'}</td>
                   <td className="px-3 py-2">
                     <div className="font-semibold">{c.name}</div>
-                    {c.address && <div className="text-xs text-black truncate max-w-[200px]">{c.address}</div>}
+                    {c.address && <div className="text-sm text-black truncate max-w-[200px]">{c.address}</div>}
                   </td>
-                  <td className="px-3 py-2 text-xs">{c.tel || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{c.fax || '-'}</td>
-                  <td className="px-3 py-2 text-xs">{c.email || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{c.tel || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{c.fax || '-'}</td>
+                  <td className="px-3 py-2 text-sm">{c.email || '-'}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <Btn variant="ghost" size="sm" icon={Edit} onClick={() => setEditCustomer(c)}>編集</Btn>
@@ -6858,7 +6862,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
           </table>
         </div>
         {filteredCustAll.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-black">
+          <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between text-sm text-black">
             <div className="flex items-center gap-2">
               <span>表示件数:</span>
               <select value={custPerPage} onChange={e => { setCustPerPage(Number(e.target.value)); setCustPage(1); }} className="border border-slate-200 rounded px-2 py-1">
@@ -6878,7 +6882,7 @@ const CustomersTab = ({ toast }: { toast: (msg: string) => void }) => {
       )}
       {deleteTarget && (
         <Modal open onClose={() => setDeleteTarget(null)} title="客先の無効化確認" size="sm">
-          <div className="text-sm mb-4"><p>以下の客先を無効化しますか？</p><div className="mt-2 bg-slate-50 rounded p-3">{deleteTarget.code && <div className="font-mono text-xs text-black">{deleteTarget.code}</div>}<div className="font-semibold">{deleteTarget.name}</div></div></div>
+          <div className="text-sm mb-4"><p>以下の客先を無効化しますか？</p><div className="mt-2 bg-slate-50 rounded p-3">{deleteTarget.code && <div className="font-mono text-sm text-black">{deleteTarget.code}</div>}<div className="font-semibold">{deleteTarget.name}</div></div></div>
           <div className="flex gap-2"><Btn variant="danger" icon={Trash2} onClick={handleDelete}>無効化する</Btn><Btn variant="secondary" onClick={() => setDeleteTarget(null)}>キャンセル</Btn></div>
         </Modal>
       )}
@@ -6981,14 +6985,14 @@ const CsvImportModalGeneric = ({ type, onClose, onRefresh, toast }: { type: stri
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <button onClick={downloadTemplate} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Download size={14} />雛形ダウンロード</button>
-          <span className="text-xs text-black">CSVファイルを選択してアップロードしてください</span>
+          <span className="text-sm text-black">CSVファイルを選択してアップロードしてください</span>
         </div>
         <input type="file" accept=".csv" onChange={handleFile} className="block w-full text-sm text-black file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
         {previewRows.length > 0 && (
           <>
-            <div className="text-xs font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
+            <div className="text-sm font-semibold text-black">{previewRows.length}件のデータをプレビュー中</div>
             <div className="max-h-60 overflow-auto border border-slate-200 rounded">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead className="bg-slate-50 sticky top-0"><tr>{cfg.previewCols.map(c => <th key={c} className="px-2 py-1 text-left">{c}</th>)}</tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {previewRows.slice(0, 20).map((r, i) => (
@@ -6997,7 +7001,7 @@ const CsvImportModalGeneric = ({ type, onClose, onRefresh, toast }: { type: stri
                 </tbody>
               </table>
             </div>
-            {previewRows.length > 20 && <div className="text-xs text-black">...他 {previewRows.length - 20}件</div>}
+            {previewRows.length > 20 && <div className="text-sm text-black">...他 {previewRows.length - 20}件</div>}
             <Btn variant="primary" icon={Upload} onClick={handleImport} disabled={importing}>{importing ? '登録中...' : `${previewRows.length}件を一括登録`}</Btn>
           </>
         )}
