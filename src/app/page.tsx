@@ -14,6 +14,7 @@ import {
   Zap, RefreshCw, Link2, XCircle, Download, Upload, ChevronUp,
 } from 'lucide-react';
 import { Modal, Btn, StatusBadge, Toast, Field, Card, inputClass } from '@/components/ui/shared';
+import { ProductMgmtScreen } from '@/components/ProductMgmtScreen';
 import { STATUS_COLOR, ORDER_STATUS, MO_STATUS, SALES_STATUS, LOG_CATEGORY, SHORTAGE_REASON, yen } from '@/lib/constants';
 import { api } from '@/lib/api';
 
@@ -80,6 +81,7 @@ interface Log {
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
   { id: 'sales', label: '受注管理', icon: FileText },
+  { id: 'product-mgmt', label: '製品管理表', icon: ClipboardCheck },
   { id: 'production', label: '製造管理', icon: Factory },
   { id: 'orders', label: '発注管理', icon: ShoppingCart },
   { id: 'receive', label: '入庫処理', icon: Truck },
@@ -7126,6 +7128,7 @@ const viewTitles: Record<string, { title: string; subtitle?: string }> = {
   orders: { title: '発注管理', subtitle: '発注書の作成・承認・進捗管理' },
   receive: { title: '入庫処理', subtitle: '納品の受入・検収' },
   sales: { title: '受注管理', subtitle: '工番・受注の登録・編集・削除' },
+  'product-mgmt': { title: '営業 製品管理表', subtitle: '製品ごとの営業・設計・資材・鈑金塗装・組立情報の一括管理' },
   production: { title: '製造管理', subtitle: 'BOM展開・ピッキング進捗・ステータス遷移' },
   issue: { title: '出庫処理', subtitle: '受注に基づく部品払出' },
   stocktake: { title: '棚卸し', subtitle: '実地棚卸しの管理' },
@@ -7227,6 +7230,7 @@ export default function AppPage() {
           {view === 'orders' && <OrdersScreen parts={parts} orders={orders} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
           {view === 'receive' && <ReceiveScreen orders={orders} parts={parts} onRefresh={fetchAll} toast={toast} userName={currentUserName} userId={currentUserId} />}
           {view === 'sales' && <SalesOrderScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
+          {view === 'product-mgmt' && <ProductMgmtScreen />}
           {view === 'production' && <ProductionScreen prodOrders={prodOrders} toast={toast} onRefresh={fetchAll} parts={parts} customers={customers} />}
           {view === 'issue' && <IssueScreen prodOrders={prodOrders} onRefresh={fetchAll} toast={toast} />}
           {view === 'stocktake' && <StocktakeScreen parts={parts} locations={locations} toast={toast} onRefresh={fetchAll} />}
