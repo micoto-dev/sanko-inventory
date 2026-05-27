@@ -2938,15 +2938,29 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
   const [dragOffset, setDragOffset] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const config = period === '2w' ? { days: 14, before: 3 }
-              : period === '1m' ? { days: 30, before: 5 }
-              : period === '3m' ? { days: 90, before: 7 }
-              : period === '6m' ? { days: 180, before: 14 }
-              : { days: 365, before: 30 };
+  const config = period === '2w' ? { days: 14, before: 4 }
+              : period === '1m' ? { days: 30, before: 8 }
+              : period === '3m' ? { days: 90, before: 30 }
+              : period === '6m' ? { days: 180, before: 60 }
+              : { days: 365, before: 90 };
+  // Extend "before" to include earliest scheduled date among visible orders (capped)
+  let extraBefore = 0;
+  prodOrders.forEach(m => {
+    const dates: string[] = [];
+    if (m.startDate) dates.push(m.startDate);
+    (m.orderStages || []).forEach(os => { if (os.startDate) dates.push(os.startDate); });
+    dates.forEach(ds => {
+      const d = new Date(ds); d.setHours(0, 0, 0, 0);
+      const daysBack = Math.floor((today.getTime() - d.getTime()) / 86400000);
+      if (daysBack > config.before + extraBefore) extraBefore = daysBack - config.before;
+    });
+  });
+  extraBefore = Math.min(extraBefore, 180); // cap
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - config.before);
+  startDate.setDate(startDate.getDate() - (config.before + extraBefore));
   const dateRange: Date[] = [];
-  for (let i = 0; i <= config.days; i++) {
+  const totalSpan = config.days + extraBefore;
+  for (let i = 0; i <= totalSpan; i++) {
     const d = new Date(startDate); d.setDate(d.getDate() + i);
     dateRange.push(d);
   }
