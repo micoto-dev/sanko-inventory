@@ -2839,19 +2839,14 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
   );
 };
 
-const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatus, onOpenDetail }: {
+const ProductionKanban = ({ prodOrders, stages, onEdit, onChangeStatus, onOpenDetail }: {
   prodOrders: ProdOrder[]; stages: ProductionStage[];
-  onEdit: (m: ProdOrder) => void; onAdvance: (m: ProdOrder) => void;
+  onEdit: (m: ProdOrder) => void;
   onChangeStatus: (m: ProdOrder, key: string) => void;
   onOpenDetail: (m: ProdOrder) => void;
 }) => {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  const getNextStage = (key: string) => {
-    const cur = stages.find(s => s.key === key);
-    if (!cur) return null;
-    return stages.filter(s => s.sortOrder > cur.sortOrder && s.isActive).sort((a, b) => a.sortOrder - b.sortOrder)[0] || null;
-  };
   const sortedStages = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
   return (
     <div className="overflow-x-auto">
@@ -2878,7 +2873,6 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
               </div>
               <div className="space-y-2">
                 {items.map(m => {
-                  const nextStage = getNextStage(m.status);
                   const progress = taskProgress(m.taskChecks, stages);
                   const overdue = isProdOrderOverdue(m, stages);
                   return (
@@ -2907,11 +2901,6 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
                           </div>
                           <span className="text-sm text-black font-mono">{progress.checked}/{progress.total}</span>
                         </div>
-                      )}
-                      {nextStage && (
-                        <button onClick={e => { e.stopPropagation(); onAdvance(m); }} className="w-full text-sm py-1 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-1">
-                          <ChevronRight size={11} /> {nextStage.name}へ
-                        </button>
                       )}
                     </div>
                   );
@@ -3425,7 +3414,7 @@ const ProductionScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { 
         ))}
       </div>
       {view === 'list' && <ProductionList prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onOpenDetail={openDetail} toast={toast} />}
-      {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onAdvance={handleAdvance} onChangeStatus={handleChangeStatus} onOpenDetail={openDetail} />}
+      {view === 'kanban' && <ProductionKanban prodOrders={prodOrders} stages={stages} onEdit={setEditMo} onChangeStatus={handleChangeStatus} onOpenDetail={openDetail} />}
       {view === 'gantt' && <ProductionGantt prodOrders={prodOrders} stages={stages} onOpenDetail={openDetail}
         onUpdateStage={async (orderId, stageId, data) => {
           try { await api.updateProductionOrderStage(orderId, stageId, data); toast('日程を更新しました'); onRefresh(); }
