@@ -2473,7 +2473,7 @@ const ProductionDetailPage = ({ prodOrderId, stages, onClose, onRefresh, toast, 
         <button onClick={onClose} className="text-sm text-blue-600 hover:underline flex items-center gap-1">
           <ChevronRight size={16} className="rotate-180" />一覧へ戻る
         </button>
-        <h1 className="text-xl font-bold">製造詳細: <span className="font-mono">{detail.prodNo}</span></h1>
+        <h1 className="text-xl font-bold">工番: <span className="font-mono">{detail.prodNo}</span></h1>
         <div />
       </div>
 
