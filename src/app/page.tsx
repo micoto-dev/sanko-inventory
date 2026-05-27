@@ -952,8 +952,38 @@ const OrderDetailPanel = ({ order: initialOrder, parts, onClose, onRefresh, toas
     } catch (e: any) { toast(`エラー: ${e.message}`); }
   };
 
+  // 振替元/振替先の集約情報を作成（明細単位で持っているのを発注ヘッダにまとめる）
+  const replaceFromList = (order.details || []).map(d => d.replacesDetail).filter(Boolean) as { detailId: number; lineNo: number; orderId: number; orderNo: string; supplier: string; status: string }[];
+  const replaceFromUnique = Array.from(new Map(replaceFromList.map(r => [r.orderId, r])).values());
+  const replaceToList = (order.details || []).flatMap(d => d.replacements || []);
+  const replaceToUnique = Array.from(new Map(replaceToList.map(r => [r.orderId, r])).values());
+
   return (
     <Modal open onClose={handleClose} title={`発注詳細: ${order.orderNo}`} size="xl">
+      {(replaceFromUnique.length > 0 || replaceToUnique.length > 0) && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded p-3 text-sm space-y-1">
+          {replaceFromUnique.map(r => (
+            <div key={r.orderId} className="flex items-center gap-2 flex-wrap">
+              <Link2 size={14} className="text-amber-700" />
+              <span className="font-semibold text-amber-900">振替元:</span>
+              <button onClick={() => onJumpToOrder?.(r.orderId)} disabled={!onJumpToOrder}
+                className="text-blue-700 hover:underline disabled:no-underline disabled:cursor-default font-mono">{r.orderNo}</button>
+              <span>(<span className="font-semibold">{r.supplier}</span>)</span>
+              <span className="text-slate-600">— この発注は上記からの振替分です</span>
+            </div>
+          ))}
+          {replaceToUnique.map(r => (
+            <div key={r.orderId} className="flex items-center gap-2 flex-wrap">
+              <Link2 size={14} className="text-amber-700" />
+              <span className="font-semibold text-amber-900">振替先:</span>
+              <button onClick={() => onJumpToOrder?.(r.orderId)} disabled={!onJumpToOrder}
+                className="text-blue-700 hover:underline disabled:no-underline disabled:cursor-default font-mono">{r.orderNo}</button>
+              <span>(<span className="font-semibold">{r.supplier}</span>)</span>
+              <span className="text-slate-600">— この発注の一部は上記へ振替済み</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-4 gap-3 mb-4 text-sm">
         <div><div className="text-sm text-black">仕入先</div><div className="font-semibold">{order.supplier}</div></div>
         <div><div className="text-sm text-black">発注日</div><div>{order.orderDate}</div></div>
