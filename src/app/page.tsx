@@ -2286,12 +2286,20 @@ const taskProgress = (taskChecks: { taskId: number; isChecked: boolean }[] | und
 };
 
 const isProdOrderOverdue = (mo: ProdOrder, stages: ProductionStage[]): boolean => {
-  if (!mo.dueDate) return false;
-  const finalKey = stages.length > 0 ? [...stages].sort((a, b) => a.sortOrder - b.sortOrder).slice(-1)[0]?.key : null;
+  // Stages がまだロードされていない場合は遅延判定しない（誤検知防止）
+  if (!stages || stages.length === 0) return false;
+  // 最終工程（最大 sortOrder）に到達していれば遅延扱いしない
+  const finalKey = [...stages].sort((a, b) => a.sortOrder - b.sortOrder).slice(-1)[0]?.key;
   if (mo.status === finalKey) return false;
+  // 比較対象日付: 工程ごとの納期と指図の全体納期のうち最も遅いもの
+  const candidates: number[] = [];
+  if (mo.dueDate) candidates.push(new Date(mo.dueDate).getTime());
+  (mo.orderStages || []).forEach(os => { if (os.dueDate) candidates.push(new Date(os.dueDate).getTime()); });
+  if (candidates.length === 0) return false;
+  const latest = new Date(Math.max(...candidates));
+  latest.setHours(0, 0, 0, 0);
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(mo.dueDate); due.setHours(0, 0, 0, 0);
-  return today.getTime() > due.getTime();
+  return today.getTime() > latest.getTime();
 };
 
 const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
