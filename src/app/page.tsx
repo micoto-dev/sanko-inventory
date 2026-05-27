@@ -2285,6 +2285,15 @@ const taskProgress = (taskChecks: { taskId: number; isChecked: boolean }[] | und
   return { checked, total };
 };
 
+const isProdOrderOverdue = (mo: ProdOrder, stages: ProductionStage[]): boolean => {
+  if (!mo.dueDate) return false;
+  const finalKey = stages.length > 0 ? [...stages].sort((a, b) => a.sortOrder - b.sortOrder).slice(-1)[0]?.key : null;
+  if (mo.status === finalKey) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(mo.dueDate); due.setHours(0, 0, 0, 0);
+  return today.getTime() > due.getTime();
+};
+
 const SalesOrderScreen = ({ prodOrders, toast, onRefresh, parts, customers }: { prodOrders: ProdOrder[]; toast: (msg: string) => void; onRefresh: () => void; parts: Part[]; customers: any[] }) => {
   const [showNew, setShowNew] = useState(false);
   const [editMo, setEditMo] = useState<ProdOrder | null>(null);
@@ -2716,9 +2725,10 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
             {filteredOrders.map(m => {
               const nextStage = getNextStage(m.status);
               const curStage = stages.find(s => s.key === m.status);
+              const overdue = isProdOrderOverdue(m, stages);
               return (
                 <React.Fragment key={m.id}>
-                  <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => handleToggle(m)}>
+                  <tr className={`cursor-pointer ${overdue ? 'bg-rose-50/40 hover:bg-rose-50' : 'hover:bg-slate-50'}`} onClick={() => handleToggle(m)}>
                     <td className="px-3 py-2 text-black">{expandedId === m.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                     <td className="px-3 py-2 font-mono text-sm font-semibold">{m.prodNo}</td>
                     <td className="px-3 py-2 text-sm">{(m as any).productName || '-'}</td>
@@ -2726,8 +2736,13 @@ const ProductionList = ({ prodOrders, stages, onEdit, onAdvance, onOpenDetail, t
                     <td className="px-3 py-2 text-sm">{m.customer || '-'}</td>
                     <td className="px-3 py-2 text-right font-mono">{m.qty}</td>
                     <td className="px-3 py-2 text-sm">{m.startDate || '-'}</td>
-                    <td className="px-3 py-2 text-sm">{m.dueDate || '-'}</td>
-                    <td className="px-3 py-2"><StatusBadge statusKey={m.status} statusMap={stageMap} /></td>
+                    <td className={`px-3 py-2 text-sm ${overdue ? 'text-rose-700 font-semibold' : ''}`}>{m.dueDate || '-'}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge statusKey={m.status} statusMap={stageMap} />
+                        {overdue && <span className="inline-block text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-semibold">遅延</span>}
+                      </div>
+                    </td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Btn variant="primary" size="sm" onClick={() => onOpenDetail(m)}>詳細</Btn>
@@ -2865,22 +2880,26 @@ const ProductionKanban = ({ prodOrders, stages, onEdit, onAdvance, onChangeStatu
                 {items.map(m => {
                   const nextStage = getNextStage(m.status);
                   const progress = taskProgress(m.taskChecks, stages);
+                  const overdue = isProdOrderOverdue(m, stages);
                   return (
                     <div key={m.id} draggable
                       onDragStart={e => { e.dataTransfer.setData('id', String(m.id)); setDraggingId(m.id); }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
                       onClick={() => onOpenDetail(m)}
-                      className={`bg-white border border-slate-200 rounded p-2 cursor-pointer hover:border-blue-300 ${draggingId === m.id ? 'opacity-50' : ''}`}>
+                      className={`bg-white border rounded p-2 cursor-pointer ${overdue ? 'border-rose-300 ring-1 ring-rose-200 hover:border-rose-400' : 'border-slate-200 hover:border-blue-300'} ${draggingId === m.id ? 'opacity-50' : ''}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-mono font-bold text-slate-900">{m.prodNo}</span>
-                        <button onClick={e => { e.stopPropagation(); onEdit(m); }} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
+                        <div className="flex items-center gap-1">
+                          {overdue && <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-semibold">遅延</span>}
+                          <button onClick={e => { e.stopPropagation(); onEdit(m); }} className="text-slate-400 hover:text-blue-600 p-0.5"><Edit size={11} /></button>
+                        </div>
                       </div>
                       <div className="text-sm font-semibold mb-0.5 truncate">{(m as any).productName || '-'}</div>
                       <div className="text-sm text-black flex items-center gap-2 mb-1">
                         <span className="truncate">{m.customer || '-'}</span>
                         <span className="font-mono whitespace-nowrap">×{m.qty}</span>
                       </div>
-                      <div className="text-sm text-black mb-1">納期: {m.dueDate || '-'}</div>
+                      <div className={`text-sm mb-1 ${overdue ? 'text-rose-700 font-semibold' : 'text-black'}`}>納期: {m.dueDate || '-'}</div>
                       {progress.total > 0 && (
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
@@ -3078,18 +3097,22 @@ const ProductionGantt = ({ prodOrders, stages, onOpenDetail, onUpdateStage }: {
           const overallBg = curStage ? stageBarColor(curStage.color) : 'bg-slate-400';
           const overallLeftPct = overallHas ? pct(Math.max(0, overallStartIdx)) : 0;
           const overallWidthPct = overallHas ? pct(Math.min(totalDays - 1, overallEndIdx) - Math.max(0, overallStartIdx) + 1) : 0;
+          const overdue = isProdOrderOverdue(m, stages);
           return (
             <React.Fragment key={m.id}>
-              <div className="px-3 py-2 border-r border-b border-slate-200 text-sm flex items-center gap-2 bg-slate-50/40">
+              <div className={`px-3 py-2 border-r border-b border-slate-200 text-sm flex items-center gap-2 ${overdue ? 'bg-rose-50/60' : 'bg-slate-50/40'}`}>
                 <button onClick={() => toggleCollapse(m.id)} className="text-slate-400 hover:text-blue-600">
                   {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono font-bold">{m.prodNo}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold">{m.prodNo}</span>
+                    {overdue && <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-semibold">遅延</span>}
+                  </div>
                   <div className="text-black truncate text-sm">{(m as any).productName || '-'}</div>
                 </div>
               </div>
-              <div className="relative border-b border-slate-200 bg-slate-50/40 overflow-hidden" style={{ height: 40 }}>
+              <div className={`relative border-b border-slate-200 overflow-hidden ${overdue ? 'bg-rose-50/40' : 'bg-slate-50/40'}`} style={{ height: 40 }}>
                 {todayIdx >= 0 && todayIdx <= totalDays && (
                   <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-10" style={{ left: `${pct(todayIdx)}%` }} />
                 )}
